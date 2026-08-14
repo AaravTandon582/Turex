@@ -13,8 +13,8 @@ Architectural rationale lives in [`docs/decisions.md`](docs/decisions.md).
 |---|-----------|-------|--------|
 | M0 | Architecture | Repo layout, stack selection, schema, API contract, design system, env config, docs | ✅ Complete |
 | M1 | Foundation | Config, logging, error envelope, DB + migrations, auth, app shell, navigation, landing page | ✅ Complete |
-| M2 | Research Library | PDF upload, storage, async ingestion pipeline, parsing, metadata, chunking, library UI, collections, tags, reading status | 🔄 In progress |
-| M3 | AI Research Assistant | Provider abstraction, embeddings, hybrid retrieval, context construction, streaming chat, grounded citations, modes | ⏳ Not started |
+| M2 | Research Library | PDF upload, storage, async ingestion pipeline, parsing, metadata, chunking, library UI, collections, tags, reading status | ✅ Complete |
+| M3 | AI Research Assistant | Provider abstraction, embeddings, hybrid retrieval, context construction, streaming chat, grounded citations, modes | 🔄 In progress |
 | M4 | Paper Reader | PDF viewer, highlights, annotations, selection → AI actions, equation explainer, citation export | ⏳ Not started |
 | M5 | Research Workspace | Projects, notebook, hypotheses, experiments, tasks | ⏳ Not started |
 | M6 | Intelligence Layer | Semantic search, recommendations, knowledge graph | ⏳ Not started |
@@ -47,19 +47,40 @@ exercised through the real frontend origin with browser-equivalent cookie handli
 
 ---
 
-## Current milestone: M2 — Research Library
+## Completed: M2 — Research Library
 
-**Goal:** a user can add a paper and Atlas genuinely reads it — parsed into sections and
-chunks, with metadata extracted and progress visible while it happens.
+A user can add a paper and Atlas genuinely reads it.
 
-- [ ] Storage abstraction with a local filesystem driver
-- [ ] Paper, section, chunk, collection, tag, and job schema
-- [ ] Upload endpoint with validation (type, size, and content sniffing)
-- [ ] Database-backed job queue and in-process worker
-- [ ] PDF parsing: text, structure, metadata, references
-- [ ] Chunking that preserves page and section provenance
-- [ ] Library UI: grid, filters, reading status, collections
-- [ ] Tests across the whole path — upload through to queryable chunks
+- [x] Content-addressed storage behind an interface, with a local filesystem driver
+- [x] Schema for papers, sections, chunks, collections, tags, and jobs
+- [x] Upload validated by magic bytes and size, not by the declared type
+- [x] Database-backed queue with leases, retry backoff, and per-stage progress
+- [x] PDF parsing: text repair, section outline, title / authors / abstract / identifiers
+- [x] Chunking that never spans a section and carries page provenance on every passage
+- [x] Library UI: drag-and-drop upload, live progress, search, filters, sort, pagination
+- [x] Paper detail with outline, metadata, reading status, and reprocess
+- [x] 89 backend tests; ruff, mypy, and the production build clean
+
+**Parser validated against five real papers across four templates** (NeurIPS, CVPR/IEEE, ACL,
+OpenAI). Titles, authors, and publication years extract correctly on all five.
+
+**Verified end to end:** a 68-page paper uploaded through the API moves queued → extracting →
+ready with progress visible at each step, producing 78 sections and 149 located chunks.
+
+---
+
+## Current milestone: M3 — AI Research Assistant
+
+**Goal:** ask a question and get an answer built from passages actually retrieved from your
+library, with every claim resolving to a real page.
+
+- [ ] Chat and embedding provider interfaces, with a deterministic offline embedder for tests
+- [ ] Embedding stage in the ingestion pipeline, plus a backfill for papers already ingested
+- [ ] Hybrid retrieval: vector + lexical, fused by reciprocal rank
+- [ ] Context construction within a token budget, carrying chunk ids through
+- [ ] Streaming chat with citations bound to chunk ids
+- [ ] Assistant modes: explain, research, critique, ideate, experiment, study, write
+- [ ] Retrieval and grounding tests that run without network access
 
 ---
 
@@ -75,12 +96,17 @@ Full rationale in [`docs/decisions.md`](docs/decisions.md).
 | D4 | httpOnly cookie sessions with rotating refresh tokens rather than localStorage JWTs — removes the XSS token-theft class entirely |
 | D5 | Retrieval is hybrid (vector + lexical) with reciprocal-rank fusion; citations reference persisted chunk IDs so every claim resolves to a real source location |
 | D6 | Next.js App Router with server components by default; client components only where interaction demands it |
+| D7 | Tests run against real PostgreSQL, not SQLite — Atlas depends on pgvector, JSONB, and `SKIP LOCKED` |
+| D8 | IBM Plex as the typeface family — technical character, with a matched serif and mono |
 
 ---
 
 ## Known issues
 
-_None recorded yet._
+- **One unexplained 401 on an upload during manual testing.** Observed once; not reproducible
+  across six subsequent uploads, and no 401 appeared in the server log. The session path is
+  covered by the auth suite. Recorded rather than claimed fixed — if it recurs, start with the
+  cookie `Path` scoping in `api/cookies.py`.
 
 ---
 

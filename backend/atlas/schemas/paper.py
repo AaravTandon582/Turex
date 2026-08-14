@@ -69,12 +69,15 @@ class PaperSummary(BaseModel):
     last_opened_at: datetime | None
     created_at: datetime
 
+    ingestion: IngestionProgress | None = None
+    """Present while a paper is being read, so the library can show real progress without
+    a follow-up request per row."""
+
 
 class PaperDetail(PaperSummary):
     abstract: str | None
     section_count: int = 0
     chunk_count: int = 0
-    ingestion: IngestionProgress | None = None
 
 
 class SectionRead(BaseModel):

@@ -8,7 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, File, Query, Response, UploadFile, status
 
 from atlas.api.deps import CurrentUser, PaperServiceDep
-from atlas.models.job import STAGE_LABELS
+from atlas.models.job import STAGE_LABELS, IngestionJob
 from atlas.models.paper import Paper
 from atlas.schemas.paper import (
     IngestionProgress,
@@ -25,8 +25,22 @@ from atlas.services.paper_service import PaperService
 router = APIRouter(prefix="/papers", tags=["papers"])
 
 
-def _summary(paper: Paper) -> PaperSummary:
-    return PaperSummary.model_validate(paper)
+def _progress(job: IngestionJob | None) -> IngestionProgress | None:
+    if job is None:
+        return None
+    return IngestionProgress(
+        stage=job.stage,
+        label=STAGE_LABELS[job.stage],
+        progress=job.progress,
+        attempts=job.attempts,
+        error_message=job.error_message,
+    )
+
+
+def _summary(paper: Paper, job: IngestionJob | None = None) -> PaperSummary:
+    summary = PaperSummary.model_validate(paper)
+    summary.ingestion = _progress(job)
+    return summary
 
 
 async def _detail(service: PaperService, paper: Paper) -> PaperDetail:
@@ -37,14 +51,7 @@ async def _detail(service: PaperService, paper: Paper) -> PaperDetail:
     detail = PaperDetail.model_validate(paper)
     detail.section_count = section_count
     detail.chunk_count = chunk_count
-    if job is not None:
-        detail.ingestion = IngestionProgress(
-            stage=job.stage,
-            label=STAGE_LABELS[job.stage],
-            progress=job.progress,
-            attempts=job.attempts,
-            error_message=job.error_message,
-        )
+    detail.ingestion = _progress(job)
     return detail
 
 
@@ -79,9 +86,10 @@ async def list_papers(
     service: PaperServiceDep,
     filters: Annotated[PaperFilters, Query()],
 ) -> Page[PaperSummary]:
-    papers, total = await service.list_papers(owner=user, filters=filters)
+    found, total = await service.list_papers(owner=user, filters=filters)
+    jobs = await service.progress_for([paper.id for paper in found])
     return Page(
-        items=[_summary(paper) for paper in papers],
+        items=[_summary(paper, jobs.get(paper.id)) for paper in found],
         total=total,
         limit=filters.limit,
         offset=filters.offset,

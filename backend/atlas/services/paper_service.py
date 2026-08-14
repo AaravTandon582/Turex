@@ -9,6 +9,7 @@ not exist.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -264,6 +265,27 @@ class PaperService:
             unread=row.unread,
             favorites=row.favorites,
         )
+
+    async def progress_for(self, paper_ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, IngestionJob]:
+        """Latest job per paper, for a page of results.
+
+        One query for the whole page rather than one per row: a library of forty papers
+        should not cost forty round trips to render its progress bars.
+        """
+        if not paper_ids:
+            return {}
+
+        rows = await self._db.scalars(
+            select(IngestionJob)
+            .where(IngestionJob.paper_id.in_(paper_ids))
+            .order_by(IngestionJob.paper_id, IngestionJob.created_at.desc())
+        )
+
+        latest: dict[uuid.UUID, IngestionJob] = {}
+        for job in rows:
+            # Ordered newest-first within each paper, so the first one wins.
+            latest.setdefault(job.paper_id, job)
+        return latest
 
     async def latest_job(self, paper_id: uuid.UUID) -> IngestionJob | None:
         return await self._db.scalar(
