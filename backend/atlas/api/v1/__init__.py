@@ -7,6 +7,7 @@ from atlas.api.v1 import (
     assistant,
     auth,
     collections,
+    discovery,
     health,
     papers,
     workspace,
@@ -20,5 +21,6 @@ api_router.include_router(collections.router)
 api_router.include_router(assistant.router)
 api_router.include_router(annotations.router)
 api_router.include_router(workspace.router)
+api_router.include_router(discovery.router)
 
 __all__ = ["api_router"]

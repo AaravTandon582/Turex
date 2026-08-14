@@ -4,6 +4,7 @@ import {
   Home,
   Library,
   MessagesSquare,
+  Search,
   Share2,
   type LucideIcon,
 } from "lucide-react";
@@ -25,6 +26,7 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/dashboard", label: "Home", icon: Home, shortcut: "h" },
   { href: "/library", label: "Library", icon: Library, shortcut: "l" },
+  { href: "/search", label: "Search", icon: Search, shortcut: "s" },
   { href: "/projects", label: "Projects", icon: FlaskConical, shortcut: "p" },
   { href: "/notebook", label: "Notebook", icon: BookOpen, shortcut: "n" },
   { href: "/graph", label: "Graph", icon: Share2, shortcut: "g" },

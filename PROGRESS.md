@@ -17,8 +17,8 @@ Architectural rationale lives in [`docs/decisions.md`](docs/decisions.md).
 | M3 | AI Research Assistant | Provider abstraction, embeddings, hybrid retrieval, context construction, streaming chat, grounded citations, modes | ✅ Complete |
 | M4 | Paper Reader | PDF viewer, highlights, annotations, selection → AI actions, equation explainer, citation export | ✅ Complete |
 | M5 | Research Workspace | Projects, notebook, hypotheses, experiments, tasks | ✅ Complete |
-| M6 | Intelligence Layer | Semantic search, recommendations, knowledge graph | 🔄 In progress |
-| M7 | Study Mode | Explanations by level, flashcards, quizzes, progress tracking | ⏳ Not started |
+| M6 | Intelligence Layer | Semantic search, recommendations, knowledge graph | ✅ Complete |
+| M7 | Study Mode | Explanations by level, flashcards, quizzes, progress tracking | 🔄 In progress |
 | M8 | Polish | Motion, responsiveness, a11y, empty/loading/error states, onboarding | ⏳ Not started |
 | M9 | Evaluation | Retrieval + citation benchmark, hallucination checks, security review | ⏳ Not started |
 | M10 | Demo | Seeded demo account, curated papers, scripted walkthrough | ⏳ Not started |
@@ -133,14 +133,47 @@ prediction → record the actual result → downgrade the hypothesis to weakly s
 
 ---
 
-## Current milestone: M6 — Intelligence Layer
+## Completed: M6 — Intelligence Layer
 
 **Goal:** surface what the library already knows but has not been asked.
 
-- [ ] Semantic search UI over the whole library
-- [ ] Paper recommendations that explain why each one is relevant
-- [ ] Knowledge graph connecting papers, concepts, and questions
-- [ ] Dashboard wired to real data
+- Recommendations from mean-pooled document embeddings, cosine-scored against the rest of the
+  library. Each one states which paper it came from; nothing is recommended without a reason.
+- Knowledge graph over papers, shared concepts, projects, and research questions. Concepts are
+  corpus statistics — unigrams and bigrams that several papers actually use — not a model's guess.
+- Dashboard reading from the real stats, project, and recommendation endpoints.
+
+**Verified live** against four downloaded papers (Attention, BERT, RAG, ResNet): 30 concepts,
+78 edges, with `question answering`, `transformer`, `encoder`, `representations`, and
+`architecture` as the strongest shared terms.
+
+**Tuning done against measured values, not guesses:**
+
+- `SIMILARITY_THRESHOLD = 0.25` — the genuinely related pair measured 0.409 and the unrelated
+  pair 0.097. The first value tried (0.45) excluded the pair the feature exists to find.
+- `DOCUMENT_FREQUENCY_FLOOR = 5` — the "too common to be interesting" ceiling is meaningless
+  below five papers, where it excluded exactly the terms shared by most of the library.
+- `MIN_TERM_FREQUENCY = 3` — filters incidental words like "percent" and "median".
+
+**Two bugs worth remembering:**
+
+- Concept extraction originally matched Title Case and acronyms. On real text this matched
+  across heading boundaries ("Abstract Transformer") and missed every lowercase technical term.
+  Replaced with corpus statistics.
+- Ruff reformatted the stopword `frozenset` into a one-word-per-line list, after which several
+  string-replace additions to it silently no-opped. The list is now built by splitting a text
+  block, which no formatter can rewrite.
+
+---
+
+## Current milestone: M7 — Study Mode
+
+**Goal:** turn a paper you have read into something you can actually recall.
+
+- [ ] Explanations at beginner / intermediate / advanced level, grounded in the paper
+- [ ] Flashcards generated from real passages, with the source attached
+- [ ] Quizzes with answers that cite where they came from
+- [ ] Learning progress tracked per paper
 
 ---
 
