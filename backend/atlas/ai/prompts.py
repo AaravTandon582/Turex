@@ -12,6 +12,8 @@ markers makes them over-trigger and produces hedging in every answer.
 
 from __future__ import annotations
 
+import enum
+
 from atlas.models.conversation import AssistantMode
 
 GROUNDING_RULES = """
@@ -177,13 +179,59 @@ MODE_DESCRIPTIONS: dict[AssistantMode, str] = {
 }
 
 
-def system_prompt(mode: AssistantMode, *, paper_scoped: bool) -> str:
+class ExplanationLevel(enum.StrEnum):
+    """How much the reader already knows.
+
+    Three levels rather than a free-text description of the reader, because the useful
+    difference is what may be assumed, and three points cover it: nothing, the field's
+    vocabulary, or the field's current literature.
+    """
+
+    beginner = "beginner"
+    intermediate = "intermediate"
+    advanced = "advanced"
+
+
+LEVEL_INSTRUCTIONS: dict[ExplanationLevel, str] = {
+    ExplanationLevel.beginner: """
+Write for someone meeting this subject for the first time. Assume no vocabulary: every
+technical term is either defined the first time it appears or avoided. Ground abstractions in
+something concrete before naming them — what problem was someone stuck on, and what did this
+let them do?
+
+Do not condescend, and do not skip the real idea. The goal is that a smart reader outside the
+field finishes understanding what the paper actually claims, not a metaphor about it.
+""".strip(),
+    ExplanationLevel.intermediate: """
+Write for someone who knows the field's basics but not this paper. You may use standard
+terminology without defining it, and assume familiarity with the common methods of the area.
+
+Spend the words on what is specific to this work: what it does differently, why that choice,
+and what it buys. Skip the background a textbook already covers.
+""".strip(),
+    ExplanationLevel.advanced: """
+Write for someone who works in this area. Assume the literature. Go straight to the technical
+substance — the mechanism, the assumptions it rests on, the conditions under which the result
+holds and where it would not.
+
+Be precise about what the paper demonstrates versus what it asserts, and name the limitation
+that a careful reader would go looking for.
+""".strip(),
+}
+
+
+def system_prompt(
+    mode: AssistantMode, *, paper_scoped: bool, level: ExplanationLevel | None = None
+) -> str:
     """Assemble the system prompt for a mode.
 
     Order matters for prompt caching: the shared rules come first and are byte-identical
     across every conversation, so the cached prefix is reused broadly.
     """
     parts = [GROUNDING_RULES, _MODE_INSTRUCTIONS[mode].strip()]
+
+    if level is not None:
+        parts.append(LEVEL_INSTRUCTIONS[level])
 
     if paper_scoped:
         parts.append(

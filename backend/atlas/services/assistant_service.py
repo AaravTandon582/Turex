@@ -24,7 +24,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from atlas.ai.base import ChatMessage, ChatProvider, ChatRequest, ChunkKind, Role
-from atlas.ai.prompts import MODE_EFFORT, MODE_RETRIEVAL_LIMIT, system_prompt
+from atlas.ai.prompts import (
+    MODE_EFFORT,
+    MODE_RETRIEVAL_LIMIT,
+    ExplanationLevel,
+    system_prompt,
+)
 from atlas.core.errors import AppError, ConflictError, NotFoundError
 from atlas.core.logging import get_logger
 from atlas.models.conversation import (
@@ -149,6 +154,7 @@ class AssistantService:
         conversation_id: uuid.UUID,
         question: str,
         mode: AssistantMode | None = None,
+        level: ExplanationLevel | None = None,
     ) -> AsyncIterator[TurnEvent]:
         """Run one turn, yielding events as they happen."""
         conversation = await self.get_conversation(owner=owner, conversation_id=conversation_id)
@@ -211,7 +217,11 @@ class AssistantService:
             return
 
         request = ChatRequest(
-            system=system_prompt(turn_mode, paper_scoped=conversation.paper_id is not None),
+            system=system_prompt(
+                turn_mode,
+                paper_scoped=conversation.paper_id is not None,
+                level=level,
+            ),
             messages=[
                 *history,
                 ChatMessage(role=Role.user, content=compose_user_turn(cleaned, context)),

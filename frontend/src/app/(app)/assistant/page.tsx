@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Answer, SourceList, type AnySource } from "@/components/assistant/answer";
+import { LevelPicker } from "@/components/assistant/level-picker";
 import { ModePicker } from "@/components/assistant/mode-picker";
 import { PageContainer } from "@/components/layout/page-container";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import {
   ask,
   assistant,
   type AssistantMode,
+  type ExplanationLevel,
   type AssistantStatus,
   type Conversation,
   type Message,
@@ -36,6 +38,7 @@ export default function AssistantPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [mode, setMode] = useState<AssistantMode>("research");
+  const [level, setLevel] = useState<ExplanationLevel | null>(null);
   const [question, setQuestion] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -136,8 +139,9 @@ export default function AssistantPage() {
           setDraft((current) => (current ? { ...current, error: message } : current)),
       },
       mode,
+      level ?? undefined,
     );
-  }, [question, streaming, activeId, mode]);
+  }, [question, streaming, activeId, mode, level]);
 
   function stop() {
     abortRef.current?.();
@@ -227,6 +231,8 @@ export default function AssistantPage() {
           mode={mode}
           modes={status.modes}
           onModeChange={setMode}
+          level={level}
+          onLevelChange={setLevel}
         />
       </div>
     </div>
@@ -418,6 +424,8 @@ function Composer({
   mode,
   modes,
   onModeChange,
+  level,
+  onLevelChange,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -428,6 +436,8 @@ function Composer({
   mode: AssistantMode;
   modes: { value: AssistantMode; label: string; description: string }[];
   onModeChange: (mode: AssistantMode) => void;
+  level: ExplanationLevel | null;
+  onLevelChange: (level: ExplanationLevel | null) => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -483,13 +493,16 @@ function Composer({
         </Card>
 
         <div className="mt-2 flex items-center justify-between gap-3">
-          <ModePicker
-            modes={modes}
-            value={mode}
-            onChange={onModeChange}
-            disabled={disabled || streaming}
-          />
-          <p className="text-[12px] text-ink-subtle">
+          <div className="flex flex-wrap items-center gap-2">
+            <ModePicker
+              modes={modes}
+              value={mode}
+              onChange={onModeChange}
+              disabled={disabled || streaming}
+            />
+            <LevelPicker value={level} onChange={onLevelChange} disabled={disabled || streaming} />
+          </div>
+          <p className="hidden text-[12px] text-ink-subtle sm:block">
             Answers cite your papers. Atlas says so when it doesn&rsquo;t know.
           </p>
         </div>

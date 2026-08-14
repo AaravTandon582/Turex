@@ -1,5 +1,8 @@
 import { api, API_BASE_URL, ApiError } from "@/lib/api";
 
+/** How much the reader already knows. Sent per turn; the server pitches the answer to it. */
+export type ExplanationLevel = "beginner" | "intermediate" | "advanced";
+
 export type AssistantMode =
   | "explain"
   | "research"
@@ -124,6 +127,7 @@ export function ask(
   question: string,
   handlers: AskHandlers,
   mode?: AssistantMode,
+  level?: ExplanationLevel,
 ): () => void {
   const controller = new AbortController();
 
@@ -134,10 +138,10 @@ export function ask(
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question, mode }),
+        body: JSON.stringify({ question, mode, level }),
         signal: controller.signal,
       });
-    } catch (caught) {
+    } catch {
       if (!controller.signal.aborted) {
         handlers.onError("Atlas can't reach the server. Check your connection.");
       }
@@ -177,7 +181,7 @@ export function ask(
           separator = buffer.indexOf("\n\n");
         }
       }
-    } catch (caught) {
+    } catch {
       if (!controller.signal.aborted) {
         handlers.onError("The answer was interrupted. Try again.");
       }

@@ -25,6 +25,14 @@ from atlas.models.paper import (
     ProcessingStatus,
     ReadingStatus,
 )
+from atlas.models.study import (
+    CardKind,
+    CardReview,
+    Flashcard,
+    Quiz,
+    QuizQuestion,
+    ReviewRating,
+)
 from atlas.models.user import User, UserSession
 from atlas.models.workspace import (
     Evidence,
@@ -46,6 +54,8 @@ __all__ = [
     "Annotation",
     "AssistantMode",
     "Base",
+    "CardKind",
+    "CardReview",
     "Collection",
     "CollectionPaper",
     "Conversation",
@@ -54,6 +64,7 @@ __all__ = [
     "EvidenceStance",
     "Experiment",
     "ExperimentStatus",
+    "Flashcard",
     "HighlightColour",
     "Hypothesis",
     "HypothesisStatus",
@@ -73,7 +84,10 @@ __all__ = [
     "Project",
     "ProjectPaper",
     "ProjectStatus",
+    "Quiz",
+    "QuizQuestion",
     "ReadingStatus",
+    "ReviewRating",
     "Tag",
     "Task",
     "TaskStatus",

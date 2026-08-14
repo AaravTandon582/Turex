@@ -7,6 +7,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from atlas.ai.prompts import ExplanationLevel
 from atlas.models.conversation import AssistantMode, MessageRole
 
 
@@ -64,6 +65,10 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=8000)
     mode: AssistantMode | None = None
     """Overrides the conversation's mode for this turn, and becomes its new default."""
+
+    level: ExplanationLevel | None = None
+    """Who to pitch the answer at. Per-turn only — a reader wanting one concept explained
+    from scratch is not asking for every later answer to be beginner-level."""
 
     @field_validator("question")
     @classmethod

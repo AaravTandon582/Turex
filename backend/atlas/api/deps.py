@@ -23,6 +23,7 @@ from atlas.services.annotation_service import AnnotationService
 from atlas.services.assistant_service import AssistantService
 from atlas.services.auth_service import AuthService, ClientInfo
 from atlas.services.paper_service import CollectionService, PaperService
+from atlas.services.study_service import StudyService
 from atlas.services.workspace_service import WorkspaceService
 from atlas.storage.base import DocumentStore
 from atlas.storage.local import LocalDocumentStore
@@ -113,6 +114,13 @@ def get_assistant_service(
 
 
 AssistantServiceDep = Annotated[AssistantService, Depends(get_assistant_service)]
+
+
+def get_study_service(db: DbDep, registry: ProviderRegistryDep) -> StudyService:
+    return StudyService(db, registry.chat)
+
+
+StudyServiceDep = Annotated[StudyService, Depends(get_study_service)]
 
 
 async def get_current_user(request: Request, db: DbDep, settings: SettingsDep) -> User:

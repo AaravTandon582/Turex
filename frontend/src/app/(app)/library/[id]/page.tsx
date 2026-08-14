@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PageContainer } from "@/components/layout/page-container";
+import { StudyPanel } from "@/components/study/study-panel";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Skeleton } from "@/components/ui/primitives";
 import { ApiError } from "@/lib/api";
@@ -247,7 +248,7 @@ export default function PaperPage() {
             </section>
           )}
 
-
+          <StudyPanel paperId={paper.id} />
         </>
       )}
 

@@ -182,11 +182,12 @@ function NoteEditor({
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latest = useRef({ title, content });
-  latest.current = { title, content };
 
   // Debounced autosave. Typing should never be interrupted by a network round trip, and a
   // notebook that requires pressing Save is one that loses a thought when a tab closes.
+  //
+  // The effect re-runs on every keystroke and its cleanup cancels the pending timer, so only
+  // the final scheduled save survives — and its closure already holds the newest text.
   useEffect(() => {
     if (title === (note.title ?? "") && content === note.content) return;
 
@@ -194,10 +195,7 @@ function NoteEditor({
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
       const saved = await workspace
-        .updateNote(note.id, {
-          title: latest.current.title.trim() || null,
-          content: latest.current.content,
-        })
+        .updateNote(note.id, { title: title.trim() || null, content })
         .catch(() => null);
       if (saved) {
         onSaved(saved);

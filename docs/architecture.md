@@ -53,9 +53,18 @@ Requests move in one direction. A layer may call the one beneath it and never th
 | `models/` | Table definitions and relationships | Contain query logic that belongs to a service |
 | `core/` | Config, logging, errors, hashing, tokens | Import from any layer above |
 
+Four domain packages sit beside `services/` and are called by it. Each is pure enough to test
+without a database or a network:
+
+| Package | Owns |
+|---------|------|
+| `ingestion/` | PDF parsing, text cleaning, section detection, chunking |
+| `retrieval/` | Hybrid search, rank fusion, context assembly within a token budget |
+| `ai/` | The provider interfaces, the two vendor implementations, prompts, JSON validation |
+| `study/` | Spaced-repetition scheduling and the generation prompts |
+
 The practical test: a service should be callable from a background worker or a seed script
-with no HTTP request in sight. `AuthService` satisfies this — the worker in Milestone 2 reuses
-services the same way.
+with no HTTP request in sight. The ingestion worker reuses `PaperService` exactly that way.
 
 ### Errors
 
@@ -154,12 +163,9 @@ in dark mode never flashes white.
 
 ---
 
-## Seams for later milestones
+## Cross-cutting mechanisms
 
-These are named now because they shape the schema and the layering, even though the code
-arrives later.
-
-**Document ingestion (M2)** is asynchronous and database-backed. An upload writes the file to
+**Document ingestion** is asynchronous and database-backed. An upload writes the file to
 storage and enqueues a job row; a poller in the API process claims jobs with
 `SELECT … FOR UPDATE SKIP LOCKED` and advances them through parse → chunk → embed. Progress is
 a column, which means the UI can show real progress by reading it, and a crash mid-parse leaves
@@ -169,11 +175,19 @@ moves to its own container with no schema change.
 **Storage** sits behind an interface with a local-filesystem implementation. Object storage is
 a second implementation, not a rewrite.
 
-**AI providers (M3)** sit behind two interfaces — chat and embeddings — because they have
+**AI providers** sit behind two interfaces — chat and embeddings — because they have
 different vendors: Anthropic has no embedding model. A deterministic offline embedder backs the
 test suite so retrieval can be tested without network access or API keys.
 
-**Retrieval (M3)** is a pipeline of named stages: retrieve → fuse → rerank → build context.
+**Retrieval** is a pipeline of named stages: retrieve → fuse → rerank → build context.
 Reranking is a real stage with a pass-through implementation, so adding a cross-encoder later
 is a swap rather than surgery. Citations reference persisted chunk ids, which is what makes
 "every claim resolves to a real passage" enforceable rather than aspirational.
+
+**Generated content is tied to its source by the server, never by the model.** Assistant
+citations, flashcards, and quiz questions all follow the same rule: the model is given numbered
+passages and refers to them by number, and the server turns that number into a foreign key plus
+a snapshot of the passage text. A reference to a number the model was never given is discarded
+rather than stored. This is the single mechanism behind Atlas's central claim, and it lives in
+three places — `services/assistant_service.py`, `services/study_service.py`, and the models
+that hold the snapshots.

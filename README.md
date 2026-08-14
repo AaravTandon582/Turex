@@ -21,11 +21,17 @@ is built today.
 |------|-------|
 | Application shell, navigation, theming | ✅ Working |
 | Authentication and sessions | ✅ Working |
-| Paper ingestion and library | 🔜 Milestone 2 |
-| Retrieval and research assistant | 🔜 Milestone 3 |
+| Paper ingestion and library | ✅ Working |
+| Hybrid retrieval and the research assistant | ✅ Working |
+| PDF reader, highlights, citation export | ✅ Working |
+| Projects, hypotheses, experiments, notes | ✅ Working |
+| Recommendations and the knowledge graph | ✅ Working |
+| Flashcards, quizzes, spaced repetition | ✅ Working |
+| Polish, evaluation suite | 🔜 Milestones 8–9 |
 
-Screens for unbuilt milestones exist in the navigation and say plainly that they are not
-finished. Nothing in Atlas is mocked to look complete when it is not.
+Everything answering a model needs `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` set; without one,
+those endpoints say so rather than failing obscurely, and the rest of Atlas keeps working.
+Nothing is mocked to look complete when it is not.
 
 ---
 

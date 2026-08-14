@@ -133,6 +133,41 @@ empty answers are acceptable.
 
 ---
 
+## Generated study material
+
+Flashcards and quiz questions are generated, which makes them the same hazard as an answer: a
+plausible card about something the paper never said is worse than no card, because it will be
+memorised.
+
+The mechanism is the same one that keeps citations honest, applied a step earlier:
+
+1. The service selects passages from the paper — content sections only, spread across the
+   document — and numbers them in the prompt.
+2. The model must attach a passage number to every card or question it writes.
+3. The service maps that number back to a chunk id. **A number it was never shown is dropped.**
+4. What is stored keeps both the chunk id and a snapshot of the passage text, so re-ingesting
+   the paper cannot silently change what a card claims its source says.
+
+If nothing survives step 3, the request fails with 422 rather than returning an empty deck —
+"this paper produced no cards" and "every card cited a passage that does not exist" are
+different things and must not look the same.
+
+The reader sees the passage behind every card and every quiz answer, which is what makes the
+guarantee checkable rather than merely claimed.
+
+### Why the JSON is parsed rather than constrained
+
+Both vendors offer a native structured-output mode, and they offer different ones. Asking for
+JSON in the prompt and validating it in `ai/structured.py` keeps the provider interface free of
+vendor-specific request shapes (D3), at the cost of handling responses that are truncated,
+fenced in Markdown, or wrapped in prose. That handling is written and tested, and treating the
+model's output as untrusted input is the correct posture regardless.
+
+Entries that fail validation are dropped; a response with no JSON array at all is a provider
+failure and raises.
+
+---
+
 ## What is not built
 
 - **Reranking.** The pipeline has the stage; it is currently a pass-through. A cross-encoder

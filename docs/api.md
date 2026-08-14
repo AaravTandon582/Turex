@@ -104,8 +104,8 @@ log line produced while handling the request, which is how a reported failure ge
 `tag`, `favorites_only`, `sort` (`recent` · `title` · `year` · `opened`), `limit`, `offset`.
 
 `search` is substring matching over title, filename, abstract, and authors — for finding a
-paper you know you have. Semantic search over contents is a separate feature arriving with
-Milestone 3.
+paper you know you have. Semantic search over the contents is a different endpoint,
+`GET /assistant/search`.
 
 ### Collections
 
@@ -116,6 +116,90 @@ Milestone 3.
 | `DELETE` | `/collections/{id}` | 204. The papers inside are not deleted. |
 | `PUT` | `/collections/{id}/papers/{paperId}` | 204. Idempotent. |
 | `DELETE` | `/collections/{id}/papers/{paperId}` | 204. |
+
+### Assistant
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/assistant/status` | Whether a model is configured, and the available modes. |
+| `GET` | `/assistant/search` | Hybrid search over the library. `q`, `limit`, `paper_id`. |
+| `GET` | `/assistant/conversations` | Most recently updated first. |
+| `POST` | `/assistant/conversations` | 201. Optional `mode` and `paper_id`. |
+| `GET` | `/assistant/conversations/{id}/messages` | The transcript, with citations. |
+| `POST` | `/assistant/conversations/{id}/ask` | **Server-sent events.** See below. |
+| `DELETE` | `/assistant/conversations/{id}` | 204. |
+
+`ask` takes `{question, mode?, level?}` and responds with an SSE stream rather than JSON. It is
+a POST, so a browser's `EventSource` cannot consume it — read `response.body` instead. Frames:
+
+| Event | Payload |
+|---|---|
+| `sources` | The passages retrieved, numbered. Sent **before** any prose. |
+| `text` | A fragment of the answer. |
+| `done` | The turn finished; the message and its citations are persisted. |
+| `error` | A message written for the reader. The turn is still saved. |
+
+`mode` is one of `explain`, `research`, `critique`, `ideate`, `experiment`, `study`, `write`,
+and becomes the conversation's default. `level` is `beginner`, `intermediate`, or `advanced`
+and applies to that turn only.
+
+### Annotations and citations
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/papers/{id}/annotations` | Highlights and margin notes. |
+| `POST` | `/papers/{id}/annotations` | 201. Anchored by text offset, not by pixel position. |
+| `PATCH` | `/annotations/{id}` | Change colour or note. |
+| `DELETE` | `/annotations/{id}` | 204. |
+| `GET` | `/papers/{id}/citations` | BibTeX, APA, and MLA, with `missing_fields` named. |
+
+### Workspace
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET`, `POST` | `/projects` | 201 on create. |
+| `GET`, `PATCH`, `DELETE` | `/projects/{id}` | Detail carries the counts its header shows. |
+| `GET`, `PUT` | `/projects/{id}/papers` | `PUT` attaches; 204. |
+| `DELETE` | `/projects/{id}/papers/{paperId}` | 204. |
+| `GET`, `POST` | `/hypotheses` | Filter by `project_id`. |
+| `GET`, `PATCH`, `DELETE` | `/hypotheses/{id}` | Detail includes its evidence. |
+| `POST` | `/hypotheses/{id}/evidence` | Attach a passage as supporting or contradicting. |
+| `DELETE` | `/evidence/{id}` | 204. |
+| `GET`, `POST` | `/experiments` | |
+| `GET`, `PATCH`, `DELETE` | `/experiments/{id}` | |
+| `GET`, `POST` | `/notes` | Filter by `project_id`, `paper_id`, `search`. |
+| `GET`, `PATCH`, `DELETE` | `/notes/{id}` | |
+| `GET`, `POST` | `/projects/{id}/tasks` | |
+| `PATCH`, `DELETE` | `/tasks/{id}` | |
+
+### Discovery
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/recommendations` | Each result carries the paper it was derived from. |
+| `GET` | `/graph` | Papers, shared concepts, projects, and questions, with their edges. |
+
+### Study
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/papers/{id}/flashcards` | 201. Generates up to `count` (max 20) cards. |
+| `GET` | `/flashcards` | `paper_id`, `due_only`, `limit`. Most overdue first. |
+| `POST` | `/flashcards/{id}/reviews` | `{rating}` — `forgot`, `hard`, `good`, or `easy`. |
+| `DELETE` | `/flashcards/{id}` | 204. |
+| `POST` | `/papers/{id}/quizzes` | 201. Generates up to `count` (max 10) questions. |
+| `GET` | `/quizzes` | Most recent first. |
+| `GET` | `/quizzes/{id}` | |
+| `POST` | `/quizzes/{id}/submission` | `{answers: {questionId: optionIndex}}`. Scored server-side. |
+| `DELETE` | `/quizzes/{id}` | 204. |
+| `GET` | `/study/progress` | Counts per paper and across the library. |
+
+**A quiz does not send its answer key until it has been submitted.** Before submission a
+question carries only `id`, `position`, `prompt`, and `options`. Afterwards the same question
+also carries `correct_index`, `explanation`, `selected_index`, and the source passage.
+
+Generation returns **503 `not_configured`** when no model provider is set up, and **422** when
+nothing the model produced could be tied to a passage of the paper.
 
 ### Health
 

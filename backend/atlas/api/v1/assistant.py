@@ -166,6 +166,7 @@ async def ask(
                 conversation_id=conversation_id,
                 question=payload.question,
                 mode=payload.mode,
+                level=payload.level,
             ):
                 match event.kind:
                     case "sources":

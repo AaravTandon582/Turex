@@ -154,3 +154,37 @@ metadata, and citation locators.
 a matched serif and mono, so the three registers are visibly one family — which the standard
 neutral-sans choices cannot offer without mixing families. The serif is reserved for sustained
 reading, where it measurably helps, rather than used decoratively.
+
+---
+
+## D9 — Study material is grounded by construction, not by instruction
+
+**Decided.** The generator is shown numbered passages and must cite one per item. The server
+resolves that number to a chunk id and stores the passage text alongside the card. An item
+citing a number it was never shown is discarded; if none survive, the request fails.
+
+**Why.** "Only use the passages provided" is an instruction, and instructions are followed most
+of the time. A flashcard is memorised, so a wrong one is worse than a wrong answer — it is
+rehearsed. Making the link a foreign key the server writes turns a request into a guarantee,
+and the same mechanism already backs assistant citations.
+
+**Cost.** Fewer cards from a given run, since anything unattributable is thrown away. The
+prompt has to carry the passages, so generation is a large request.
+
+---
+
+## D10 — Prompt-requested JSON, validated locally, over vendor structured output
+
+**Decided.** Study generation asks for JSON in the prompt and validates it in
+`ai/structured.py`, rather than using Anthropic's or OpenAI's native structured-output mode.
+
+**Why.** The two vendors express it differently, and D3 keeps vendor-specific request shapes
+out of the provider interface. Adding a structured-output parameter to `ChatRequest` would mean
+a shape that only one provider could honour, or a lowest-common-denominator abstraction over
+two APIs for one feature.
+
+**Cost.** Responses arrive malformed sometimes — truncated, fenced, or wrapped in prose — so
+the parser handles all three, and entries that fail validation are dropped rather than fixed.
+
+**Revisit when** more than one feature needs constrained output, at which point the cost of a
+real abstraction is spread over enough call sites to be worth it.
