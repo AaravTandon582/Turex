@@ -6,6 +6,13 @@ that silently drops the table.
 """
 
 from atlas.db.base import Base
+from atlas.models.conversation import (
+    AssistantMode,
+    Conversation,
+    ConversationMessage,
+    MessageCitation,
+    MessageRole,
+)
 from atlas.models.job import IngestionJob, IngestionStage, JobKind, JobStatus
 from atlas.models.library import Collection, CollectionPaper, PaperTag, Tag
 from atlas.models.paper import (
@@ -21,13 +28,18 @@ from atlas.models.user import User, UserSession
 
 __all__ = [
     "EMBEDDING_DIMENSIONS",
+    "AssistantMode",
     "Base",
     "Collection",
     "CollectionPaper",
+    "Conversation",
+    "ConversationMessage",
     "IngestionJob",
     "IngestionStage",
     "JobKind",
     "JobStatus",
+    "MessageCitation",
+    "MessageRole",
     "Paper",
     "PaperChunk",
     "PaperSection",

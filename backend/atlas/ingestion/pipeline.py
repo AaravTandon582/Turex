@@ -17,12 +17,14 @@ from dataclasses import dataclass
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from atlas.ai.base import EmbeddingProvider
 from atlas.core.errors import ProcessingFailedError
 from atlas.core.logging import get_logger
 from atlas.ingestion.chunking import chunk_document
 from atlas.ingestion.pdf import ParsedDocument, parse_pdf
 from atlas.models.job import IngestionJob, IngestionStage
 from atlas.models.paper import Paper, PaperChunk, PaperSection, ProcessingStatus
+from atlas.retrieval.indexer import ChunkIndexer
 from atlas.storage.base import DocumentStore
 from atlas.workers.queue import JobQueue
 
@@ -34,13 +36,23 @@ class IngestionResult:
     paper_id: uuid.UUID
     section_count: int
     chunk_count: int
+    indexed_count: int = 0
 
 
 class IngestionPipeline:
-    def __init__(self, db: AsyncSession, store: DocumentStore, queue: JobQueue) -> None:
+    def __init__(
+        self,
+        db: AsyncSession,
+        store: DocumentStore,
+        queue: JobQueue,
+        embedder: EmbeddingProvider | None = None,
+    ) -> None:
         self._db = db
         self._store = store
         self._queue = queue
+        self._embedder = embedder
+        """When absent, chunks are stored without vectors. The paper is still readable and
+        still lexically searchable; a backfill adds the vectors once a provider exists."""
 
     async def run(self, job: IngestionJob) -> IngestionResult:
         paper = await self._db.get(Paper, job.paper_id)
@@ -64,6 +76,12 @@ class IngestionPipeline:
 
         await self._queue.report_progress(job, stage=IngestionStage.building_chunks, progress=70)
         chunk_count = await self._store_chunks(paper, document, sections)
+        await self._db.commit()
+
+        indexed = 0
+        if self._embedder is not None:
+            await self._queue.report_progress(job, stage=IngestionStage.embedding, progress=85)
+            indexed = await ChunkIndexer(self._db, self._embedder).index_paper(paper.id)
 
         paper.status = ProcessingStatus.ready
         paper.failure_reason = None
@@ -76,10 +94,14 @@ class IngestionPipeline:
                 "pages": paper.page_count,
                 "sections": len(sections),
                 "chunks": chunk_count,
+                "indexed": indexed,
             },
         )
         return IngestionResult(
-            paper_id=paper.id, section_count=len(sections), chunk_count=chunk_count
+            paper_id=paper.id,
+            section_count=len(sections),
+            chunk_count=chunk_count,
+            indexed_count=indexed,
         )
 
     # -- stages -------------------------------------------------------------------

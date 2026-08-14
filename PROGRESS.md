@@ -14,8 +14,8 @@ Architectural rationale lives in [`docs/decisions.md`](docs/decisions.md).
 | M0 | Architecture | Repo layout, stack selection, schema, API contract, design system, env config, docs | ✅ Complete |
 | M1 | Foundation | Config, logging, error envelope, DB + migrations, auth, app shell, navigation, landing page | ✅ Complete |
 | M2 | Research Library | PDF upload, storage, async ingestion pipeline, parsing, metadata, chunking, library UI, collections, tags, reading status | ✅ Complete |
-| M3 | AI Research Assistant | Provider abstraction, embeddings, hybrid retrieval, context construction, streaming chat, grounded citations, modes | 🔄 In progress |
-| M4 | Paper Reader | PDF viewer, highlights, annotations, selection → AI actions, equation explainer, citation export | ⏳ Not started |
+| M3 | AI Research Assistant | Provider abstraction, embeddings, hybrid retrieval, context construction, streaming chat, grounded citations, modes | ✅ Complete |
+| M4 | Paper Reader | PDF viewer, highlights, annotations, selection → AI actions, equation explainer, citation export | 🔄 In progress |
 | M5 | Research Workspace | Projects, notebook, hypotheses, experiments, tasks | ⏳ Not started |
 | M6 | Intelligence Layer | Semantic search, recommendations, knowledge graph | ⏳ Not started |
 | M7 | Study Mode | Explanations by level, flashcards, quizzes, progress tracking | ⏳ Not started |
@@ -69,18 +69,39 @@ ready with progress visible at each step, producing 78 sections and 149 located 
 
 ---
 
-## Current milestone: M3 — AI Research Assistant
+## Completed: M3 — AI Research Assistant
 
-**Goal:** ask a question and get an answer built from passages actually retrieved from your
-library, with every claim resolving to a real page.
+Ask a question, get an answer built from passages actually retrieved from your library.
 
-- [ ] Chat and embedding provider interfaces, with a deterministic offline embedder for tests
-- [ ] Embedding stage in the ingestion pipeline, plus a backfill for papers already ingested
-- [ ] Hybrid retrieval: vector + lexical, fused by reciprocal rank
-- [ ] Context construction within a token budget, carrying chunk ids through
-- [ ] Streaming chat with citations bound to chunk ids
-- [ ] Assistant modes: explain, research, critique, ideate, experiment, study, write
-- [ ] Retrieval and grounding tests that run without network access
+- [x] Separate chat and embedding provider interfaces; Anthropic and OpenAI implementations
+- [x] Deterministic offline embedder, so retrieval is regression-tested in CI with no API key
+- [x] Embedding stage in ingestion, resumable and safe to re-run
+- [x] Hybrid retrieval — vector + lexical, fused by reciprocal rank, owner-scoped in SQL
+- [x] Context construction within a token budget, numbering passages for citation
+- [x] SSE streaming: sources first, then the answer, then the stored message id
+- [x] Citations written server-side from retrieved passages, with a text snapshot
+- [x] Seven modes, each with its own prompt, reasoning effort, and retrieval breadth
+- [x] Assistant UI with resolvable inline citations and a mode picker
+- [x] 137 backend tests; ruff, mypy, and the production build clean
+
+**Verified live** against three real papers: "how does multi-head attention work" returns
+§3.2.2 Multi-Head Attention; "masked language model pre-training objective" returns the exact
+MLM paragraph in BERT. All 153 chunks indexed.
+
+**Not verified:** a real Anthropic round trip. No API key was available in this environment, so
+the provider is covered only by tests with a scripted model. Set `ANTHROPIC_API_KEY` to confirm.
+
+---
+
+## Current milestone: M4 — Paper Reader
+
+**Goal:** read a paper inside Atlas, highlight a passage, and ask about it without leaving it.
+
+- [ ] PDF rendering with page navigation and the section outline
+- [ ] Text selection, highlights, and annotations persisted against the paper
+- [ ] Selection → ask the assistant, scoped to that paper
+- [ ] Equation explanation from a selection, with LaTeX rendering
+- [ ] Citation export (BibTeX, APA, MLA) from stored metadata only
 
 ---
 
@@ -107,6 +128,12 @@ Full rationale in [`docs/decisions.md`](docs/decisions.md).
   across six subsequent uploads, and no 401 appeared in the server log. The session path is
   covered by the auth suite. Recorded rather than claimed fixed — if it recurs, start with the
   cookie `Path` scoping in `api/cookies.py`.
+- **No live model call has been made.** No `ANTHROPIC_API_KEY` was available while building, so
+  the Anthropic provider is exercised only through tests with a scripted model. The retrieval
+  half is fully verified live.
+- **Reranking is a pass-through.** The pipeline stage exists but does nothing yet.
+- **Multi-turn retrieval uses the question verbatim.** A follow-up like "what about the second
+  one?" retrieves on those words alone; query rewriting against history is not implemented.
 
 ---
 

@@ -11,12 +11,15 @@ from fastapi import Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from atlas.ai.registry import ProviderRegistry, get_registry
 from atlas.core.config import Settings, get_settings
 from atlas.core.errors import UnauthenticatedError
 from atlas.core.logging import bind_request_context
 from atlas.core.security import ACCESS_COOKIE_NAME, decode_access_token
 from atlas.db.session import get_db
 from atlas.models.user import User, UserSession
+from atlas.retrieval.search import RetrievalService
+from atlas.services.assistant_service import AssistantService
 from atlas.services.auth_service import AuthService, ClientInfo
 from atlas.services.paper_service import CollectionService, PaperService
 from atlas.storage.base import DocumentStore
@@ -68,6 +71,32 @@ def get_collection_service(db: DbDep) -> CollectionService:
 
 
 CollectionServiceDep = Annotated[CollectionService, Depends(get_collection_service)]
+
+
+def get_provider_registry(settings: SettingsDep) -> ProviderRegistry:
+    return get_registry(settings)
+
+
+ProviderRegistryDep = Annotated[ProviderRegistry, Depends(get_provider_registry)]
+
+
+def get_retrieval_service(db: DbDep, registry: ProviderRegistryDep) -> RetrievalService:
+    return RetrievalService(db, registry.embedder())
+
+
+RetrievalServiceDep = Annotated[RetrievalService, Depends(get_retrieval_service)]
+
+
+def get_assistant_service(
+    db: DbDep, retrieval: RetrievalServiceDep, registry: ProviderRegistryDep
+) -> AssistantService:
+    # The provider is passed as a factory. `registry.chat()` raises NotConfiguredError when no
+    # key is set; deferring the call means only the endpoints that need a model fail, so a
+    # user can still read their past conversations on an instance with no key.
+    return AssistantService(db, retrieval, registry.chat)
+
+
+AssistantServiceDep = Annotated[AssistantService, Depends(get_assistant_service)]
 
 
 async def get_current_user(request: Request, db: DbDep, settings: SettingsDep) -> User:

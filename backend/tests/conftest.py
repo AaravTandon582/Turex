@@ -18,6 +18,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alembic import command
+from atlas.ai.registry import reset_registry
 from atlas.core.config import Environment, Settings, get_settings
 from atlas.db.session import dispose_engine, init_engine, session_scope
 from atlas.main import create_app
@@ -44,6 +45,11 @@ def settings(storage_root: Path) -> Settings:
         # racing a background poller.
         worker_enabled=False,
         storage_root=storage_root,
+        # The deterministic hashing embedder: retrieval runs, and ranks, with no API key and
+        # no network. This is what makes the retrieval suite runnable in CI.
+        embedding_provider="local",
+        chat_provider="anthropic",
+        anthropic_api_key=None,
     )
 
 
@@ -64,6 +70,7 @@ def anyio_backend() -> str:
 
 @pytest.fixture
 async def app(settings: Settings) -> AsyncIterator[object]:
+    reset_registry()
     application = create_app(settings)
     application.dependency_overrides[get_settings] = lambda: settings
     init_engine(settings)

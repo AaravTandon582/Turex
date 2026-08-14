@@ -15,6 +15,7 @@ import contextlib
 import os
 import socket
 
+from atlas.ai.registry import get_registry
 from atlas.core.config import Settings
 from atlas.core.errors import AppError, ProcessingFailedError
 from atlas.core.logging import bind_request_context, clear_request_context, get_logger
@@ -71,7 +72,9 @@ class IngestionWorker:
 
             bind_request_context(job_id=str(job.id), paper_id=str(job.paper_id))
             try:
-                pipeline = IngestionPipeline(db, self._store, queue)
+                registry = get_registry(self._settings)
+                embedder = registry.embedder() if registry.embeddings_available else None
+                pipeline = IngestionPipeline(db, self._store, queue, embedder)
                 await pipeline.run(job)
                 await queue.succeed(job)
             except ProcessingFailedError as exc:

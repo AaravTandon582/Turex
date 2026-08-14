@@ -54,6 +54,8 @@ ignore = ["B008"]  # FastAPI's Depends() in defaults is idiomatic
 # exactly backwards there.
 "atlas/ingestion/*" = ["RUF001", "RUF002"]
 "atlas/models/paper.py" = ["RUF002"]
+# Citation locators use real typographic characters (en dash, section sign).
+"atlas/retrieval/*" = ["RUF001", "RUF002"]
 # Tests for Unicode normalisation must contain the characters being normalised.
 "tests/test_ingestion.py" = ["RUF001"]
 
