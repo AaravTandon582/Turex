@@ -1,0 +1,229 @@
+@import "tailwindcss";
+
+/* ============================================================================
+   Atlas design system
+
+   The product should read as a scientific instrument: calm, precise, legible,
+   and quiet enough that a dense paper is the loudest thing on screen.
+
+   Colours are authored in OKLCH so that light and dark themes stay perceptually
+   matched — a "muted" label reads as equally muted in both, which is not true of
+   hand-picked hex pairs.
+
+   Every token is declared for both themes in :root / .dark, then exposed to
+   Tailwind through `@theme inline` so utilities resolve to the live variable
+   rather than a compile-time constant.
+   ========================================================================= */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* -- Surfaces: canvas sits behind everything; surface is the raised plane -- */
+  --canvas: oklch(0.988 0.0025 95);
+  --surface: oklch(1 0 0);
+  --surface-sunken: oklch(0.968 0.003 95);
+  --surface-hover: oklch(0.965 0.004 260);
+
+  /* -- Lines --------------------------------------------------------------- */
+  --border: oklch(0.915 0.004 260);
+  --border-strong: oklch(0.845 0.006 260);
+
+  /* -- Text: three weights of emphasis, never more --------------------------- */
+  --ink: oklch(0.235 0.012 265);
+  --ink-muted: oklch(0.505 0.012 265);
+  --ink-subtle: oklch(0.645 0.010 265);
+  --ink-inverse: oklch(0.99 0 0);
+
+  /* -- Accent: one interactive colour, used sparingly ----------------------- */
+  --accent: oklch(0.505 0.155 258);
+  --accent-hover: oklch(0.445 0.165 258);
+  --accent-soft: oklch(0.955 0.022 258);
+  --accent-ring: oklch(0.505 0.155 258 / 0.35);
+
+  /* -- Highlight: reserved for annotations, literally a highlighter --------- */
+  --highlight: oklch(0.86 0.135 88);
+  --highlight-soft: oklch(0.955 0.06 88);
+
+  /* -- Semantic ------------------------------------------------------------- */
+  --success: oklch(0.545 0.115 155);
+  --success-soft: oklch(0.955 0.03 155);
+  --warning: oklch(0.635 0.135 70);
+  --warning-soft: oklch(0.96 0.04 70);
+  --danger: oklch(0.545 0.185 25);
+  --danger-soft: oklch(0.96 0.03 25);
+
+  /* -- Elevation: shadows stay tight and low-contrast ----------------------- */
+  --shadow-sm: 0 1px 2px oklch(0.2 0.02 265 / 0.05);
+  --shadow-md: 0 2px 4px oklch(0.2 0.02 265 / 0.05), 0 4px 12px oklch(0.2 0.02 265 / 0.06);
+  --shadow-lg: 0 4px 8px oklch(0.2 0.02 265 / 0.06), 0 12px 32px oklch(0.2 0.02 265 / 0.10);
+}
+
+.dark {
+  --canvas: oklch(0.168 0.008 265);
+  --surface: oklch(0.207 0.010 265);
+  --surface-sunken: oklch(0.145 0.008 265);
+  --surface-hover: oklch(0.252 0.012 265);
+
+  --border: oklch(0.288 0.011 265);
+  --border-strong: oklch(0.372 0.014 265);
+
+  --ink: oklch(0.955 0.004 265);
+  --ink-muted: oklch(0.715 0.010 265);
+  --ink-subtle: oklch(0.575 0.012 265);
+  --ink-inverse: oklch(0.17 0.008 265);
+
+  --accent: oklch(0.695 0.135 258);
+  --accent-hover: oklch(0.765 0.125 258);
+  --accent-soft: oklch(0.278 0.048 258);
+  --accent-ring: oklch(0.695 0.135 258 / 0.40);
+
+  --highlight: oklch(0.755 0.125 88);
+  --highlight-soft: oklch(0.315 0.055 88);
+
+  --success: oklch(0.685 0.125 155);
+  --success-soft: oklch(0.272 0.045 155);
+  --warning: oklch(0.755 0.125 70);
+  --warning-soft: oklch(0.298 0.048 70);
+  --danger: oklch(0.665 0.165 25);
+  --danger-soft: oklch(0.292 0.055 25);
+
+  /* Dark surfaces get depth from borders, not shadow — shadows read as smudges. */
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.30);
+  --shadow-md: 0 2px 4px oklch(0 0 0 / 0.30), 0 4px 12px oklch(0 0 0 / 0.24);
+  --shadow-lg: 0 4px 8px oklch(0 0 0 / 0.32), 0 12px 32px oklch(0 0 0 / 0.36);
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-hover: var(--surface-hover);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-ink-inverse: var(--ink-inverse);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-highlight: var(--highlight);
+  --color-highlight-soft: var(--highlight-soft);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  /* Typography. Plex is a technical family with real character — it reads as an
+     instrument rather than as a generic web app. Serif is reserved for long-form
+     reading (paper body, notebook prose) where it measurably helps. */
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-plex-serif), ui-serif, Georgia, serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
+
+  /* Radii stay small. Large radii read as consumer-friendly; Atlas reads as precise. */
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  /* Motion: short and decelerating. Long or bouncy easing reads as decoration. */
+  --ease-out-quart: cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-fade-in: fade-in 180ms var(--ease-out-quart) both;
+  --animate-rise: rise 220ms var(--ease-out-quart) both;
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes shimmer {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv05" 1, "ss01" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Focus is always visible and always the same shape, so keyboard users can
+     rely on it. `:focus-visible` keeps it off mouse clicks. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+  }
+
+  ::selection {
+    background-color: var(--accent-soft);
+    color: var(--ink);
+  }
+
+  /* Numerals align in tables and metadata rows. */
+  table,
+  [data-tabular] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* A measure that keeps long-form reading near 68 characters. */
+  .measure {
+    max-width: 68ch;
+  }
+
+  .scrollbar-slim {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+}

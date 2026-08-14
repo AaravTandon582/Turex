@@ -12,8 +12,8 @@ Architectural rationale lives in [`docs/decisions.md`](docs/decisions.md).
 | # | Milestone | Scope | Status |
 |---|-----------|-------|--------|
 | M0 | Architecture | Repo layout, stack selection, schema, API contract, design system, env config, docs | ✅ Complete |
-| M1 | Foundation | Config, logging, error envelope, DB + migrations, auth, app shell, navigation, landing page | 🔄 In progress |
-| M2 | Research Library | PDF upload, storage, async ingestion pipeline, parsing, metadata, chunking, library UI, collections, tags, reading status | ⏳ Not started |
+| M1 | Foundation | Config, logging, error envelope, DB + migrations, auth, app shell, navigation, landing page | ✅ Complete |
+| M2 | Research Library | PDF upload, storage, async ingestion pipeline, parsing, metadata, chunking, library UI, collections, tags, reading status | 🔄 In progress |
 | M3 | AI Research Assistant | Provider abstraction, embeddings, hybrid retrieval, context construction, streaming chat, grounded citations, modes | ⏳ Not started |
 | M4 | Paper Reader | PDF viewer, highlights, annotations, selection → AI actions, equation explainer, citation export | ⏳ Not started |
 | M5 | Research Workspace | Projects, notebook, hypotheses, experiments, tasks | ⏳ Not started |
@@ -28,19 +28,38 @@ disconnected layers.
 
 ---
 
-## Current milestone: M1 — Foundation
+## Completed: M1 — Foundation
 
-**Goal:** a running, authenticated, navigable application shell with a real database, real
-migrations, and a design system that the rest of the product is built from.
+A running, authenticated, navigable application with a real database and a design system the
+rest of the product is built from.
 
 - [x] Repository layout and tooling (`backend/`, `frontend/`, `docs/`)
-- [x] Backend configuration, structured logging, error envelope
-- [x] Database engine, session lifecycle, base model conventions
-- [x] Initial Alembic migration (users, sessions, papers, collections, …)
-- [x] Authentication: register, login, refresh, logout, current user
-- [ ] Frontend app shell, navigation, theming
-- [ ] Landing page
-- [ ] Test suite green end to end
+- [x] Configuration, structured logging with request correlation, single error envelope
+- [x] Async SQLAlchemy over PostgreSQL, Alembic migrations, `pgvector` enabled
+- [x] Authentication: register, login, refresh with rotation, logout, current user
+- [x] Design system — OKLCH tokens, typography, motion, light and dark themes
+- [x] Application shell: sidebar, mobile drawer, `g`-chord navigation shortcuts
+- [x] Landing page, sign-in and registration, 404
+- [x] 21 backend tests passing; ruff, mypy, and the production build all clean
+
+**Verified end to end:** register → authenticated request → token rotation → immediate logout,
+exercised through the real frontend origin with browser-equivalent cookie handling.
+
+---
+
+## Current milestone: M2 — Research Library
+
+**Goal:** a user can add a paper and Atlas genuinely reads it — parsed into sections and
+chunks, with metadata extracted and progress visible while it happens.
+
+- [ ] Storage abstraction with a local filesystem driver
+- [ ] Paper, section, chunk, collection, tag, and job schema
+- [ ] Upload endpoint with validation (type, size, and content sniffing)
+- [ ] Database-backed job queue and in-process worker
+- [ ] PDF parsing: text, structure, metadata, references
+- [ ] Chunking that preserves page and section provenance
+- [ ] Library UI: grid, filters, reading status, collections
+- [ ] Tests across the whole path — upload through to queryable chunks
 
 ---
 
