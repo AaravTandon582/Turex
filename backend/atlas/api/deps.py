@@ -19,6 +19,7 @@ from atlas.core.security import ACCESS_COOKIE_NAME, decode_access_token
 from atlas.db.session import get_db
 from atlas.models.user import User, UserSession
 from atlas.retrieval.search import RetrievalService
+from atlas.services.annotation_service import AnnotationService
 from atlas.services.assistant_service import AssistantService
 from atlas.services.auth_service import AuthService, ClientInfo
 from atlas.services.paper_service import CollectionService, PaperService
@@ -71,6 +72,13 @@ def get_collection_service(db: DbDep) -> CollectionService:
 
 
 CollectionServiceDep = Annotated[CollectionService, Depends(get_collection_service)]
+
+
+def get_annotation_service(db: DbDep) -> AnnotationService:
+    return AnnotationService(db)
+
+
+AnnotationServiceDep = Annotated[AnnotationService, Depends(get_annotation_service)]
 
 
 def get_provider_registry(settings: SettingsDep) -> ProviderRegistry:

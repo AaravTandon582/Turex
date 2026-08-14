@@ -6,6 +6,7 @@ that silently drops the table.
 """
 
 from atlas.db.base import Base
+from atlas.models.annotation import Annotation, HighlightColour
 from atlas.models.conversation import (
     AssistantMode,
     Conversation,
@@ -28,12 +29,14 @@ from atlas.models.user import User, UserSession
 
 __all__ = [
     "EMBEDDING_DIMENSIONS",
+    "Annotation",
     "AssistantMode",
     "Base",
     "Collection",
     "CollectionPaper",
     "Conversation",
     "ConversationMessage",
+    "HighlightColour",
     "IngestionJob",
     "IngestionStage",
     "JobKind",

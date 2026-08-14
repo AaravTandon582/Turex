@@ -72,8 +72,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=settings.cors_origins,
         allow_credentials=True,  # Session cookies must accompany cross-origin requests.
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["content-type", "x-request-id"],
-        expose_headers=["x-request-id"],
+        # `range` is included because pdf.js issues ranged requests when fetching a
+        # document cross-origin; without it the preflight fails and the reader shows
+        # nothing.
+        allow_headers=["content-type", "x-request-id", "range"],
+        expose_headers=["x-request-id", "content-length", "accept-ranges", "content-range"],
     )
 
     register_exception_handlers(app, settings)

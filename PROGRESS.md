@@ -15,8 +15,8 @@ Architectural rationale lives in [`docs/decisions.md`](docs/decisions.md).
 | M1 | Foundation | Config, logging, error envelope, DB + migrations, auth, app shell, navigation, landing page | ✅ Complete |
 | M2 | Research Library | PDF upload, storage, async ingestion pipeline, parsing, metadata, chunking, library UI, collections, tags, reading status | ✅ Complete |
 | M3 | AI Research Assistant | Provider abstraction, embeddings, hybrid retrieval, context construction, streaming chat, grounded citations, modes | ✅ Complete |
-| M4 | Paper Reader | PDF viewer, highlights, annotations, selection → AI actions, equation explainer, citation export | 🔄 In progress |
-| M5 | Research Workspace | Projects, notebook, hypotheses, experiments, tasks | ⏳ Not started |
+| M4 | Paper Reader | PDF viewer, highlights, annotations, selection → AI actions, equation explainer, citation export | ✅ Complete |
+| M5 | Research Workspace | Projects, notebook, hypotheses, experiments, tasks | 🔄 In progress |
 | M6 | Intelligence Layer | Semantic search, recommendations, knowledge graph | ⏳ Not started |
 | M7 | Study Mode | Explanations by level, flashcards, quizzes, progress tracking | ⏳ Not started |
 | M8 | Polish | Motion, responsiveness, a11y, empty/loading/error states, onboarding | ⏳ Not started |
@@ -93,15 +93,38 @@ the provider is covered only by tests with a scripted model. Set `ANTHROPIC_API_
 
 ---
 
-## Current milestone: M4 — Paper Reader
+## Completed: M4 — Paper Reader
 
-**Goal:** read a paper inside Atlas, highlight a passage, and ask about it without leaving it.
+Read a paper inside Atlas, highlight it, and ask about a passage without leaving it.
 
-- [ ] PDF rendering with page navigation and the section outline
-- [ ] Text selection, highlights, and annotations persisted against the paper
-- [ ] Selection → ask the assistant, scoped to that paper
-- [ ] Equation explanation from a selection, with LaTeX rendering
-- [ ] Citation export (BibTeX, APA, MLA) from stored metadata only
+- [x] PDF rendering with zoom, page markers, and jump-to-section from the outline
+- [x] Text-anchored highlights that survive zoom and re-render (offset + length, not pixels)
+- [x] Four highlight colours named by intent, with notes
+- [x] Selection menu: highlight, Explain, Critique, or break down an equation
+- [x] Paper-scoped assistant panel, so retrieval stays inside the paper being read
+- [x] Citation export in BibTeX, APA, and MLA — built only from stored metadata
+- [x] 170 backend tests; ruff, mypy, and the production build clean
+
+**Verified live:** highlights create, recolour, and clear notes correctly; citations for a real
+paper produce all eight authors, the correct year and arXiv id, and report the missing venue
+rather than inventing one.
+
+**Not verified:** the rendered reader in a browser. No browser automation was available in this
+environment, so PDF rendering, text selection, and highlight placement are unexercised at
+runtime — the route serves and the build is clean, but that is not the same thing.
+
+---
+
+## Current milestone: M5 — Research Workspace
+
+**Goal:** a research question with everything gathered to answer it — papers, notes,
+hypotheses, and experiments in one place.
+
+- [ ] Projects with a research question and description
+- [ ] Notebook: Markdown notes linked to papers, projects, and hypotheses
+- [ ] Hypotheses with supporting and contradicting evidence, assumptions, and status
+- [ ] Experiments with variables, controls, metrics, and results
+- [ ] Attaching papers and conversations to a project
 
 ---
 
@@ -132,6 +155,10 @@ Full rationale in [`docs/decisions.md`](docs/decisions.md).
   the Anthropic provider is exercised only through tests with a scripted model. The retrieval
   half is fully verified live.
 - **Reranking is a pass-through.** The pipeline stage exists but does nothing yet.
+- **The reader has not been exercised in a browser.** No browser automation was available, so
+  PDF rendering, text selection, and highlight placement are verified only by type-checking and
+  a clean production build. The anchoring logic in `lib/text-layer.ts` is the part most likely
+  to need adjustment against a real document.
 - **Multi-turn retrieval uses the question verbatim.** A follow-up like "what about the second
   one?" retrieves on those words alone; query rewriting against history is not implemented.
 

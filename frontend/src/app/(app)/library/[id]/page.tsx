@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ExternalLink, FileText, RotateCw, Star } from "lucide-react";
+import { ArrowLeft, BookOpen, ExternalLink, FileText, RotateCw, Star } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -172,6 +172,13 @@ export default function PaperPage() {
         <>
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <Button asChild size="sm">
+              <Link href={`/library/${paper.id}/read`}>
+                <BookOpen aria-hidden />
+                Read in Atlas
+              </Link>
+            </Button>
+
+            <Button asChild variant="secondary" size="sm">
               <a href={papers.fileUrl(paper.id)} target="_blank" rel="noreferrer">
                 <FileText aria-hidden />
                 Open the PDF
@@ -240,10 +247,7 @@ export default function PaperPage() {
             </section>
           )}
 
-          <p className="mt-10 border-t border-border pt-4 text-[13px] text-ink-subtle">
-            Highlighting, annotations, and asking Atlas about a selected passage arrive with the
-            paper reader in Milestone 4.
-          </p>
+
         </>
       )}
 
