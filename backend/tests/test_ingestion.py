@@ -254,6 +254,30 @@ class TestChunking:
         assert len(chunks) >= 1
         assert chunks[0].section_ordinal is None
 
+    def test_skips_the_reference_list(self, tmp_path: pathlib.Path) -> None:
+        """A bibliography matches on vocabulary and asserts nothing — indexing it only
+        produces retrieval hits that can never support a claim."""
+        pdf = build_pdf(
+            [
+                [
+                    "1 Introduction",
+                    "We build on prior work in retrieval augmented generation for question "
+                    "answering, which established the baseline we compare against here.",
+                    "",
+                    "References",
+                    "[1] Lewis et al. Retrieval augmented generation for knowledge intensive "
+                    "NLP tasks. NeurIPS, 2020.",
+                    "[2] Devlin et al. BERT: pre-training of deep bidirectional transformers. "
+                    "NAACL, 2019.",
+                ]
+            ]
+        )
+        chunks = chunk_document(parse_pdf(write_pdf(tmp_path, pdf)))
+
+        assert chunks, "the body should still be indexed"
+        assert not any("NeurIPS, 2020" in chunk.content for chunk in chunks)
+        assert any("prior work" in chunk.content for chunk in chunks)
+
     def test_records_a_token_estimate(self, tmp_path: pathlib.Path) -> None:
         for chunk in chunk_document(parse_pdf(write_pdf(tmp_path, build_paper_pdf()))):
             assert chunk.token_estimate > 0

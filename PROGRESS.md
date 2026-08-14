@@ -16,8 +16,8 @@ Architectural rationale lives in [`docs/decisions.md`](docs/decisions.md).
 | M2 | Research Library | PDF upload, storage, async ingestion pipeline, parsing, metadata, chunking, library UI, collections, tags, reading status | ✅ Complete |
 | M3 | AI Research Assistant | Provider abstraction, embeddings, hybrid retrieval, context construction, streaming chat, grounded citations, modes | ✅ Complete |
 | M4 | Paper Reader | PDF viewer, highlights, annotations, selection → AI actions, equation explainer, citation export | ✅ Complete |
-| M5 | Research Workspace | Projects, notebook, hypotheses, experiments, tasks | 🔄 In progress |
-| M6 | Intelligence Layer | Semantic search, recommendations, knowledge graph | ⏳ Not started |
+| M5 | Research Workspace | Projects, notebook, hypotheses, experiments, tasks | ✅ Complete |
+| M6 | Intelligence Layer | Semantic search, recommendations, knowledge graph | 🔄 In progress |
 | M7 | Study Mode | Explanations by level, flashcards, quizzes, progress tracking | ⏳ Not started |
 | M8 | Polish | Motion, responsiveness, a11y, empty/loading/error states, onboarding | ⏳ Not started |
 | M9 | Evaluation | Retrieval + citation benchmark, hallucination checks, security review | ⏳ Not started |
@@ -115,16 +115,32 @@ runtime — the route serves and the build is clean, but that is not the same th
 
 ---
 
-## Current milestone: M5 — Research Workspace
+## Completed: M5 — Research Workspace
 
-**Goal:** a research question with everything gathered to answer it — papers, notes,
-hypotheses, and experiments in one place.
+A research question with everything gathered to answer it.
 
-- [ ] Projects with a research question and description
-- [ ] Notebook: Markdown notes linked to papers, projects, and hypotheses
-- [ ] Hypotheses with supporting and contradicting evidence, assumptions, and status
-- [ ] Experiments with variables, controls, metrics, and results
-- [ ] Attaching papers and conversations to a project
+- [x] Projects built around a research question, with counts of what is inside
+- [x] Hypotheses with six states, assumptions, and evidence tracked on both sides
+- [x] Evidence linked to real passages — the server reads the chunk, the client sends only an id
+- [x] Experiments with variables, controls, confounders, metrics, and prediction vs outcome
+- [x] Notebook with autosaving Markdown notes, linkable to a project or paper
+- [x] Tasks per project
+- [x] 207 backend tests; ruff, mypy, and the production build clean
+
+**Verified live, as one continuous loop:** project → gather a paper → write a hypothesis →
+search the library → attach a real passage as evidence → design an experiment with a recorded
+prediction → record the actual result → downgrade the hypothesis to weakly supported.
+
+---
+
+## Current milestone: M6 — Intelligence Layer
+
+**Goal:** surface what the library already knows but has not been asked.
+
+- [ ] Semantic search UI over the whole library
+- [ ] Paper recommendations that explain why each one is relevant
+- [ ] Knowledge graph connecting papers, concepts, and questions
+- [ ] Dashboard wired to real data
 
 ---
 

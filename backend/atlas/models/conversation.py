@@ -104,6 +104,8 @@ class ConversationMessage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="MessageCitation.marker",
+        # Must be eager-loaded by the caller; see the note on Hypothesis.evidence.
+        lazy="raise_on_sql",
     )
 
 

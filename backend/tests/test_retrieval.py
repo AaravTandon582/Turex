@@ -309,6 +309,25 @@ class TestSearch:
             response = await registered_client.get(f"{api}/assistant/search", params={"q": query})
             assert response.status_code == 200, f"query {query!r} failed"
 
+    async def test_never_returns_a_bibliography_entry(
+        self,
+        registered_client: AsyncClient,
+        api: str,
+        run_worker,  # type: ignore[no-untyped-def]
+    ) -> None:
+        """Reference lists are filtered at query time too, so papers indexed before that
+        change stop surfacing them as evidence."""
+        await upload_and_index(registered_client, api, TRANSFORMERS_PDF, run_worker)
+
+        results = (
+            await registered_client.get(f"{api}/assistant/search?q=transformer attention")
+        ).json()["results"]
+
+        assert not any(
+            (result["section_title"] or "").lower().startswith(("references", "bibliography"))
+            for result in results
+        )
+
     async def test_never_returns_another_users_passages(
         self,
         registered_client: AsyncClient,

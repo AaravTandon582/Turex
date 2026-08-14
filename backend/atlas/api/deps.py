@@ -23,6 +23,7 @@ from atlas.services.annotation_service import AnnotationService
 from atlas.services.assistant_service import AssistantService
 from atlas.services.auth_service import AuthService, ClientInfo
 from atlas.services.paper_service import CollectionService, PaperService
+from atlas.services.workspace_service import WorkspaceService
 from atlas.storage.base import DocumentStore
 from atlas.storage.local import LocalDocumentStore
 
@@ -79,6 +80,13 @@ def get_annotation_service(db: DbDep) -> AnnotationService:
 
 
 AnnotationServiceDep = Annotated[AnnotationService, Depends(get_annotation_service)]
+
+
+def get_workspace_service(db: DbDep) -> WorkspaceService:
+    return WorkspaceService(db)
+
+
+WorkspaceServiceDep = Annotated[WorkspaceService, Depends(get_workspace_service)]
 
 
 def get_provider_registry(settings: SettingsDep) -> ProviderRegistry:

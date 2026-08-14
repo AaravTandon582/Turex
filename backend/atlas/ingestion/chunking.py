@@ -31,6 +31,21 @@ MIN_CHARACTERS = 120
 """Below this a chunk is a stray heading or caption fragment — noise in the index."""
 
 _PARAGRAPH_BREAK = re.compile(r"\n\s*\n")
+
+# Sections that are lists of other works rather than claims of this one. They match strongly
+# on vocabulary — a bibliography contains every term the paper does — while containing nothing
+# assertable, so retrieving one as evidence is always a miss. Skipping them also removes a
+# large share of a paper's chunks, and with them the cost of embedding text nobody can cite.
+_NON_CONTENT_SECTIONS = re.compile(
+    r"^\s*(\d+(\.\d+)*\.?\s+)?(references|bibliography|works cited|acknowledge?ments?)\b",
+    re.I,
+)
+
+
+def is_non_content_section(title: str) -> bool:
+    return bool(_NON_CONTENT_SECTIONS.match(title))
+
+
 # Split after sentence punctuation followed by whitespace and a capital or digit. The
 # lookbehind excludes common abbreviations that would otherwise split mid-sentence.
 _SENTENCE_BREAK = re.compile(
@@ -172,6 +187,8 @@ def chunk_document(document: ParsedDocument) -> list[Chunk]:
 
     if document.sections:
         for section in document.sections:
+            if is_non_content_section(section.title):
+                continue
             fragments = _split_paragraphs(section)
             if fragments:
                 chunks.extend(chunk_section(section, fragments, start_ordinal=len(chunks)))

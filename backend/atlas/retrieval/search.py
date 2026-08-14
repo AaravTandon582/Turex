@@ -107,7 +107,15 @@ _JOINS = """
     LEFT JOIN paper_sections s ON s.id = c.section_id
     WHERE p.owner_id = :owner_id
       AND p.status = :ready
+      AND (s.title IS NULL OR s.title !~* :non_content_sections)
 """
+
+NON_CONTENT_SECTION_PATTERN = (
+    r"^\s*([0-9]+(\.[0-9]+)*\.?\s+)?(references|bibliography|works cited|acknowledge?ments?)\b"
+)
+"""Bibliographies match strongly on vocabulary and assert nothing, so they are never useful
+evidence. Filtered here as well as at chunking time, because papers ingested before that
+change still have reference chunks in the index."""
 
 _VECTOR_SQL = """
     SELECT {columns}, (c.embedding <=> CAST(:query_vector AS vector)) AS distance
@@ -219,6 +227,7 @@ class RetrievalService:
         parameters: dict[str, Any] = {
             "owner_id": owner_id,
             "ready": ProcessingStatus.ready.value,
+            "non_content_sections": NON_CONTENT_SECTION_PATTERN,
             "query_vector": _to_pgvector(embedding),
             "limit": CANDIDATES_PER_STRATEGY,
         }
@@ -234,6 +243,7 @@ class RetrievalService:
         parameters: dict[str, Any] = {
             "owner_id": owner_id,
             "ready": ProcessingStatus.ready.value,
+            "non_content_sections": NON_CONTENT_SECTION_PATTERN,
             # `websearch_to_tsquery` accepts what a person actually types — quoted phrases,
             # OR, a leading minus — and never raises on malformed input, unlike to_tsquery.
             "query": query,
