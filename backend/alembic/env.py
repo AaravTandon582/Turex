@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 from logging.config import fileConfig
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
@@ -30,12 +31,26 @@ if not config.get_main_option("sqlalchemy.url", default=None):
     config.set_main_option("sqlalchemy.url", str(get_settings().database_url))
 
 
+def _render_item(type_: str, obj: object, autogen_context: object) -> str | bool:
+    """Emit pgvector column types with the import they need.
+
+    Autogenerate renders third-party types by their fully-qualified path but does not add the
+    import, producing a migration that raises NameError the first time it runs. Registering the
+    import here fixes it for every migration rather than one at a time.
+    """
+    if type_ == "type" and isinstance(obj, Vector):
+        autogen_context.imports.add("import pgvector.sqlalchemy")  # type: ignore[attr-defined]
+        return f"pgvector.sqlalchemy.Vector(dim={obj.dim})"
+    return False
+
+
 def _configure(connection: Connection) -> None:
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
         compare_type=True,
         compare_server_default=True,
+        render_item=_render_item,
         # Keep pgvector's own catalog objects out of autogenerate diffs.
         include_object=lambda obj, name, type_, reflected, compare_to: (
             not (type_ == "table" and name in {"vector", "spatial_ref_sys"})

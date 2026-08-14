@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import uuid
+from functools import lru_cache
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -16,6 +18,9 @@ from atlas.core.security import ACCESS_COOKIE_NAME, decode_access_token
 from atlas.db.session import get_db
 from atlas.models.user import User, UserSession
 from atlas.services.auth_service import AuthService, ClientInfo
+from atlas.services.paper_service import CollectionService, PaperService
+from atlas.storage.base import DocumentStore
+from atlas.storage.local import LocalDocumentStore
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]
@@ -36,6 +41,33 @@ def get_auth_service(db: DbDep, settings: SettingsDep) -> AuthService:
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+
+
+@lru_cache(maxsize=1)
+def _document_store(root: Path) -> DocumentStore:
+    """One store per process. Cached because construction creates the root directory."""
+    return LocalDocumentStore(root)
+
+
+def get_document_store(settings: SettingsDep) -> DocumentStore:
+    return _document_store(settings.storage_root)
+
+
+DocumentStoreDep = Annotated[DocumentStore, Depends(get_document_store)]
+
+
+def get_paper_service(db: DbDep, store: DocumentStoreDep, settings: SettingsDep) -> PaperService:
+    return PaperService(db, store, settings)
+
+
+PaperServiceDep = Annotated[PaperService, Depends(get_paper_service)]
+
+
+def get_collection_service(db: DbDep) -> CollectionService:
+    return CollectionService(db)
+
+
+CollectionServiceDep = Annotated[CollectionService, Depends(get_collection_service)]
 
 
 async def get_current_user(request: Request, db: DbDep, settings: SettingsDep) -> User:

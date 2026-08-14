@@ -15,6 +15,8 @@ from atlas.api.v1 import api_router
 from atlas.core.config import Settings, get_settings
 from atlas.core.logging import configure_logging, get_logger
 from atlas.db.session import dispose_engine, init_engine
+from atlas.storage.local import LocalDocumentStore
+from atlas.workers.runner import WorkerPool
 
 logger = get_logger(__name__)
 
@@ -28,10 +30,14 @@ def _lifespan(settings: Settings):  # type: ignore[no-untyped-def]
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         init_engine(settings)
+        # Ingestion runs as background tasks in this process; see docs/decisions.md D2.
+        workers = WorkerPool(settings, LocalDocumentStore(settings.storage_root))
+        await workers.start()
         logger.info("atlas api started", extra={"environment": settings.environment.value})
         try:
             yield
         finally:
+            await workers.stop()
             await dispose_engine()
             logger.info("atlas api stopped")
 
