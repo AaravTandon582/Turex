@@ -27,7 +27,9 @@ is built today.
 | Projects, hypotheses, experiments, notes | ✅ Working |
 | Recommendations and the knowledge graph | ✅ Working |
 | Flashcards, quizzes, spaced repetition | ✅ Working |
-| Polish, evaluation suite | 🔜 Milestones 8–9 |
+| Polish: accessibility, responsiveness, error states | ✅ Working |
+| Evaluation: retrieval benchmark, security suite | ✅ Working |
+| Demo materials | 🔜 Milestone 10 |
 
 Everything answering a model needs `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` set; without one,
 those endpoints say so rather than failing obscurely, and the rest of Atlas keeps working.
@@ -46,7 +48,8 @@ Nothing is mocked to look complete when it is not.
 | AI | Provider abstraction over Anthropic / OpenAI | No feature is coupled to a single vendor |
 
 Architectural reasoning lives in [`docs/architecture.md`](docs/architecture.md); the decisions
-and their trade-offs are recorded in [`docs/decisions.md`](docs/decisions.md).
+and their trade-offs are recorded in [`docs/decisions.md`](docs/decisions.md); what is actually
+measured, and what is not, is in [`docs/evaluation.md`](docs/evaluation.md).
 
 ---
 

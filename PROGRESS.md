@@ -20,8 +20,8 @@ Architectural rationale lives in [`docs/decisions.md`](docs/decisions.md).
 | M6 | Intelligence Layer | Semantic search, recommendations, knowledge graph | ✅ Complete |
 | M7 | Study Mode | Explanations by level, flashcards, quizzes, progress tracking | ✅ Complete |
 | M8 | Polish | Motion, responsiveness, a11y, empty/loading/error states, onboarding | ✅ Complete |
-| M9 | Evaluation | Retrieval + citation benchmark, hallucination checks, security review | 🔄 In progress |
-| M10 | Demo | Seeded demo account, curated papers, scripted walkthrough | ⏳ Not started |
+| M9 | Evaluation | Retrieval + citation benchmark, hallucination checks, security review | ✅ Complete |
+| M10 | Demo | Seeded demo account, curated papers, scripted walkthrough | 🔄 In progress |
 
 Each milestone is delivered as vertical slices — UI → API → service → database → tests — not as
 disconnected layers.
@@ -234,15 +234,53 @@ shortcut hints in the sidebar, and the notice shown when no model provider is co
 
 ---
 
-## Current milestone: M9 — Evaluation
+## Completed: M9 — Evaluation
 
-**Goal:** measure the claims rather than assert them.
+**Goal:** measure the claims rather than assert them. Full detail in
+[`docs/evaluation.md`](docs/evaluation.md).
 
-- [ ] A retrieval benchmark with known-correct answers, scored
-- [ ] Citation-integrity checks: every stored citation resolves to real text
-- [ ] Hallucination checks against a model that misbehaves on purpose
-- [ ] Security review: authorisation, input validation, upload safety, data isolation
-- [ ] Performance under a library larger than any used so far
+- A scored retrieval benchmark — three purpose-written papers, eight queries with known
+  answers, recall@k and MRR. Runnable as `python -m evaluation`, enforced as thresholds in the
+  test suite. Currently recall@3 88%, MRR 0.646.
+- Citation integrity across the whole database: every citation resolves, snapshots match, and
+  neither re-ingestion nor deleting a paper can leave one pointing at nothing.
+- Model-misbehaviour suite: markers for sources that were never provided, zero markers, more
+  markers than sources, no markers, and an empty answer — none may store anything ungrounded.
+- Authorisation by enumeration: every route read from the app's own schema must answer 401
+  without a session unless declared public with a reason. All pass; six are public.
+- Security properties as tests: no credential literals or vendor keys in source, no
+  interpolated SQL, production config refusing the dev secret key, byte-identical login
+  failures, error envelopes carrying no internal detail, and inert handling of hostile uploads.
+- Scale check at 44 papers and 120 chunks: every endpoint under 60ms.
+
+**One real issue found and fixed:** uploaded filenames were stored verbatim, so
+`../../etc/passwd.pdf` was kept as the display name. Never a traversal risk — storage keys are
+content-addressed and the download header already stripped what would break it — but it is
+shown in the library and exported into citations, so it is now reduced to a bare filename at
+the point of storage.
+
+**Two benchmark bugs, no retrieval bugs.** Two queries had more than one correct answer;
+retrieval returned a different valid one and the benchmark scored a miss. The queries were
+sharpened rather than the thresholds lowered, and each carries a note recording what it got
+wrong. One query remains a permanent failure — the offline bag-of-words embedder genuinely
+cannot answer it — and is pinned by a test rather than deleted.
+
+**One verified non-bug:** 40 near-identical papers produced a graph with zero edges. That is
+the document-frequency ceiling working as designed; four distinct papers added to the same
+library produced 78 edges immediately.
+
+**Tested:** 308 backend tests (56 new), mypy clean over 81 files, ruff clean.
+
+---
+
+## Current milestone: M10 — Demo
+
+**Goal:** something someone can be walked through in five minutes.
+
+- [ ] A seeded demo account with a curated library
+- [ ] A demo project carrying a real research question end to end
+- [ ] A scripted walkthrough that survives being followed exactly
+- [ ] Presentation material and a recorded run
 
 ---
 
