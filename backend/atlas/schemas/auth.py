@@ -5,12 +5,14 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import ConfigDict, EmailStr, Field, field_validator
+
+from atlas.schemas.base import AtlasModel
 
 MIN_PASSWORD_LENGTH = 10
 
 
-class UserRead(BaseModel):
+class UserRead(AtlasModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -19,7 +21,7 @@ class UserRead(BaseModel):
     created_at: datetime
 
 
-class RegisterRequest(BaseModel):
+class RegisterRequest(AtlasModel):
     email: EmailStr
     full_name: str = Field(min_length=1, max_length=120)
     password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=200)
@@ -42,12 +44,12 @@ class RegisterRequest(BaseModel):
         return value
 
 
-class LoginRequest(BaseModel):
+class LoginRequest(AtlasModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=200)
 
 
-class SessionResponse(BaseModel):
+class SessionResponse(AtlasModel):
     """Returned on register, login, and refresh.
 
     The tokens themselves are set as httpOnly cookies and deliberately absent from the body —

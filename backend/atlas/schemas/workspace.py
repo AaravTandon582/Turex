@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from atlas.models.workspace import (
     EvidenceStance,
@@ -14,6 +14,7 @@ from atlas.models.workspace import (
     ProjectStatus,
     TaskStatus,
 )
+from atlas.schemas.base import AtlasModel
 
 
 def _blank_to_none(value: str | None) -> str | None:
@@ -25,7 +26,7 @@ def _blank_to_none(value: str | None) -> str | None:
 # -- projects -------------------------------------------------------------------------
 
 
-class ProjectRead(BaseModel):
+class ProjectRead(AtlasModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -43,7 +44,7 @@ class ProjectRead(BaseModel):
     open_task_count: int = 0
 
 
-class ProjectCreate(BaseModel):
+class ProjectCreate(AtlasModel):
     name: str = Field(min_length=1, max_length=200)
     research_question: str | None = Field(default=None, max_length=2000)
     description: str | None = None
@@ -62,14 +63,14 @@ class ProjectCreate(BaseModel):
         return _blank_to_none(value)
 
 
-class ProjectUpdate(BaseModel):
+class ProjectUpdate(AtlasModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     research_question: str | None = Field(default=None, max_length=2000)
     description: str | None = None
     status: ProjectStatus | None = None
 
 
-class ProjectPaperRead(BaseModel):
+class ProjectPaperRead(AtlasModel):
     paper_id: uuid.UUID
     title: str
     authors: list[str]
@@ -77,7 +78,7 @@ class ProjectPaperRead(BaseModel):
     relevance_note: str | None
 
 
-class AttachPaper(BaseModel):
+class AttachPaper(AtlasModel):
     paper_id: uuid.UUID
     relevance_note: str | None = Field(default=None, max_length=2000)
 
@@ -85,7 +86,7 @@ class AttachPaper(BaseModel):
 # -- hypotheses -----------------------------------------------------------------------
 
 
-class EvidenceRead(BaseModel):
+class EvidenceRead(AtlasModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -99,7 +100,7 @@ class EvidenceRead(BaseModel):
     created_at: datetime
 
 
-class HypothesisRead(BaseModel):
+class HypothesisRead(AtlasModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -119,7 +120,7 @@ class HypothesisDetail(HypothesisRead):
     evidence: list[EvidenceRead] = Field(default_factory=list)
 
 
-class HypothesisCreate(BaseModel):
+class HypothesisCreate(AtlasModel):
     statement: str = Field(min_length=1, max_length=4000)
     project_id: uuid.UUID | None = None
     motivation: str | None = None
@@ -135,7 +136,7 @@ class HypothesisCreate(BaseModel):
         return stripped
 
 
-class HypothesisUpdate(BaseModel):
+class HypothesisUpdate(AtlasModel):
     statement: str | None = Field(default=None, min_length=1, max_length=4000)
     motivation: str | None = None
     assumptions: str | None = None
@@ -144,7 +145,7 @@ class HypothesisUpdate(BaseModel):
     position: int | None = None
 
 
-class AttachEvidence(BaseModel):
+class AttachEvidence(AtlasModel):
     chunk_id: uuid.UUID
     stance: EvidenceStance
     reasoning: str | None = Field(default=None, max_length=4000)
@@ -153,7 +154,7 @@ class AttachEvidence(BaseModel):
 # -- experiments ----------------------------------------------------------------------
 
 
-class ExperimentRead(BaseModel):
+class ExperimentRead(AtlasModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -176,7 +177,7 @@ class ExperimentRead(BaseModel):
     created_at: datetime
 
 
-class ExperimentCreate(BaseModel):
+class ExperimentCreate(AtlasModel):
     title: str = Field(min_length=1, max_length=300)
     project_id: uuid.UUID | None = None
     hypothesis_id: uuid.UUID | None = None
@@ -199,7 +200,7 @@ class ExperimentCreate(BaseModel):
         return stripped
 
 
-class ExperimentUpdate(BaseModel):
+class ExperimentUpdate(AtlasModel):
     title: str | None = Field(default=None, min_length=1, max_length=300)
     hypothesis_id: uuid.UUID | None = None
     objective: str | None = None
@@ -220,7 +221,7 @@ class ExperimentUpdate(BaseModel):
 # -- notes ----------------------------------------------------------------------------
 
 
-class NoteRead(BaseModel):
+class NoteRead(AtlasModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -233,7 +234,7 @@ class NoteRead(BaseModel):
     updated_at: datetime
 
 
-class NoteCreate(BaseModel):
+class NoteCreate(AtlasModel):
     title: str | None = Field(default=None, max_length=300)
     content: str = ""
     project_id: uuid.UUID | None = None
@@ -241,7 +242,7 @@ class NoteCreate(BaseModel):
     hypothesis_id: uuid.UUID | None = None
 
 
-class NoteUpdate(BaseModel):
+class NoteUpdate(AtlasModel):
     title: str | None = Field(default=None, max_length=300)
     content: str | None = None
     project_id: uuid.UUID | None = None
@@ -252,7 +253,7 @@ class NoteUpdate(BaseModel):
 # -- tasks ----------------------------------------------------------------------------
 
 
-class TaskRead(BaseModel):
+class TaskRead(AtlasModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -262,11 +263,11 @@ class TaskRead(BaseModel):
     position: int
 
 
-class TaskCreate(BaseModel):
+class TaskCreate(AtlasModel):
     title: str = Field(min_length=1, max_length=300)
 
 
-class TaskUpdate(BaseModel):
+class TaskUpdate(AtlasModel):
     title: str | None = Field(default=None, min_length=1, max_length=300)
     status: TaskStatus | None = None
     position: int | None = None

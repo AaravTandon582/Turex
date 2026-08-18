@@ -181,6 +181,62 @@ class TestSensitiveDataNeverLeaves:
         assert "password" not in body.lower()
 
 
+class TestHostileTextIsSanitised:
+    """Text arriving from a client is not safe to hand to PostgreSQL as-is."""
+
+    async def test_a_null_byte_does_not_crash_the_server(
+        self, registered_client: AsyncClient, api: str
+    ) -> None:
+        """A null byte in any string column raises inside asyncpg and surfaced as a 500 —
+        an unhandled server error from ordinary input, on every text field at once."""
+        response = await registered_client.post(
+            "/api/v1/projects".replace("/api/v1", api),
+            json={"name": "nul\x00byte", "research_question": "does it survive?"},
+        )
+        assert response.status_code == 201, response.text
+        assert "\x00" not in response.json()["name"]
+
+    @pytest.mark.parametrize(
+        "hostile",
+        [
+            "bell\x07char",
+            "escape\x1b[31mred",
+            "delete\x7fchar",
+            "vertical\x0btab",
+        ],
+    )
+    async def test_control_characters_are_stripped(
+        self, registered_client: AsyncClient, api: str, hostile: str
+    ) -> None:
+        """Terminal escapes in a title make logs and terminals behave strangely."""
+        response = await registered_client.post(
+            f"{api}/projects", json={"name": hostile, "research_question": "x"}
+        )
+        assert response.status_code == 201
+        stored = response.json()["name"]
+        assert not any(ord(character) < 0x20 and character not in "\t\n\r" for character in stored)
+        assert "\x7f" not in stored
+
+    async def test_newlines_and_tabs_survive_because_notes_are_markdown(
+        self, registered_client: AsyncClient, api: str
+    ) -> None:
+        """Stripping too much is its own bug: a note is Markdown and needs its line breaks."""
+        content = "# Heading\n\n- one\n- two\n\n\tindented"
+        response = await registered_client.post(f"{api}/notes", json={"content": content})
+        assert response.status_code == 201
+        assert response.json()["content"] == content
+
+    async def test_nested_strings_are_cleaned_too(
+        self, registered_client: AsyncClient, api: str
+    ) -> None:
+        """A shallow pass would miss a string inside a list, which is where several live."""
+        response = await registered_client.post(
+            f"{api}/projects",
+            json={"name": "clean", "research_question": "x", "tags": ["good", "ba\x00d"]},
+        )
+        assert response.status_code in {201, 422}
+
+
 class TestUploadedDocumentsCannotExecute:
     """An uploaded PDF is data. Nothing in it may be run, and nothing in it names a path."""
 

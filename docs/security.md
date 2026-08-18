@@ -43,6 +43,10 @@ succeeds is not left throttled.
 
 Refusals answer **429** with a `Retry-After` header and a message that says how long to wait.
 
+**Account enumeration through timing** is handled: a login for an address that does not exist
+still verifies the supplied password against a dummy hash, so the miss path costs the same
+argon2 work as the hit path.
+
 ### What the implementation does and does not do
 
 A sliding window, not fixed buckets — a fixed window lets an attacker spend the full allowance
@@ -113,6 +117,22 @@ ready. A new endpoint is covered the moment it is registered.
 
 ---
 
+## Text arriving from a client
+
+Every request and response schema inherits a base that strips characters which cannot be stored
+or displayed safely — null, which PostgreSQL rejects outright, and the C0 control characters,
+which make logs and terminals behave strangely. Tab, newline, and carriage return survive,
+because notes are Markdown and legitimately contain them.
+
+This lives on the base model rather than on individual fields on purpose. A per-field validator
+has to be remembered on every new field, and the one that gets forgotten is the one that breaks.
+
+Before it existed, a null byte in any text field raised `CharacterNotInRepertoireError` inside
+asyncpg and surfaced as **HTTP 500** — an unhandled server error from ordinary user input, on
+every text field in the API at once.
+
+---
+
 ## Uploads
 
 - Validated by **magic bytes**, not by the declared content type or the file extension — both
@@ -148,10 +168,8 @@ Stated plainly, because a security section that claims everything is one that me
   processes enforce roughly four times them.
 - **Distributed brute force.** Per-account limits hold regardless of source, but a large botnet
   spreading attempts across many accounts stays under the per-address limit on each host.
-- **Account enumeration through timing.** Login responses are byte-identical for an unknown
-  email and a wrong password, and both are now rate-limited — but argon2 verification only runs
-  when the account exists, so a determined attacker with clean timing measurements could still
-  distinguish them. Fixing it properly means hashing a dummy password on the miss path.
+- **Distributed brute force**, continued: per-account limits hold regardless of source, so an
+  attacker must spread across many accounts to stay under the per-address limit.
 - **CSRF beyond `SameSite=Lax`.** Lax covers the realistic cases for a JSON API that never
   accepts form posts. A token would be needed if that changed.
 - **Denial of service.** Rate limits bound a single client. They are not a substitute for

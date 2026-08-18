@@ -75,24 +75,28 @@ class PaperService:
         """
         self._validate_upload(filename=filename, content_type=content_type, data=data)
 
-        stored = await self._store.put(namespace=owner.id.hex, filename=filename, data=data)
+        # Read once, up front. A rollback below expires every object loaded in this session,
+        # after which reading `owner.id` triggers a lazy refresh that cannot run inside an
+        # async context — the error then comes from the recovery path rather than the fault.
+        owner_id = owner.id
+
+        stored = await self._store.put(namespace=owner_id.hex, filename=filename, data=data)
+        content_hash = stored.content_hash
 
         existing = await self._db.scalar(
-            select(Paper).where(
-                Paper.owner_id == owner.id, Paper.content_hash == stored.content_hash
-            )
+            select(Paper).where(Paper.owner_id == owner_id, Paper.content_hash == content_hash)
         )
         if existing is not None:
             # The same bytes are already in this library. Returning the existing paper is
             # what the user wants; a duplicate row is not.
             logger.info(
                 "upload matched an existing paper",
-                extra={"paper_id": str(existing.id), "user_id": str(owner.id)},
+                extra={"paper_id": str(existing.id), "user_id": str(owner_id)},
             )
             return UploadResult(paper=existing, job=None, already_existed=True)
 
         paper = Paper(
-            owner_id=owner.id,
+            owner_id=owner_id,
             source=PaperSource.upload,
             original_filename=safe_filename(filename),
             storage_key=stored.key,
@@ -105,11 +109,28 @@ class PaperService:
         try:
             await self._db.flush()
         except IntegrityError as exc:
-            # Two concurrent uploads of the same file; the other one won.
+            # Two concurrent uploads of the same file: both checked, both missed, both
+            # inserted, and this one lost. The sequential path returns the existing paper in
+            # exactly this situation, so returning an error here would mean the same action
+            # succeeds or fails depending on timing — which is what a double-clicked upload
+            # button produces.
             await self._db.rollback()
-            raise ConflictError(
-                "That paper is already in your library.", detail="duplicate content_hash"
-            ) from exc
+            winner = await self._db.scalar(
+                select(Paper).where(Paper.owner_id == owner_id, Paper.content_hash == content_hash)
+            )
+            if winner is None:
+                # Not the duplicate we expected. Some other constraint is unhappy, and
+                # guessing would hide it.
+                raise ConflictError(
+                    "That paper couldn't be added to your library.",
+                    detail="integrity error with no matching existing paper",
+                ) from exc
+
+            logger.info(
+                "concurrent upload of the same file resolved to the existing paper",
+                extra={"paper_id": str(winner.id), "user_id": str(owner_id)},
+            )
+            return UploadResult(paper=winner, job=None, already_existed=True)
 
         # Enqueued in the same transaction as the paper, so an upload cannot half-succeed.
         job = await JobQueue(self._db).enqueue(

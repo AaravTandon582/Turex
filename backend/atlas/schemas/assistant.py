@@ -5,13 +5,14 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from atlas.ai.prompts import ExplanationLevel
 from atlas.models.conversation import AssistantMode, MessageRole
+from atlas.schemas.base import AtlasModel
 
 
-class CitationRead(BaseModel):
+class CitationRead(AtlasModel):
     """A source an answer rested on.
 
     `chunk_id` is null once the underlying passage is gone — the paper was re-ingested or
@@ -32,7 +33,7 @@ class CitationRead(BaseModel):
     used_in_answer: bool
 
 
-class MessageRead(BaseModel):
+class MessageRead(AtlasModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -44,7 +45,7 @@ class MessageRead(BaseModel):
     created_at: datetime
 
 
-class ConversationRead(BaseModel):
+class ConversationRead(AtlasModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -56,12 +57,12 @@ class ConversationRead(BaseModel):
     updated_at: datetime
 
 
-class ConversationCreate(BaseModel):
+class ConversationCreate(AtlasModel):
     mode: AssistantMode = AssistantMode.research
     paper_id: uuid.UUID | None = None
 
 
-class AskRequest(BaseModel):
+class AskRequest(AtlasModel):
     question: str = Field(min_length=1, max_length=8000)
     mode: AssistantMode | None = None
     """Overrides the conversation's mode for this turn, and becomes its new default."""
@@ -79,13 +80,13 @@ class AskRequest(BaseModel):
         return stripped
 
 
-class ModeInfo(BaseModel):
+class ModeInfo(AtlasModel):
     value: AssistantMode
     label: str
     description: str
 
 
-class AssistantStatus(BaseModel):
+class AssistantStatus(AtlasModel):
     """Whether the assistant can actually run on this instance.
 
     Reported up front so the UI can explain that AI features need configuration, rather than
@@ -99,7 +100,7 @@ class AssistantStatus(BaseModel):
     modes: list[ModeInfo]
 
 
-class SearchResult(BaseModel):
+class SearchResult(AtlasModel):
     """A passage found by semantic search."""
 
     chunk_id: uuid.UUID
@@ -115,6 +116,6 @@ class SearchResult(BaseModel):
     """`meaning`, `keyword`, or `both` — so a result can explain why it surfaced."""
 
 
-class SearchResponse(BaseModel):
+class SearchResponse(AtlasModel):
     query: str
     results: list[SearchResult]

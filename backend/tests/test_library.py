@@ -427,3 +427,35 @@ class TestCollections:
         ).json()["id"]
 
         assert (await other_client.delete(f"{api}/collections/{collection_id}")).status_code == 404
+
+
+class TestConcurrentUploads:
+    """The same file arriving twice at once.
+
+    A double-clicked upload button produces exactly this. Both requests check for an existing
+    paper, both miss, both insert, and one loses on the unique constraint. Before this was
+    fixed the loser got a 409 — so the same action succeeded or failed depending on timing,
+    while the sequential path had always returned the existing paper.
+    """
+
+    async def test_the_loser_of_the_race_gets_the_existing_paper(
+        self, registered_client: AsyncClient, api: str
+    ) -> None:
+        import asyncio
+
+        data = build_pdf([["Concurrency", "A Author", "", "Abstract", "One file, many clicks."]])
+        responses = await asyncio.gather(
+            *[
+                registered_client.post(
+                    f"{api}/papers", files={"file": ("same.pdf", data, "application/pdf")}
+                )
+                for _ in range(4)
+            ]
+        )
+
+        codes = [response.status_code for response in responses]
+        assert all(code in {200, 202} for code in codes), codes
+        assert codes.count(202) == 1, f"exactly one upload should have queued work: {codes}"
+
+        ids = {response.json()["id"] for response in responses}
+        assert len(ids) == 1, f"the same bytes produced {len(ids)} papers"

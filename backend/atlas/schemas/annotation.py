@@ -5,13 +5,14 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from atlas.models.annotation import HighlightColour
+from atlas.schemas.base import AtlasModel
 from atlas.services.citations import CitationStyle
 
 
-class AnnotationRead(BaseModel):
+class AnnotationRead(AtlasModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -25,7 +26,7 @@ class AnnotationRead(BaseModel):
     created_at: datetime
 
 
-class AnnotationCreate(BaseModel):
+class AnnotationCreate(AtlasModel):
     page_number: int = Field(ge=1)
     text_offset: int = Field(ge=0)
     selected_text: str = Field(min_length=1, max_length=20_000)
@@ -41,14 +42,14 @@ class AnnotationCreate(BaseModel):
         return stripped
 
 
-class AnnotationUpdate(BaseModel):
+class AnnotationUpdate(AtlasModel):
     colour: HighlightColour | None = None
     note: str | None = Field(default=None, max_length=10_000)
     clear_note: bool = False
     """Removing a note has to be explicit: an absent `note` means "leave it alone"."""
 
 
-class CitationFormat(BaseModel):
+class CitationFormat(AtlasModel):
     style: CitationStyle
     text: str
     missing_fields: list[str]
@@ -56,6 +57,6 @@ class CitationFormat(BaseModel):
     than letting an incomplete citation reach a bibliography unnoticed."""
 
 
-class CitationBundle(BaseModel):
+class CitationBundle(AtlasModel):
     paper_id: uuid.UUID
     formats: list[CitationFormat]

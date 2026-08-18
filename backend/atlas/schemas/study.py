@@ -5,9 +5,10 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from atlas.models.study import CardKind, Flashcard, Quiz, QuizQuestion, ReviewRating
+from atlas.schemas.base import AtlasModel
 from atlas.services.study_service import (
     MAX_CARDS_PER_RUN,
     MAX_QUIZ_QUESTIONS,
@@ -26,7 +27,7 @@ def _excerpt(text: str) -> str:
     return text[:SOURCE_EXCERPT_CHARS].rsplit(" ", 1)[0] + "…"
 
 
-class FlashcardRead(BaseModel):
+class FlashcardRead(AtlasModel):
     id: uuid.UUID
     paper_id: uuid.UUID
     chunk_id: uuid.UUID | None
@@ -60,15 +61,15 @@ class FlashcardRead(BaseModel):
         )
 
 
-class GenerateCardsRequest(BaseModel):
+class GenerateCardsRequest(AtlasModel):
     count: int = Field(default=10, ge=1, le=MAX_CARDS_PER_RUN)
 
 
-class ReviewRequest(BaseModel):
+class ReviewRequest(AtlasModel):
     rating: ReviewRating
 
 
-class QuizQuestionRead(BaseModel):
+class QuizQuestionRead(AtlasModel):
     """A question as the browser sees it while the quiz is being taken.
 
     The correct index, the explanation, and the source passage are absent here and present in
@@ -115,7 +116,7 @@ class QuizQuestionResult(QuizQuestionRead):
         )
 
 
-class QuizRead(BaseModel):
+class QuizRead(AtlasModel):
     id: uuid.UUID
     paper_id: uuid.UUID
     title: str
@@ -147,17 +148,17 @@ class QuizRead(BaseModel):
         )
 
 
-class GenerateQuizRequest(BaseModel):
+class GenerateQuizRequest(AtlasModel):
     count: int = Field(default=5, ge=1, le=MAX_QUIZ_QUESTIONS)
 
 
-class QuizSubmission(BaseModel):
+class QuizSubmission(AtlasModel):
     answers: dict[uuid.UUID, int] = Field(default_factory=dict)
     """Question id to chosen option index. A question left out is scored as unanswered rather
     than wrong-by-default, so a partial submission reports what it actually measured."""
 
 
-class PaperProgressRead(BaseModel):
+class PaperProgressRead(AtlasModel):
     paper_id: uuid.UUID
     title: str
     card_count: int
@@ -179,7 +180,7 @@ class PaperProgressRead(BaseModel):
         )
 
 
-class StudySummaryRead(BaseModel):
+class StudySummaryRead(AtlasModel):
     total_cards: int
     due_now: int
     mastered: int

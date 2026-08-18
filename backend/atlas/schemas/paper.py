@@ -6,15 +6,16 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from atlas.models.job import IngestionStage
 from atlas.models.paper import ProcessingStatus, ReadingStatus
+from atlas.schemas.base import AtlasModel
 
 T = TypeVar("T")
 
 
-class Page(BaseModel, Generic[T]):
+class Page(AtlasModel, Generic[T]):
     """A slice of a larger list.
 
     `total` is included so the UI can show "48 papers" and render pagination without a
@@ -31,11 +32,11 @@ class Page(BaseModel, Generic[T]):
         return self.offset + len(self.items) < self.total
 
 
-class Author(BaseModel):
+class Author(AtlasModel):
     name: str
 
 
-class IngestionProgress(BaseModel):
+class IngestionProgress(AtlasModel):
     """What Atlas is currently doing to a paper, for the processing indicator."""
 
     stage: IngestionStage
@@ -45,7 +46,7 @@ class IngestionProgress(BaseModel):
     error_message: str | None = None
 
 
-class PaperSummary(BaseModel):
+class PaperSummary(AtlasModel):
     """The library-listing shape. Deliberately excludes the abstract, which is large and
     unread in a grid of forty papers."""
 
@@ -80,7 +81,7 @@ class PaperDetail(PaperSummary):
     chunk_count: int = 0
 
 
-class SectionRead(BaseModel):
+class SectionRead(AtlasModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -91,7 +92,7 @@ class SectionRead(BaseModel):
     page_end: int | None
 
 
-class PaperUpdate(BaseModel):
+class PaperUpdate(AtlasModel):
     """Corrections a user may make.
 
     Metadata extraction is heuristic and occasionally wrong, so every extracted field is
@@ -119,7 +120,7 @@ class PaperUpdate(BaseModel):
 PaperSort = Literal["recent", "title", "year", "opened"]
 
 
-class PaperFilters(BaseModel):
+class PaperFilters(AtlasModel):
     """Library query parameters, validated as a unit."""
 
     search: str | None = Field(default=None, max_length=200)
@@ -141,7 +142,7 @@ class PaperFilters(BaseModel):
         return stripped or None
 
 
-class CollectionRead(BaseModel):
+class CollectionRead(AtlasModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -151,7 +152,7 @@ class CollectionRead(BaseModel):
     created_at: datetime
 
 
-class CollectionWrite(BaseModel):
+class CollectionWrite(AtlasModel):
     name: str = Field(min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=2000)
 
@@ -164,7 +165,7 @@ class CollectionWrite(BaseModel):
         return stripped
 
 
-class TagRead(BaseModel):
+class TagRead(AtlasModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -172,7 +173,7 @@ class TagRead(BaseModel):
     paper_count: int = 0
 
 
-class LibraryStats(BaseModel):
+class LibraryStats(AtlasModel):
     """Counts the library header shows, in one query rather than several."""
 
     total: int
