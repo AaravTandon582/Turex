@@ -319,6 +319,10 @@ MAX_DOCUMENT_FREQUENCY = 0.7
 """A term in nearly every paper describes the library, not a link between two of its members."""
 
 DOCUMENT_FREQUENCY_FLOOR = 5
+
+OPENING_CHUNKS_PER_PAPER = 4
+"""How much of each paper the concept scan reads. The abstract and the first passages carry
+the paper's own vocabulary; the rest is mostly method detail and prior work."""
 """Below this many papers the ceiling is not applied at all.
 
 With four papers, a 0.6 ceiling rounds down to two — which excludes exactly the terms three
@@ -413,16 +417,32 @@ class GraphService:
         papers_by_term: defaultdict[str, set[uuid.UUID]] = defaultdict(set)
         frequency: Counter[str] = Counter()
 
-        for paper_id in paper_ids:
-            # Abstract and opening passages: dense in the paper's own vocabulary, and far
-            # cheaper to scan than the whole document.
-            chunks = await self._db.scalars(
-                select(PaperChunk.content)
-                .where(PaperChunk.paper_id == paper_id)
-                .order_by(PaperChunk.ordinal)
-                .limit(4)
+        # Abstract and opening passages: dense in the paper's own vocabulary, and far cheaper
+        # to scan than the whole document. Fetched for every paper in one statement — a query
+        # per paper is invisible at four papers and four hundred queries at four hundred.
+        positioned = (
+            select(
+                PaperChunk.paper_id,
+                PaperChunk.content,
+                func.row_number()
+                .over(partition_by=PaperChunk.paper_id, order_by=PaperChunk.ordinal)
+                .label("position"),
             )
-            for term, count in _terms_of(" ".join(chunks)).items():
+            .where(PaperChunk.paper_id.in_(paper_ids))
+            .subquery()
+        )
+        opening = await self._db.execute(
+            select(positioned.c.paper_id, positioned.c.content).where(
+                positioned.c.position <= OPENING_CHUNKS_PER_PAPER
+            )
+        )
+
+        text_by_paper: defaultdict[uuid.UUID, list[str]] = defaultdict(list)
+        for paper_id, content in opening:
+            text_by_paper[paper_id].append(content)
+
+        for paper_id, contents in text_by_paper.items():
+            for term, count in _terms_of(" ".join(contents)).items():
                 papers_by_term[term].add(paper_id)
                 frequency[term] += count
 
