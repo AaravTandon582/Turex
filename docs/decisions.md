@@ -188,3 +188,27 @@ the parser handles all three, and entries that fail validation are dropped rathe
 
 **Revisit when** more than one feature needs constrained output, at which point the cost of a
 real abstraction is spread over enough call sites to be worth it.
+
+---
+
+## D11 — The benchmark measures the offline embedder, and says so
+
+**Decided.** The retrieval benchmark runs in CI against `HashingEmbeddingProvider`, a
+deterministic bag-of-words stand-in, and its thresholds are set from what that embedder
+achieves — not from what a real embedding model would.
+
+**Why.** CI has no API key. The alternatives were worse: skipping the benchmark without one
+means it never runs; setting thresholds for a real model means CI fails permanently; and
+quietly setting them low while implying they describe production quality would make the
+numbers a lie, which is the specific failure mode this whole product is built to avoid.
+
+What the offline benchmark does catch is every embedder-independent regression — chunking,
+section filtering, rank fusion, owner scoping — and each of those has broken at least once.
+
+**Cost.** The published numbers understate real retrieval quality, and one benchmark query is a
+permanent known failure because a bag-of-words embedder cannot answer it. That query is kept
+and pinned by a test rather than deleted: a benchmark containing only cases the system passes
+measures nothing.
+
+**Revisit when** a key is available in CI, at which point the same harness runs unchanged with
+`EMBEDDING_PROVIDER=openai` and the thresholds should be raised to match.

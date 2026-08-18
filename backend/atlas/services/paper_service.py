@@ -94,7 +94,7 @@ class PaperService:
         paper = Paper(
             owner_id=owner.id,
             source=PaperSource.upload,
-            original_filename=filename[:500],
+            original_filename=safe_filename(filename),
             storage_key=stored.key,
             content_hash=stored.content_hash,
             file_size_bytes=stored.size_bytes,
@@ -452,3 +452,20 @@ async def chunks_for_paper(db: AsyncSession, paper_id: uuid.UUID) -> list[PaperC
         select(PaperChunk).where(PaperChunk.paper_id == paper_id).order_by(PaperChunk.ordinal)
     )
     return list(rows)
+
+
+def safe_filename(filename: str) -> str:
+    """Reduce an uploaded name to something safe to store and display.
+
+    The storage key is content-addressed, so a traversing name was never able to reach the
+    filesystem, and the download header already strips what would break it. This is the third
+    layer: the name is shown in the library, exported into citations, and read by a person, and
+    none of those want `../../etc/passwd.pdf` in them.
+
+    Directory components are dropped rather than escaped — a filename has no directories — and
+    control characters go with them.
+    """
+    base = filename.replace("\\", "/").rsplit("/", 1)[-1]
+    cleaned = "".join(character for character in base if character.isprintable()).strip()
+    cleaned = cleaned.lstrip(".") or "document.pdf"
+    return cleaned[:500]

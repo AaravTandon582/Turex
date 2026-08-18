@@ -13,17 +13,22 @@ from pathlib import Path
 
 import pytest
 from alembic.config import Config
+from fastapi import Depends
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alembic import command
 from atlas.ai.registry import reset_registry
+from atlas.api.deps import get_assistant_service, get_db, get_retrieval_service
 from atlas.core.config import Environment, Settings, get_settings
 from atlas.db.session import dispose_engine, init_engine, session_scope
 from atlas.main import create_app
+from atlas.retrieval.search import RetrievalService
+from atlas.services.assistant_service import AssistantService
 from atlas.storage.local import LocalDocumentStore
 from atlas.workers.runner import IngestionWorker
+from tests.support.scripted_provider import ScriptedChatProvider
 
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "postgresql+asyncpg://localhost/atlas_test")
 
@@ -161,3 +166,23 @@ def run_worker(settings: Settings):  # type: ignore[no-untyped-def]
         return processed
 
     return drain
+
+
+@pytest.fixture
+def scripted(app: object):  # type: ignore[no-untyped-def]
+    """Install a scripted model behind the real assistant service.
+
+    Reuses the real database session and the real retrieval service; only the model is
+    replaced, so retrieval, persistence, and citation building are genuinely exercised.
+    """
+    holder: dict[str, ScriptedChatProvider] = {"provider": ScriptedChatProvider()}
+
+    def factory(
+        session: AsyncSession = Depends(get_db),
+        retrieval: RetrievalService = Depends(get_retrieval_service),
+    ) -> AssistantService:
+        return AssistantService(session, retrieval, lambda: holder["provider"])
+
+    app.dependency_overrides[get_assistant_service] = factory  # type: ignore[attr-defined]
+    yield holder
+    app.dependency_overrides.pop(get_assistant_service, None)  # type: ignore[attr-defined]
