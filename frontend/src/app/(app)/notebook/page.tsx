@@ -1,6 +1,6 @@
 "use client";
 
-import { BookText, Plus, Search, Trash2, X } from "lucide-react";
+import { BookText, ChevronLeft, Plus, Search, Trash2, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
@@ -79,7 +79,13 @@ function Notebook() {
 
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] md:h-dvh">
-      <aside className="flex w-72 shrink-0 flex-col border-r border-border bg-surface-sunken">
+      <aside
+        className={cn(
+          "flex-col border-r border-border bg-surface-sunken md:flex md:w-72 md:shrink-0",
+          // One pane at a time on a phone: a 288px list beside an editor leaves neither usable.
+          active ? "hidden w-full" : "flex w-full",
+        )}
+      >
         <div className="space-y-2 p-3">
           <Button size="sm" className="w-full" onClick={createNote}>
             <Plus aria-hidden />
@@ -151,12 +157,13 @@ function Notebook() {
         </nav>
       </aside>
 
-      <main className="min-w-0 flex-1">
+      <main className={cn("min-w-0 flex-1", active ? "block" : "hidden md:block")}>
         {active ? (
           <NoteEditor
             key={active.id}
             note={active}
             projects={projects}
+            onBack={() => setActiveId(null)}
             onSaved={(updated) =>
               setNotes((current) =>
                 (current ?? []).map((note) => (note.id === updated.id ? updated : note)),
@@ -193,11 +200,13 @@ function NoteEditor({
   projects,
   onSaved,
   onDeleted,
+  onBack,
 }: {
   note: Note;
   projects: Project[];
   onSaved: (note: Note) => void;
   onDeleted: () => void;
+  onBack: () => void;
 }) {
   const [title, setTitle] = useState(note.title ?? "");
   const [content, setContent] = useState(note.content);
@@ -237,6 +246,15 @@ function NoteEditor({
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-3 border-b border-border px-5 py-2.5">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back to notes"
+          className="-ml-2 flex size-8 shrink-0 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink md:hidden"
+        >
+          <ChevronLeft className="size-4" aria-hidden />
+        </button>
+
         <span
           className="min-w-16 text-[12px] text-ink-subtle"
           aria-live="polite"

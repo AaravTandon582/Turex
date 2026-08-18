@@ -2,7 +2,7 @@
 
 import { Menu, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useSession } from "@/components/auth/session-provider";
 import { AtlasMark } from "@/components/brand/atlas-mark";
@@ -20,6 +20,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { status } = useSession();
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const openerRef = useRef<HTMLButtonElement>(null);
+  const hasOpened = useRef(false);
 
   useNavShortcuts();
 
@@ -37,13 +40,50 @@ export function AppShell({ children }: { children: ReactNode }) {
     };
   }, [drawerOpen]);
 
+  // Escape closes it, and Tab is kept inside it while it is open. A drawer that covers the
+  // page but lets focus wander behind it is worse than no drawer for anyone navigating by
+  // keyboard: the focus ring disappears into content they cannot see.
   useEffect(() => {
     if (!drawerOpen) return;
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDrawerOpen(false);
+      if (event.key === "Escape") {
+        setDrawerOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !drawerRef.current) return;
+
+      const focusable = drawerRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
+
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
+  }, [drawerOpen]);
+
+  // Move focus into the drawer when it opens, and back to the button that opened it when it
+  // closes — otherwise focus falls to the top of the document and the reader loses their place.
+  useEffect(() => {
+    if (drawerOpen) {
+      hasOpened.current = true;
+      drawerRef.current?.querySelector<HTMLElement>("button, a[href]")?.focus();
+    } else if (hasOpened.current) {
+      // Guarded, because this effect also runs on mount, when nothing has been opened and
+      // stealing focus to the menu button would be wrong on every page load.
+      openerRef.current?.focus({ preventScroll: true });
+    }
   }, [drawerOpen]);
 
   if (status !== "authenticated") return <AppShellSkeleton />;
@@ -55,9 +95,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-canvas/85 px-4 backdrop-blur-sm md:hidden">
           <button
+            ref={openerRef}
             type="button"
             onClick={() => setDrawerOpen(true)}
             aria-label="Open navigation"
+            aria-expanded={drawerOpen}
             className="-ml-1.5 flex size-9 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink"
           >
             <Menu className="size-5" aria-hidden />
@@ -79,7 +121,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             onClick={() => setDrawerOpen(false)}
             className="absolute inset-0 animate-[var(--animate-fade-in)] bg-black/40"
           />
-          <div className="absolute inset-y-0 left-0 w-64 animate-[var(--animate-fade-in)] border-r border-border bg-surface-sunken">
+          <div
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigation"
+            className="absolute inset-y-0 left-0 w-64 animate-[var(--animate-fade-in)] border-r border-border bg-surface-sunken"
+          >
             <button
               type="button"
               onClick={() => setDrawerOpen(false)}

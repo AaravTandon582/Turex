@@ -231,7 +231,7 @@ export default function ReaderPage() {
         </button>
       </header>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         <div ref={scrollRef} className="scrollbar-slim flex-1 overflow-y-auto bg-surface-sunken">
           <div className="relative mx-auto w-fit py-8">
             <Document
@@ -274,7 +274,15 @@ export default function ReaderPage() {
         </div>
 
         {sidebarOpen && (
-          <aside className="flex w-80 shrink-0 flex-col border-l border-border bg-canvas">
+          <aside
+            className={
+              // Full width over the page on a phone, a fixed rail beside it from md up. A
+              // 320px panel alongside a PDF on a 375px screen leaves the paper unreadable,
+              // which defeats the point of a reader.
+              "absolute inset-y-0 right-0 z-20 flex w-full flex-col border-l border-border bg-canvas shadow-[var(--shadow-lg)] " +
+              "md:static md:z-auto md:w-80 md:shrink-0 md:shadow-none"
+            }
+          >
             <div className="min-h-0 flex-1">
               <ReaderSidebar
                 paperId={id}
