@@ -2,23 +2,18 @@
 
 import { FileText, FlaskConical, Library, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
 import { useSession } from "@/components/auth/session-provider";
 import { PageContainer } from "@/components/layout/page-container";
+import { AsyncBoundary } from "@/components/ui/async-boundary";
 import { Button } from "@/components/ui/button";
 import { Card, EmptyState, Skeleton } from "@/components/ui/primitives";
 import { firstName } from "@/lib/auth";
-import { discovery, type Recommendation } from "@/lib/discovery";
-import { formatAuthors, papers, type LibraryStats, type PaperSummary } from "@/lib/papers";
+import { discovery } from "@/lib/discovery";
+import { formatAuthors, papers, type LibraryStats } from "@/lib/papers";
+import { useAsync } from "@/lib/use-async";
 import { workspace, type Project } from "@/lib/workspace";
 
-interface Dashboard {
-  stats: LibraryStats;
-  reading: PaperSummary[];
-  projects: Project[];
-  recommendations: Recommendation[];
-}
 
 /**
  * The dashboard answers one question: what am I working on?
@@ -28,24 +23,16 @@ interface Dashboard {
  */
 export default function DashboardPage() {
   const { user } = useSession();
-  const [data, setData] = useState<Dashboard | null>(null);
 
-  useEffect(() => {
-    void (async () => {
-      const [stats, reading, projects, recommendations] = await Promise.all([
-        papers.stats().catch(() => ({ total: 0, processing: 0, failed: 0, unread: 0, favorites: 0 })),
-        papers
-          .list({ reading_status: "reading", sort: "opened", limit: 4 })
-          .then((page) => page.items)
-          .catch(() => []),
-        workspace.listProjects().catch(() => []),
-        discovery.recommendations(3).catch(() => []),
-      ]);
-      setData({ stats, reading, projects, recommendations });
-    })();
-  }, []);
-
-  const activeProjects = data?.projects.filter((project) => project.status === "active") ?? [];
+  // One request per panel, not one combined call: a failing recommendation service should not
+  // blank out the projects the reader came here to see. Each panel reports its own state.
+  const stats = useAsync(() => papers.stats(), []);
+  const reading = useAsync(
+    () => papers.list({ reading_status: "reading", sort: "opened", limit: 4 }).then((p) => p.items),
+    [],
+  );
+  const projects = useAsync(() => workspace.listProjects(), []);
+  const recommendations = useAsync(() => discovery.recommendations(3), []);
 
   return (
     <PageContainer>
@@ -54,8 +41,8 @@ export default function DashboardPage() {
           {user ? `Welcome back, ${firstName(user)}` : <Skeleton className="h-8 w-64" />}
         </h1>
         <p className="measure mt-1.5 text-sm text-ink-muted">
-          {data
-            ? summarise(data)
+          {stats.data && projects.data
+            ? summarise(stats.data, projects.data)
             : "Everything you are reading, questioning, and testing — in one place."}
         </p>
       </header>
@@ -66,46 +53,46 @@ export default function DashboardPage() {
             Active projects
           </h2>
 
-          {!data ? (
-            <Skeleton className="h-32 w-full rounded-lg" />
-          ) : activeProjects.length === 0 ? (
-            <EmptyState
-              icon={<FlaskConical />}
-              title="No projects yet"
-              description="A project holds a research question together with the papers, notes, hypotheses, and experiments that answer it."
-              action={
-                <Button asChild size="sm">
-                  <Link href="/projects">Start a project</Link>
-                </Button>
-              }
-            />
-          ) : (
-            <ul className="space-y-2">
-              {activeProjects.slice(0, 4).map((project) => (
-                <li key={project.id}>
-                  <Card className="transition-[border-color] hover:border-border-strong">
-                    <Link href={`/projects/${project.id}`} className="block rounded-lg p-3.5">
-                      <p className="text-[14px] font-medium text-ink">{project.name}</p>
-                      {project.research_question && (
-                        <p className="measure mt-1 line-clamp-1 text-[13px] text-ink-muted">
-                          {project.research_question}
-                        </p>
-                      )}
-                      <p className="mt-2 text-[12px] text-ink-subtle" data-tabular>
-                        {project.paper_count} papers · {project.hypothesis_count} hypotheses
-                        {project.open_task_count > 0 && (
-                          <span className="text-accent">
-                            {" "}
-                            · {project.open_task_count} open
-                          </span>
-                        )}
-                      </p>
-                    </Link>
-                  </Card>
-                </li>
-              ))}
-            </ul>
-          )}
+          <AsyncBoundary state={projects} skeleton={<Skeleton className="h-32 w-full rounded-lg" />}>
+            {(all) => {
+              const active = all.filter((project) => project.status === "active");
+              return active.length === 0 ? (
+                <EmptyState
+                  icon={<FlaskConical />}
+                  title="No projects yet"
+                  description="A project holds a research question together with the papers, notes, hypotheses, and experiments that answer it."
+                  action={
+                    <Button asChild size="sm">
+                      <Link href="/projects">Start a project</Link>
+                    </Button>
+                  }
+                />
+              ) : (
+                <ul className="space-y-2">
+                  {active.slice(0, 4).map((project) => (
+                    <li key={project.id}>
+                      <Card className="transition-[border-color] hover:border-border-strong">
+                        <Link href={`/projects/${project.id}`} className="block rounded-lg p-3.5">
+                          <p className="text-[14px] font-medium text-ink">{project.name}</p>
+                          {project.research_question && (
+                            <p className="measure mt-1 line-clamp-1 text-[13px] text-ink-muted">
+                              {project.research_question}
+                            </p>
+                          )}
+                          <p className="mt-2 text-[12px] text-ink-subtle" data-tabular>
+                            {project.paper_count} papers · {project.hypothesis_count} hypotheses
+                            {project.open_task_count > 0 && (
+                              <span className="text-accent"> · {project.open_task_count} open</span>
+                            )}
+                          </p>
+                        </Link>
+                      </Card>
+                    </li>
+                  ))}
+                </ul>
+              );
+            }}
+          </AsyncBoundary>
         </section>
 
         <section aria-labelledby="continue-reading">
@@ -113,36 +100,38 @@ export default function DashboardPage() {
             Continue reading
           </h2>
 
-          {!data ? (
-            <Skeleton className="h-32 w-full rounded-lg" />
-          ) : data.reading.length === 0 ? (
-            <EmptyState
-              icon={<FileText />}
-              title="Nothing in progress"
-              description="Papers you have started appear here so you can pick up where you stopped."
-            />
-          ) : (
-            <ul className="space-y-2">
-              {data.reading.map((paper) => (
-                <li key={paper.id}>
-                  <Card className="transition-[border-color] hover:border-border-strong">
-                    <Link href={`/library/${paper.id}/read`} className="block rounded-lg p-3">
-                      <p className="line-clamp-2 text-[13px] font-medium text-ink">
-                        {paper.display_title}
-                      </p>
-                      <p className="mt-1 truncate text-[12px] text-ink-subtle">
-                        {formatAuthors(paper.authors, 2)}
-                      </p>
-                    </Link>
-                  </Card>
-                </li>
-              ))}
-            </ul>
-          )}
+          <AsyncBoundary state={reading} skeleton={<Skeleton className="h-32 w-full rounded-lg" />}>
+            {(papersReading) =>
+              papersReading.length === 0 ? (
+                <EmptyState
+                  icon={<FileText />}
+                  title="Nothing in progress"
+                  description="Papers you have started appear here so you can pick up where you stopped."
+                />
+              ) : (
+                <ul className="space-y-2">
+                  {papersReading.map((paper) => (
+                    <li key={paper.id}>
+                      <Card className="transition-[border-color] hover:border-border-strong">
+                        <Link href={`/library/${paper.id}/read`} className="block rounded-lg p-3">
+                          <p className="line-clamp-2 text-[13px] font-medium text-ink">
+                            {paper.display_title}
+                          </p>
+                          <p className="mt-1 truncate text-[12px] text-ink-subtle">
+                            {formatAuthors(paper.authors, 2)}
+                          </p>
+                        </Link>
+                      </Card>
+                    </li>
+                  ))}
+                </ul>
+              )
+            }
+          </AsyncBoundary>
         </section>
       </div>
 
-      {data && data.recommendations.length > 0 && (
+      {recommendations.data && recommendations.data.length > 0 && (
         <section className="mt-10" aria-labelledby="recommended">
           <h2 id="recommended" className="mb-1 text-[13px] font-semibold text-ink-muted">
             Worth reading next
@@ -151,14 +140,12 @@ export default function DashboardPage() {
             Each one says why it surfaced. Nothing here is a guess about your taste.
           </p>
           <ul className="grid gap-3 sm:grid-cols-3">
-            {data.recommendations.map((entry) => (
+            {recommendations.data.map((entry) => (
               <li key={entry.paper_id}>
                 <Card className="h-full transition-[border-color] hover:border-border-strong">
                   <Link href={`/library/${entry.paper_id}`} className="block h-full rounded-lg p-3.5">
                     <p className="line-clamp-2 text-[13px] font-medium text-ink">{entry.title}</p>
-                    <p className="mt-2 text-[12px] leading-relaxed text-ink-muted">
-                      {entry.reason}
-                    </p>
+                    <p className="mt-2 text-[12px] leading-relaxed text-ink-muted">{entry.reason}</p>
                   </Link>
                 </Card>
               </li>
@@ -167,7 +154,7 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {data && data.stats.total === 0 && (
+      {stats.data?.total === 0 && (
         <section className="mt-10" aria-labelledby="get-started">
           <h2 id="get-started" className="mb-3 text-[13px] font-semibold text-ink-muted">
             Get started
@@ -198,7 +185,7 @@ export default function DashboardPage() {
   );
 }
 
-function summarise({ stats, projects }: Dashboard): string {
+function summarise(stats: LibraryStats, projects: Project[]): string {
   if (stats.total === 0) {
     return "Everything you are reading, questioning, and testing — in one place.";
   }

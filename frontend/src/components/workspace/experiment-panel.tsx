@@ -4,8 +4,10 @@ import { ChevronDown, FlaskConical, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/ui/async-boundary";
 import { Badge, Card, EmptyState } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
+import { describe } from "@/lib/use-async";
 import {
   EXPERIMENT_STATUSES,
   workspace,
@@ -42,10 +44,16 @@ export function ExperimentPanel({
   hypotheses: Hypothesis[];
 }) {
   const [experiments, setExperiments] = useState<Experiment[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
 
   async function reload() {
-    setExperiments(await workspace.listExperiments(projectId).catch(() => []));
+    try {
+      setExperiments(await workspace.listExperiments(projectId));
+      setLoadError(null);
+    } catch (caught) {
+      setLoadError(describe(caught));
+    }
   }
 
   useEffect(() => {
@@ -78,7 +86,11 @@ export function ExperimentPanel({
         </Button>
       </form>
 
-      {experiments && experiments.length === 0 && (
+      {loadError && (
+        <LoadError message={loadError} onRetry={() => void reload()} className="mt-3" />
+      )}
+
+      {!loadError && experiments && experiments.length === 0 && (
         <EmptyState
           icon={<FlaskConical />}
           title="No experiments planned"

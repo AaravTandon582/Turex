@@ -7,6 +7,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, Skeleton } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
+import { describe } from "@/lib/use-async";
 import { workspace, type Note, type Project } from "@/lib/workspace";
 
 const SAVE_DELAY_MS = 700;
@@ -33,6 +34,7 @@ function Notebook() {
   const [activeId, setActiveId] = useState<string | null>(params.get("note"));
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [notesError, setNotesError] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(searchInput.trim()), 250);
@@ -40,9 +42,18 @@ function Notebook() {
   }, [searchInput]);
 
   const reload = useCallback(async () => {
-    const loaded = await workspace.listNotes({ search: search || undefined }).catch(() => []);
-    setNotes(loaded);
-    return loaded;
+    try {
+      const loaded = await workspace.listNotes({ search: search || undefined });
+      setNotes(loaded);
+      setNotesError(null);
+      return loaded;
+    } catch (caught) {
+      // Not an empty list: "no notes yet" and "we could not reach the server" must not look
+      // the same to someone who has written notes.
+      setNotes(null);
+      setNotesError(describe(caught));
+      return [];
+    }
   }, [search]);
 
   useEffect(() => {
@@ -53,7 +64,9 @@ function Notebook() {
     void workspace
       .listProjects()
       .then(setProjects)
-      .catch(() => setProjects([]));
+      // Only fills the "link to a project" menu. A failure leaves it empty, which reads as
+      // "no projects to pick", and the note still saves without one.
+      .catch(() => undefined);
   }, []);
 
   const active = notes?.find((note) => note.id === activeId) ?? null;
@@ -90,7 +103,16 @@ function Notebook() {
         </div>
 
         <nav aria-label="Notes" className="scrollbar-slim flex-1 overflow-y-auto px-2 pb-3">
-          {notes === null ? (
+          {notesError ? (
+            <div className="p-2">
+              <p role="alert" className="text-[12px] leading-relaxed text-danger">
+                {notesError}
+              </p>
+              <Button size="sm" variant="secondary" className="mt-2" onClick={() => void reload()}>
+                Try again
+              </Button>
+            </div>
+          ) : notes === null ? (
             <div className="space-y-1.5 p-1">
               {Array.from({ length: 4 }, (_, index) => (
                 <Skeleton key={index} className="h-12 w-full rounded-md" />

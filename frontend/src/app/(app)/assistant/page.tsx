@@ -11,6 +11,7 @@ import { PageContainer } from "@/components/layout/page-container";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, EmptyState, Skeleton } from "@/components/ui/primitives";
 import { ApiError } from "@/lib/api";
+import { describe } from "@/lib/use-async";
 import { cn } from "@/lib/cn";
 import {
   ask,
@@ -74,8 +75,13 @@ export default function AssistantPage() {
     }
     void assistant
       .messages(activeId)
-      .then(setMessages)
-      .catch(() => setMessages([]));
+      .then((loaded) => {
+        setMessages(loaded);
+        setLoadError(null);
+      })
+      // An empty transcript and an unreachable server look identical otherwise, and one of
+      // them means the conversation the reader is looking for is still there.
+      .catch((caught: unknown) => setLoadError(describe(caught)));
   }, [activeId]);
 
   // Keep the newest turn in view as it streams.

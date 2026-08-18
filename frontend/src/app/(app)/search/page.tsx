@@ -5,9 +5,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { PageContainer } from "@/components/layout/page-container";
+import { LoadError } from "@/components/ui/async-boundary";
 import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/components/ui/primitives";
 import { assistant, type SearchResult } from "@/lib/assistant";
 import { cn } from "@/lib/cn";
+import { describe } from "@/lib/use-async";
 
 const EXAMPLES = [
   "methods for reducing hallucination",
@@ -27,6 +29,10 @@ export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  // Bumped by the retry button. Part of the effect's dependencies, so retrying an identical
+  // query actually re-runs it rather than being skipped as unchanged.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const timer = setTimeout(() => setQuery(input.trim()), 300);
@@ -36,19 +42,27 @@ export default function SearchPage() {
   useEffect(() => {
     if (!query) {
       setResults(null);
+      setFailure(null);
       return;
     }
     let cancelled = false;
     setSearching(true);
+    setFailure(null);
     void assistant
       .search(query, { limit: 20 })
       .then((response) => !cancelled && setResults(response.results))
-      .catch(() => !cancelled && setResults([]))
+      // A failed search must not render as "no results" — that would send the reader looking
+      // for a paper they already have.
+      .catch((caught) => {
+        if (cancelled) return;
+        setResults(null);
+        setFailure(describe(caught));
+      })
       .finally(() => !cancelled && setSearching(false));
     return () => {
       cancelled = true;
     };
-  }, [query]);
+  }, [query, attempt]);
 
   return (
     <PageContainer>
@@ -89,7 +103,9 @@ export default function SearchPage() {
       )}
 
       <div className="mt-6">
-        {searching && results === null ? (
+        {failure ? (
+          <LoadError message={failure} onRetry={() => setAttempt((count) => count + 1)} />
+        ) : searching && results === null ? (
           <div className="space-y-3" aria-busy>
             {Array.from({ length: 3 }, (_, index) => (
               <Card key={index} className="p-4">

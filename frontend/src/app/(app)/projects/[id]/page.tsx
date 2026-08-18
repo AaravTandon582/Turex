@@ -9,9 +9,11 @@ import { PageContainer } from "@/components/layout/page-container";
 import { ExperimentPanel } from "@/components/workspace/experiment-panel";
 import { HypothesisPanel } from "@/components/workspace/hypothesis-panel";
 import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/ui/async-boundary";
 import { Card, EmptyState, Skeleton } from "@/components/ui/primitives";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { describe } from "@/lib/use-async";
 import { papers as papersApi, type PaperSummary } from "@/lib/papers";
 import {
   workspace,
@@ -200,11 +202,17 @@ function ResearchQuestion({ project, onSaved }: { project: Project; onSaved: () 
 
 function PapersPanel({ projectId, onChanged }: { projectId: string; onChanged: () => void }) {
   const [attached, setAttached] = useState<ProjectPaper[]>([]);
-  const [library, setLibrary] = useState<PaperSummary[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [library, setLibrary] = useState<PaperSummary[] | null>(null);
   const [picking, setPicking] = useState(false);
 
   const reload = useCallback(async () => {
-    setAttached(await workspace.projectPapers(projectId).catch(() => []));
+    try {
+      setAttached(await workspace.projectPapers(projectId));
+      setLoadError(null);
+    } catch (caught) {
+      setLoadError(describe(caught));
+    }
   }, [projectId]);
 
   useEffect(() => {
@@ -216,13 +224,15 @@ function PapersPanel({ projectId, onChanged }: { projectId: string; onChanged: (
     void papersApi
       .list({ status: "ready", limit: 50 })
       .then((page) => setLibrary(page.items))
-      .catch(() => setLibrary([]));
+      .catch(() => undefined);
   }, [picking]);
 
   const attachedIds = new Set(attached.map((paper) => paper.paper_id));
 
   return (
     <div className="space-y-3">
+      {loadError && <LoadError message={loadError} onRetry={() => void reload()} />}
+
       <div className="flex justify-end">
         <Button size="sm" variant="secondary" onClick={() => setPicking((value) => !value)}>
           <Plus aria-hidden />
@@ -232,7 +242,9 @@ function PapersPanel({ projectId, onChanged }: { projectId: string; onChanged: (
 
       {picking && (
         <Card className="max-h-64 overflow-y-auto p-2">
-          {library.length === 0 ? (
+          {library === null ? (
+            <p className="p-3 text-[13px] text-ink-subtle">Loading your library…</p>
+          ) : library.length === 0 ? (
             <p className="p-3 text-[13px] text-ink-subtle">
               No processed papers in your library yet.
             </p>
@@ -308,9 +320,15 @@ function PapersPanel({ projectId, onChanged }: { projectId: string; onChanged: (
 
 function NotesPanel({ projectId }: { projectId: string }) {
   const [notes, setNotes] = useState<Note[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    setNotes(await workspace.listNotes({ projectId }).catch(() => []));
+    try {
+      setNotes(await workspace.listNotes({ projectId }));
+      setLoadError(null);
+    } catch (caught) {
+      setLoadError(describe(caught));
+    }
   }, [projectId]);
 
   useEffect(() => {
@@ -319,6 +337,8 @@ function NotesPanel({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-3">
+      {loadError && <LoadError message={loadError} onRetry={() => void reload()} />}
+
       <div className="flex justify-end">
         <Button
           size="sm"
@@ -364,10 +384,16 @@ function NotesPanel({ projectId }: { projectId: string }) {
 
 function TasksPanel({ projectId, onChanged }: { projectId: string; onChanged: () => void }) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
 
   const reload = useCallback(async () => {
-    setTasks(await workspace.listTasks(projectId).catch(() => []));
+    try {
+      setTasks(await workspace.listTasks(projectId));
+      setLoadError(null);
+    } catch (caught) {
+      setLoadError(describe(caught));
+    }
   }, [projectId]);
 
   useEffect(() => {
@@ -376,6 +402,8 @@ function TasksPanel({ projectId, onChanged }: { projectId: string; onChanged: ()
 
   return (
     <div className="space-y-3">
+      {loadError && <LoadError message={loadError} onRetry={() => void reload()} />}
+
       <form
         className="flex gap-2"
         onSubmit={async (event) => {

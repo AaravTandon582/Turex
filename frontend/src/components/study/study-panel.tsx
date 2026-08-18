@@ -22,10 +22,12 @@ export function StudyPanel({ paperId }: { paperId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Left null on failure: the count is an assertion about the reader's cards, so it is
+    // better shown as absent than as zero.
     void study
       .listCards({ paperId, limit: 200 })
       .then(setCards)
-      .catch(() => setCards([]));
+      .catch(() => undefined);
   }, [paperId]);
 
   async function generateCards() {

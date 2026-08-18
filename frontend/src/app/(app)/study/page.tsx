@@ -2,38 +2,36 @@
 
 import { GraduationCap, ListChecks } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { ReviewSession } from "@/components/study/review-session";
 import { PageContainer } from "@/components/layout/page-container";
 import { Button } from "@/components/ui/button";
+import { AsyncBoundary } from "@/components/ui/async-boundary";
 import { Card, EmptyState, PageHeader, Skeleton } from "@/components/ui/primitives";
-import { study, type Flashcard, type Quiz, type StudySummary } from "@/lib/study";
+import { study, type Flashcard } from "@/lib/study";
+import { useAsync } from "@/lib/use-async";
 
 export default function StudyPage() {
-  const [summary, setSummary] = useState<StudySummary | null>(null);
-  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const summary = useAsync(() => study.progress(), []);
+  const quizzes = useAsync(() => study.listQuizzes(), []);
   const [session, setSession] = useState<Flashcard[] | null>(null);
   const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    const [progress, recent] = await Promise.all([
-      study.progress().catch(() => null),
-      study.listQuizzes().catch(() => []),
-    ]);
-    if (progress) setSummary(progress);
-    setQuizzes(recent);
+  const reload = useCallback(() => {
+    summary.reload();
+    quizzes.reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   async function startSession() {
     setStarting(true);
+    setStartError(null);
     try {
-      const due = await study.listCards({ dueOnly: true, limit: 40 });
-      setSession(due);
+      setSession(await study.listCards({ dueOnly: true, limit: 40 }));
+    } catch {
+      setStartError("Atlas couldn't load your due cards. Check your connection and try again.");
     } finally {
       setStarting(false);
     }
@@ -46,7 +44,7 @@ export default function StudyPage() {
           cards={session}
           onFinished={() => {
             setSession(null);
-            void load();
+            reload();
           }}
         />
       </PageContainer>
@@ -60,77 +58,90 @@ export default function StudyPage() {
         description="Cards and questions written from passages of your own papers. Every answer shows the passage it came from, so you can check it rather than trust it."
       />
 
-      {!summary ? (
-        <Skeleton className="mt-6 h-40 w-full rounded-lg" />
-      ) : summary.total_cards === 0 ? (
-        <EmptyState
-          className="mt-6"
-          icon={<GraduationCap />}
-          title="No cards yet"
-          description="Open a paper you have read and generate a set. Atlas writes cards from the paper's own passages — nothing is invented."
-          action={
-            <Button asChild size="sm">
-              <Link href="/library">Go to your library</Link>
-            </Button>
-          }
-        />
-      ) : (
-        <>
-          <div className="mt-6 grid gap-3 sm:grid-cols-4">
-            <Stat label="Due now" value={summary.due_now} emphasis={summary.due_now > 0} />
-            <Stat label="Total cards" value={summary.total_cards} />
-            <Stat label="Mastered" value={summary.mastered} />
-            <Stat label="Reviews this week" value={summary.reviews_last_seven_days} />
-          </div>
+      <AsyncBoundary state={summary} skeleton={<Skeleton className="mt-6 h-40 w-full rounded-lg" />}>
+        {(progress) =>
+          progress.total_cards === 0 ? (
+            <EmptyState
+              className="mt-6"
+              icon={<GraduationCap />}
+              title="No cards yet"
+              description="Open a paper you have read and generate a set. Atlas writes cards from the paper's own passages — nothing is invented."
+              action={
+                <Button asChild size="sm">
+                  <Link href="/library">Go to your library</Link>
+                </Button>
+              }
+            />
+          ) : (
+            <>
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Stat label="Due now" value={progress.due_now} emphasis={progress.due_now > 0} />
+                <Stat label="Total cards" value={progress.total_cards} />
+                <Stat label="Mastered" value={progress.mastered} />
+                <Stat label="Reviews this week" value={progress.reviews_last_seven_days} />
+              </div>
 
-          <div className="mt-5">
-            <Button onClick={() => void startSession()} loading={starting} disabled={summary.due_now === 0}>
-              {summary.due_now > 0
-                ? `Review ${summary.due_now} ${summary.due_now === 1 ? "card" : "cards"}`
-                : "Nothing due right now"}
-            </Button>
-            {summary.due_now === 0 && (
-              <p className="mt-2 text-[12px] text-ink-subtle">
-                Cards come back on a schedule that stretches as you keep getting them right.
-              </p>
-            )}
-          </div>
+              <div className="mt-5">
+                <Button
+                  onClick={() => void startSession()}
+                  loading={starting}
+                  disabled={progress.due_now === 0}
+                >
+                  {progress.due_now > 0
+                    ? `Review ${progress.due_now} ${progress.due_now === 1 ? "card" : "cards"}`
+                    : "Nothing due right now"}
+                </Button>
+                {progress.due_now === 0 && (
+                  <p className="mt-2 text-[12px] text-ink-subtle">
+                    Cards come back on a schedule that stretches as you keep getting them right.
+                  </p>
+                )}
+                {startError && (
+                  <p role="alert" className="mt-2 text-[13px] text-danger">
+                    {startError}
+                  </p>
+                )}
+              </div>
 
-          <section className="mt-10" aria-labelledby="by-paper">
-            <h2 id="by-paper" className="mb-3 text-[13px] font-semibold text-ink-muted">
-              By paper
-            </h2>
-            <ul className="space-y-2">
-              {summary.papers.map((paper) => (
-                <li key={paper.paper_id}>
-                  <Card className="transition-[border-color] hover:border-border-strong">
-                    <Link href={`/library/${paper.paper_id}`} className="block rounded-lg p-3.5">
-                      <p className="line-clamp-1 text-[14px] font-medium text-ink">{paper.title}</p>
-                      <p className="mt-1 text-[12px] text-ink-subtle" data-tabular>
-                        {paper.card_count} cards · {paper.mastered_count} mastered
-                        {paper.due_count > 0 && (
-                          <span className="text-accent"> · {paper.due_count} due</span>
-                        )}
-                        {paper.best_quiz_score !== null && (
-                          <> · best quiz {Math.round(paper.best_quiz_score * 100)}%</>
-                        )}
-                      </p>
-                    </Link>
-                  </Card>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </>
-      )}
+              <section className="mt-10" aria-labelledby="by-paper">
+                <h2 id="by-paper" className="mb-3 text-[13px] font-semibold text-ink-muted">
+                  By paper
+                </h2>
+                <ul className="space-y-2">
+                  {progress.papers.map((paper) => (
+                    <li key={paper.paper_id}>
+                      <Card className="transition-[border-color] hover:border-border-strong">
+                        <Link href={`/library/${paper.paper_id}`} className="block rounded-lg p-3.5">
+                          <p className="line-clamp-1 text-[14px] font-medium text-ink">
+                            {paper.title}
+                          </p>
+                          <p className="mt-1 text-[12px] text-ink-subtle" data-tabular>
+                            {paper.card_count} cards · {paper.mastered_count} mastered
+                            {paper.due_count > 0 && (
+                              <span className="text-accent"> · {paper.due_count} due</span>
+                            )}
+                            {paper.best_quiz_score !== null && (
+                              <> · best quiz {Math.round(paper.best_quiz_score * 100)}%</>
+                            )}
+                          </p>
+                        </Link>
+                      </Card>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </>
+          )
+        }
+      </AsyncBoundary>
 
-      {quizzes.length > 0 && (
+      {quizzes.data && quizzes.data.length > 0 && (
         <section className="mt-10" aria-labelledby="quizzes">
           <h2 id="quizzes" className="mb-3 text-[13px] font-semibold text-ink-muted">
             Quizzes
           </h2>
           <ul className="space-y-2">
-            {quizzes.map((quiz) => (
+            {quizzes.data.map((quiz) => (
               <li key={quiz.id}>
                 <Card className="transition-[border-color] hover:border-border-strong">
                   <Link
@@ -156,6 +167,7 @@ export default function StudyPage() {
           </ul>
         </section>
       )}
+
     </PageContainer>
   );
 }

@@ -2,27 +2,21 @@
 
 import { FlaskConical, Plus } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { PageContainer } from "@/components/layout/page-container";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { FormError } from "@/components/ui/form-error";
+import { AsyncBoundary } from "@/components/ui/async-boundary";
 import { Card, EmptyState, PageHeader, Skeleton } from "@/components/ui/primitives";
 import { ApiError } from "@/lib/api";
+import { useAsync } from "@/lib/use-async";
 import { workspace, type Project } from "@/lib/workspace";
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[] | null>(null);
+  const projects = useAsync(() => workspace.listProjects(), []);
   const [creating, setCreating] = useState(false);
-
-  async function reload() {
-    setProjects(await workspace.listProjects().catch(() => []));
-  }
-
-  useEffect(() => {
-    void reload();
-  }, []);
 
   return (
     <PageContainer>
@@ -30,7 +24,7 @@ export default function ProjectsPage() {
         title="Projects"
         description="A research question, and everything you have gathered to answer it."
         actions={
-          !creating && projects && projects.length > 0 ? (
+          !creating && projects.data && projects.data.length > 0 ? (
             <Button size="sm" onClick={() => setCreating(true)}>
               <Plus aria-hidden />
               New project
@@ -42,45 +36,52 @@ export default function ProjectsPage() {
       {creating && (
         <NewProjectForm
           onCancel={() => setCreating(false)}
-          onCreated={async () => {
+          onCreated={() => {
             setCreating(false);
-            await reload();
+            projects.reload();
           }}
         />
       )}
 
       <div className="mt-6">
-        {!projects ? (
-          <div className="grid gap-3 sm:grid-cols-2" aria-busy>
-            {Array.from({ length: 2 }, (_, index) => (
-              <Card key={index} className="p-4">
-                <Skeleton className="h-4 w-2/5" />
-                <Skeleton className="mt-3 h-3 w-4/5" />
-                <Skeleton className="mt-6 h-3 w-32" />
-              </Card>
-            ))}
-            <span className="sr-only">Loading projects</span>
-          </div>
-        ) : projects.length === 0 && !creating ? (
-          <EmptyState
-            icon={<FlaskConical />}
-            title="No projects yet"
-            description="A project starts with a question. Atlas keeps the papers, notes, hypotheses, and experiments that bear on it together, so you can see what you actually know."
-            action={
-              <Button size="sm" onClick={() => setCreating(true)}>
-                Start a project
-              </Button>
-            }
-          />
-        ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {projects.map((project) => (
-              <li key={project.id}>
-                <ProjectCard project={project} />
-              </li>
-            ))}
-          </ul>
-        )}
+        <AsyncBoundary
+          state={projects}
+          skeleton={
+            <div className="grid gap-3 sm:grid-cols-2" aria-busy>
+              {Array.from({ length: 2 }, (_, index) => (
+                <Card key={index} className="p-4">
+                  <Skeleton className="h-4 w-2/5" />
+                  <Skeleton className="mt-3 h-3 w-4/5" />
+                  <Skeleton className="mt-6 h-3 w-32" />
+                </Card>
+              ))}
+              <span className="sr-only">Loading projects</span>
+            </div>
+          }
+        >
+          {(all) =>
+            all.length === 0 && !creating ? (
+              <EmptyState
+                icon={<FlaskConical />}
+                title="No projects yet"
+                description="A project starts with a question. Atlas keeps the papers, notes, hypotheses, and experiments that bear on it together, so you can see what you actually know."
+                action={
+                  <Button size="sm" onClick={() => setCreating(true)}>
+                    Start a project
+                  </Button>
+                }
+              />
+            ) : (
+              <ul className="grid gap-3 sm:grid-cols-2">
+                {all.map((project) => (
+                  <li key={project.id}>
+                    <ProjectCard project={project} />
+                  </li>
+                ))}
+              </ul>
+            )
+          }
+        </AsyncBoundary>
       </div>
     </PageContainer>
   );

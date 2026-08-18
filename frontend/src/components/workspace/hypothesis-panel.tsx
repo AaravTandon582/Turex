@@ -4,8 +4,10 @@ import { ChevronDown, Lightbulb, Minus, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/ui/async-boundary";
 import { Badge, Card, EmptyState } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
+import { describe } from "@/lib/use-async";
 import {
   hypothesisStatus,
   HYPOTHESIS_STATUSES,
@@ -17,10 +19,16 @@ import {
 
 export function HypothesisPanel({ projectId }: { projectId: string }) {
   const [hypotheses, setHypotheses] = useState<Hypothesis[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
   async function reload() {
-    setHypotheses(await workspace.listHypotheses(projectId).catch(() => []));
+    try {
+      setHypotheses(await workspace.listHypotheses(projectId));
+      setLoadError(null);
+    } catch (caught) {
+      setLoadError(describe(caught));
+    }
   }
 
   useEffect(() => {
@@ -54,7 +62,11 @@ export function HypothesisPanel({ projectId }: { projectId: string }) {
         />
       )}
 
-      {hypotheses && hypotheses.length === 0 && !adding && (
+      {loadError && (
+        <LoadError message={loadError} onRetry={() => void reload()} className="mt-3" />
+      )}
+
+      {!loadError && hypotheses && hypotheses.length === 0 && !adding && (
         <EmptyState
           icon={<Lightbulb />}
           title="No hypotheses yet"
