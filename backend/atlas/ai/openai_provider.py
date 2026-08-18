@@ -31,8 +31,17 @@ _GENERIC_FAILURE = "Atlas couldn't reach the AI service. Try again in a moment."
 class OpenAIChatProvider(ChatProvider):
     name = "openai"
 
-    def __init__(self, *, api_key: str, model: str, timeout_seconds: float = 120.0) -> None:
-        self._client = openai.AsyncOpenAI(api_key=api_key, timeout=timeout_seconds)
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        base_url: str | None = None,
+        timeout_seconds: float = 120.0,
+    ) -> None:
+        self._client = openai.AsyncOpenAI(
+            api_key=api_key, base_url=base_url, timeout=timeout_seconds
+        )
         self._model = model
 
     def _payload(self, request: ChatRequest) -> dict[str, Any]:
@@ -89,8 +98,10 @@ class OpenAIChatProvider(ChatProvider):
 class OpenAIEmbeddingProvider(EmbeddingProvider):
     name = "openai"
 
-    def __init__(self, *, api_key: str, model: str, dimensions: int) -> None:
-        self._client = openai.AsyncOpenAI(api_key=api_key, timeout=60.0)
+    def __init__(
+        self, *, api_key: str, model: str, dimensions: int, base_url: str | None = None
+    ) -> None:
+        self._client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=60.0)
         self._model = model
         self.dimensions = dimensions
 

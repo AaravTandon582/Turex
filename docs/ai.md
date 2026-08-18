@@ -133,6 +133,27 @@ empty answers are acceptable.
 
 ---
 
+## Using an OpenAI-compatible service
+
+Several services speak the OpenAI wire format and differ only in base URL, key, and model
+namespace — OpenRouter, Hack Club AI, a local `llama.cpp` server. Setting `OPENAI_BASE_URL`
+points the existing OpenAI providers at any of them; leaving it unset talks to OpenAI itself.
+
+```bash
+CHAT_PROVIDER=openai
+OPENAI_BASE_URL=https://ai.hackclub.com/proxy/v1
+OPENAI_API_KEY=...
+OPENAI_MODEL=anthropic/claude-opus-5    # these services namespace their models
+```
+
+The model name is passed through unchanged, because a service's namespace is its own. That is
+covered by a test — rewriting the name would break every service of this kind at once.
+
+A wrong base URL fails in a way that looks like a bad key, so the resolved base URL is logged
+when the chat provider is constructed.
+
+---
+
 ## Generated study material
 
 Flashcards and quiz questions are generated, which makes them the same hazard as an answer: a

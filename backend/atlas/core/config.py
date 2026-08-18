@@ -76,6 +76,17 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o"
     openai_embedding_model: str = "text-embedding-3-small"
 
+    openai_base_url: str | None = None
+    """Point the OpenAI-compatible providers somewhere other than OpenAI.
+
+    Several services speak the OpenAI wire format — OpenRouter, Hack Club AI, a local
+    llama.cpp server — and all of them need only a different base URL and key. Left unset,
+    the SDK's own default is used, so nothing changes for a plain OpenAI deployment.
+
+    `openai_model` then names a model in *that* service's namespace, which is usually
+    vendor-qualified: `anthropic/claude-opus-5` rather than `claude-opus-5`.
+    """
+
     embedding_dimensions: int = 1536
     """Fixed at the pgvector column level. Changing it requires a re-index migration."""
 

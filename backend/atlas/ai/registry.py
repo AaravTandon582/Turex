@@ -65,12 +65,24 @@ class ProviderRegistry:
                 from atlas.ai.openai_provider import OpenAIChatProvider
 
                 self._chat = OpenAIChatProvider(
-                    api_key=settings.openai_api_key, model=settings.openai_model
+                    api_key=settings.openai_api_key,
+                    model=settings.openai_model,
+                    base_url=settings.openai_base_url,
                 )
             case unknown:
                 raise NotConfiguredError(detail=f"unknown chat provider {unknown!r}")
 
-        logger.info("chat provider ready", extra={"provider": self._chat.name})
+        logger.info(
+            "chat provider ready",
+            extra={
+                "provider": self._chat.name,
+                "model": settings.openai_model
+                if settings.chat_provider == "openai"
+                else settings.anthropic_model,
+                # Worth logging: a wrong base URL fails in ways that look like a bad key.
+                "base_url": settings.openai_base_url or "default",
+            },
+        )
         return self._chat
 
     # -- embeddings ---------------------------------------------------------------
@@ -106,6 +118,7 @@ class ProviderRegistry:
                 api_key=settings.openai_api_key,
                 model=settings.openai_embedding_model,
                 dimensions=settings.embedding_dimensions,
+                base_url=settings.openai_base_url,
             )
         else:
             raise NotConfiguredError(
