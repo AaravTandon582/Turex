@@ -19,8 +19,8 @@ Architectural rationale lives in [`docs/decisions.md`](docs/decisions.md).
 | M5 | Research Workspace | Projects, notebook, hypotheses, experiments, tasks | ✅ Complete |
 | M6 | Intelligence Layer | Semantic search, recommendations, knowledge graph | ✅ Complete |
 | M7 | Study Mode | Explanations by level, flashcards, quizzes, progress tracking | ✅ Complete |
-| M8 | Polish | Motion, responsiveness, a11y, empty/loading/error states, onboarding | 🔄 In progress |
-| M9 | Evaluation | Retrieval + citation benchmark, hallucination checks, security review | ⏳ Not started |
+| M8 | Polish | Motion, responsiveness, a11y, empty/loading/error states, onboarding | ✅ Complete |
+| M9 | Evaluation | Retrieval + citation benchmark, hallucination checks, security review | 🔄 In progress |
 | M10 | Demo | Seeded demo account, curated papers, scripted walkthrough | ⏳ Not started |
 
 Each milestone is delivered as vertical slices — UI → API → service → database → tests — not as
@@ -199,16 +199,50 @@ rather than store something ungrounded.
 
 ---
 
-## Current milestone: M8 — Polish
+## Completed: M8 — Polish
 
 **Goal:** make the whole thing feel finished rather than assembled.
 
-- [ ] Loading, empty, and error states audited on every screen
-- [ ] Keyboard access and screen-reader labelling across the app
-- [ ] Responsive behaviour down to a phone, including the reader
-- [ ] Motion reviewed for purpose; anything decorative removed
-- [ ] Onboarding for a brand-new account
-- [ ] Performance pass on the heaviest queries and the largest pages
+The audit found three real defects rather than cosmetic ones.
+
+**Every screen told the truth about failure.** Twenty places caught a failed request and set
+an empty array, so a page whose data could not load reported that the reader had nothing — no
+projects, no notes, no search results. Added `useAsync` and `AsyncBoundary`, which keep
+*loading*, *failed*, *empty*, and *loaded* apart; failures now carry a message and a retry.
+The dashboard also loads each panel separately, so a failing recommendation service no longer
+blanks the projects beside it.
+
+**The mobile drawer was not a dialog.** It covered the page without trapping focus, so Tab
+walked into content behind it. It now has dialog semantics, keeps Tab inside, and restores
+focus to the button that opened it.
+
+**Two screens were unusable on a phone.** The notebook put a 288px list beside the editor,
+leaving under 90px to write in; it now shows one pane at a time. The reader put a 320px
+sidebar beside the PDF; that is now an overlay below `md`.
+
+**One N+1, found by shape rather than by timing.** The knowledge graph read each paper's
+opening passages in its own query — 204 queries for 200 papers. Every endpoint still answered
+in under 80ms with four papers, which is exactly the reading that hides this. New tests count
+statements at two library sizes and require the count not to grow. Five other endpoints were
+checked the same way and were already flat.
+
+**Verified in place rather than rebuilt:** reduced-motion handling, the skip link, live
+regions, focus-visible styles, the empty-state onboarding for a new account, the `g`-chord
+shortcut hints in the sidebar, and the notice shown when no model provider is configured.
+
+**Tested:** 252 backend tests (6 new), mypy clean, ruff clean, eslint 0 errors, build clean.
+
+---
+
+## Current milestone: M9 — Evaluation
+
+**Goal:** measure the claims rather than assert them.
+
+- [ ] A retrieval benchmark with known-correct answers, scored
+- [ ] Citation-integrity checks: every stored citation resolves to real text
+- [ ] Hallucination checks against a model that misbehaves on purpose
+- [ ] Security review: authorisation, input validation, upload safety, data isolation
+- [ ] Performance under a library larger than any used so far
 
 ---
 
