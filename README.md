@@ -29,7 +29,7 @@ is built today.
 | Flashcards, quizzes, spaced repetition | ✅ Working |
 | Polish: accessibility, responsiveness, error states | ✅ Working |
 | Evaluation: retrieval benchmark, security suite | ✅ Working |
-| Demo materials | 🔜 Milestone 10 |
+| Demo account and walkthrough | ✅ Working |
 
 Everything answering a model needs `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` set; without one,
 those endpoints say so rather than failing obscurely, and the rest of Atlas keeps working.
@@ -56,6 +56,8 @@ measured, and what is not, is in [`docs/evaluation.md`](docs/evaluation.md).
 ## Running Atlas locally
 
 Full setup, including troubleshooting, is in [`docs/development.md`](docs/development.md).
+To see Atlas with a library already in it, run `python scripts/seed_demo.py` and follow
+[`docs/demo.md`](docs/demo.md).
 The short version:
 
 ### Prerequisites

@@ -21,7 +21,7 @@ Architectural rationale lives in [`docs/decisions.md`](docs/decisions.md).
 | M7 | Study Mode | Explanations by level, flashcards, quizzes, progress tracking | ✅ Complete |
 | M8 | Polish | Motion, responsiveness, a11y, empty/loading/error states, onboarding | ✅ Complete |
 | M9 | Evaluation | Retrieval + citation benchmark, hallucination checks, security review | ✅ Complete |
-| M10 | Demo | Seeded demo account, curated papers, scripted walkthrough | 🔄 In progress |
+| M10 | Demo | Seeded demo account, curated papers, scripted walkthrough | ✅ Complete |
 
 Each milestone is delivered as vertical slices — UI → API → service → database → tests — not as
 disconnected layers.
@@ -273,14 +273,45 @@ library produced 78 edges immediately.
 
 ---
 
-## Current milestone: M10 — Demo
+## Completed: M10 — Demo
 
-**Goal:** something someone can be walked through in five minutes.
+**Goal:** something someone can be walked through in five minutes. Script in
+[`docs/demo.md`](docs/demo.md).
 
-- [ ] A seeded demo account with a curated library
-- [ ] A demo project carrying a real research question end to end
-- [ ] A scripted walkthrough that survives being followed exactly
-- [ ] Presentation material and a recorded run
+- `scripts/seed_demo.py` builds the account from nothing: five arXiv papers downloaded and
+  cached, a project with three hypotheses, evidence, notes, a highlight, and optionally
+  flashcards. Idempotent, with `--reset` and `--with-study`.
+- The walkthrough is five steps, two of which invite the audience to try to catch Atlas lying.
+
+**Two decisions that make the demo worth trusting:**
+
+- **It seeds through the HTTP API, not the database.** A demo inserted directly would sit in a
+  state no real user could reach. Every paper was uploaded, parsed, chunked, and embedded by
+  the same code a visitor's upload hits — so running the seed is itself an end-to-end test.
+- **Nothing in it is hand-written.** Every quotation attached to a hypothesis is whatever
+  retrieval actually returned for its query. If retrieval breaks, seeding fails rather than
+  quietly producing a demo full of stale text.
+
+**Three bugs found by walking the script rather than assuming it worked:**
+
+- Papers were attached to the project with the paper id in the path; the endpoint takes it in
+  the body. The call silently did nothing and the project showed "0 papers". Responses are
+  checked now.
+- A hypothesis used status `refuted`, which is not a value the enum has. It failed with a bare
+  `KeyError: 'id'` three calls later; the script now reports the API's own message.
+- The evidence against "bigger models are truthful" was a real passage from the right paper
+  that did not actually contradict the claim. In a demo about checkable citations that is
+  worse than no citation, because anyone who reads it notices. The query now targets the
+  InstructGPT abstract's opening line, which contradicts it outright.
+
+**One claim in the draft script was false and is now corrected.** It said ResNet "sits apart"
+in the knowledge graph. It does not — it connects through the general deep-learning vocabulary
+it genuinely shares (*training*, *neural*, *architecture*) and through none of the
+language-specific terms (*transformer*, *encoder*, *question answering*). That is a better
+demonstration than isolation would have been, and it is what actually happens.
+
+**Verified live end to end**, including six flashcards generated from the RAG paper by Claude
+Opus 5, every one traceable to a real passage.
 
 ---
 
