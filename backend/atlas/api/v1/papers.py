@@ -7,7 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Query, Response, UploadFile, status
 
-from atlas.api.deps import CurrentUser, PaperServiceDep
+from atlas.api.deps import CurrentUser, GuardDep, PaperServiceDep
 from atlas.models.job import STAGE_LABELS, IngestionJob
 from atlas.models.paper import Paper
 from atlas.schemas.paper import (
@@ -20,6 +20,7 @@ from atlas.schemas.paper import (
     PaperUpdate,
     SectionRead,
 )
+from atlas.security import policy
 from atlas.services.paper_service import PaperService
 
 router = APIRouter(prefix="/papers", tags=["papers"])
@@ -60,6 +61,7 @@ async def upload_paper(
     user: CurrentUser,
     service: PaperServiceDep,
     response: Response,
+    guard: GuardDep,
     file: Annotated[UploadFile, File(description="A PDF to add to the library")],
 ) -> PaperDetail:
     """Add a paper.
@@ -68,6 +70,8 @@ async def upload_paper(
     Poll the paper to watch `ingestion.progress` advance. An upload of a file already in the
     library returns the existing paper with 200 rather than creating a duplicate.
     """
+    guard.by_user(user.id, policy.UPLOADS_PER_USER, scope="upload")
+
     data = await file.read()
     result = await service.upload(
         owner=user,

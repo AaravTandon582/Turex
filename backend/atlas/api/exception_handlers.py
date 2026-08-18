@@ -49,9 +49,18 @@ def register_exception_handlers(app: FastAPI, settings: Settings) -> None:
             )
         else:
             logger.info("request rejected: %s", exc.code.value, extra={"detail": exc.detail})
+        # `Retry-After` is the standard way to tell a client when to come back, and a
+        # well-behaved one will wait rather than retrying immediately and deepening the
+        # problem it just hit.
+        headers: dict[str, str] = {}
+        retry_after = exc.context.get("retry_after_seconds")
+        if isinstance(retry_after, int):
+            headers["retry-after"] = str(retry_after)
+
         return JSONResponse(
             status_code=exc.status_code,
             content=exc.to_payload(),
+            headers=headers or None,
         )
 
     @app.exception_handler(RequestValidationError)

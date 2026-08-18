@@ -115,9 +115,7 @@ async def wait_for_ingestion(api: httpx.AsyncClient, expected: int, timeout: flo
 async def sign_in(api: httpx.AsyncClient, *, reset: bool) -> None:
     """Create the demo account, or sign in to the existing one."""
     if reset:
-        login = await api.post(
-            "/auth/login", json={"email": DEMO_EMAIL, "password": DEMO_PASSWORD}
-        )
+        login = await api.post("/auth/login", json={"email": DEMO_EMAIL, "password": DEMO_PASSWORD})
         if login.status_code == 200:
             print("  removing the previous demo library")
             for paper in (await api.get("/papers?limit=100")).json()["items"]:

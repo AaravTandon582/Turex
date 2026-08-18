@@ -6,7 +6,7 @@ import uuid
 
 from fastapi import APIRouter, Query, status
 
-from atlas.api.deps import CurrentUser, StudyServiceDep
+from atlas.api.deps import CurrentUser, GuardDep, StudyServiceDep
 from atlas.schemas.study import (
     FlashcardRead,
     GenerateCardsRequest,
@@ -16,6 +16,7 @@ from atlas.schemas.study import (
     ReviewRequest,
     StudySummaryRead,
 )
+from atlas.security import policy
 
 router = APIRouter(tags=["study"])
 
@@ -33,7 +34,9 @@ async def generate_flashcards(
     payload: GenerateCardsRequest,
     user: CurrentUser,
     service: StudyServiceDep,
+    guard: GuardDep,
 ) -> list[FlashcardRead]:
+    guard.by_user(user.id, policy.MODEL_CALLS_PER_USER, scope="model")
     cards = await service.generate_flashcards(owner=user, paper_id=paper_id, count=payload.count)
     return [FlashcardRead.of(card) for card in cards]
 
@@ -77,7 +80,9 @@ async def generate_quiz(
     payload: GenerateQuizRequest,
     user: CurrentUser,
     service: StudyServiceDep,
+    guard: GuardDep,
 ) -> QuizRead:
+    guard.by_user(user.id, policy.MODEL_CALLS_PER_USER, scope="model")
     quiz = await service.generate_quiz(owner=user, paper_id=paper_id, count=payload.count)
     return QuizRead.of(quiz)
 

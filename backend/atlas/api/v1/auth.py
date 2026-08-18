@@ -5,10 +5,11 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Response, status
 
 from atlas.api.cookies import clear_session_cookies, set_session_cookies
-from atlas.api.deps import AuthServiceDep, ClientInfoDep, CurrentUser, SettingsDep
+from atlas.api.deps import AuthServiceDep, ClientInfoDep, CurrentUser, GuardDep, SettingsDep
 from atlas.core.errors import UnauthenticatedError
 from atlas.core.security import REFRESH_COOKIE_NAME
 from atlas.schemas.auth import LoginRequest, RegisterRequest, SessionResponse, UserRead
+from atlas.security import policy
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -16,11 +17,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/register", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     payload: RegisterRequest,
+    request: Request,
     response: Response,
     auth: AuthServiceDep,
     settings: SettingsDep,
     client: ClientInfoDep,
+    guard: GuardDep,
 ) -> SessionResponse:
+    guard.by_address(request, policy.REGISTRATION_PER_ADDRESS, scope="register")
     session = await auth.register(
         email=payload.email,
         full_name=payload.full_name,
@@ -37,12 +41,26 @@ async def register(
 @router.post("/login", response_model=SessionResponse)
 async def login(
     payload: LoginRequest,
+    request: Request,
     response: Response,
     auth: AuthServiceDep,
     settings: SettingsDep,
     client: ClientInfoDep,
+    guard: GuardDep,
 ) -> SessionResponse:
+    # Two limits, because either one alone is bypassable. Per-account stops an attacker
+    # guessing one password from many addresses; per-address stops one host spraying attempts
+    # across many accounts. Both are checked before the password is verified, so a rejected
+    # attempt costs no argon2 hashing — which is also what keeps this from being a way to
+    # exhaust CPU on purpose.
+    guard.by_identifier(payload.email, policy.LOGIN_PER_ACCOUNT, scope="login")
+    guard.by_address(request, policy.LOGIN_PER_ADDRESS, scope="login")
+
     session = await auth.login(email=payload.email, password=payload.password, client=client)
+
+    # A correct password clears the account's counter, so a person who mistypes several times
+    # and then succeeds is not left throttled.
+    guard.clear_identifier(payload.email, scope="login")
     set_session_cookies(response, session, settings)
     return SessionResponse(
         user=UserRead.model_validate(session.user),
@@ -57,7 +75,9 @@ async def refresh(
     auth: AuthServiceDep,
     settings: SettingsDep,
     client: ClientInfoDep,
+    guard: GuardDep,
 ) -> SessionResponse:
+    guard.by_address(request, policy.REFRESH_PER_ADDRESS, scope="refresh")
     token = request.cookies.get(REFRESH_COOKIE_NAME)
     if not token:
         raise UnauthenticatedError(detail="no refresh cookie present")

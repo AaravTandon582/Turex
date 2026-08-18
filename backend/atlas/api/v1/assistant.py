@@ -15,6 +15,7 @@ from atlas.api.deps import (
     AssistantServiceDep,
     CurrentUser,
     DbDep,
+    GuardDep,
     ProviderRegistryDep,
     RetrievalServiceDep,
 )
@@ -34,6 +35,7 @@ from atlas.schemas.assistant import (
     SearchResponse,
     SearchResult,
 )
+from atlas.security import policy
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/assistant", tags=["assistant"])
@@ -147,6 +149,7 @@ async def ask(
     payload: AskRequest,
     user: CurrentUser,
     service: AssistantServiceDep,
+    guard: GuardDep,
 ) -> StreamingResponse:
     """Ask a question and stream the answer.
 
@@ -158,6 +161,9 @@ async def ask(
     * `done` — finished, with the stored message id.
     * `error` — generation failed; the text is safe to display.
     """
+    # Checked before the stream opens. Once an SSE response has started, the status code is
+    # already sent and a 429 can no longer be expressed.
+    guard.by_user(user.id, policy.MODEL_CALLS_PER_USER, scope="model")
 
     async def frames() -> AsyncIterator[str]:
         try:
@@ -219,11 +225,13 @@ async def ask(
 async def semantic_search(
     user: CurrentUser,
     retrieval: RetrievalServiceDep,
+    guard: GuardDep,
     q: Annotated[str, Query(min_length=1, max_length=500, description="What to look for")],
     limit: Annotated[int, Query(ge=1, le=50)] = 12,
     paper_id: uuid.UUID | None = None,
 ) -> SearchResponse:
     """Search passages by meaning and by keyword, fused into one ranking."""
+    guard.by_user(user.id, policy.SEARCH_PER_USER, scope="search")
     chunks = await retrieval.search(
         owner_id=user.id, query=q, limit=limit, paper_ids=[paper_id] if paper_id else None
     )

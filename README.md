@@ -49,7 +49,8 @@ Nothing is mocked to look complete when it is not.
 
 Architectural reasoning lives in [`docs/architecture.md`](docs/architecture.md); the decisions
 and their trade-offs are recorded in [`docs/decisions.md`](docs/decisions.md); what is actually
-measured, and what is not, is in [`docs/evaluation.md`](docs/evaluation.md).
+measured, and what is not, is in [`docs/evaluation.md`](docs/evaluation.md); the defences and
+their limits are in [`docs/security.md`](docs/security.md).
 
 ---
 

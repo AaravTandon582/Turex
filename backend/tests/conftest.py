@@ -20,7 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from alembic import command
 from atlas.ai.registry import reset_registry
-from atlas.api.deps import get_assistant_service, get_db, get_retrieval_service
+from atlas.api.deps import (
+    get_assistant_service,
+    get_db,
+    get_retrieval_service,
+    reset_rate_limits,
+)
 from atlas.core.config import Environment, Settings, get_settings
 from atlas.db.session import dispose_engine, init_engine, session_scope
 from atlas.main import create_app
@@ -81,6 +86,17 @@ async def app(settings: Settings) -> AsyncIterator[object]:
     init_engine(settings)
     yield application
     await dispose_engine()
+
+
+@pytest.fixture(autouse=True)
+def clean_rate_limits() -> None:
+    """Start every test with empty counters.
+
+    The limiter is process-global by design — that is what makes it work — so without this the
+    suite exhausts the registration limit partway through and later tests fail for reasons
+    that have nothing to do with what they are testing.
+    """
+    reset_rate_limits()
 
 
 @pytest.fixture(autouse=True)

@@ -19,6 +19,13 @@ from atlas.core.security import ACCESS_COOKIE_NAME, decode_access_token
 from atlas.db.session import get_db
 from atlas.models.user import User, UserSession
 from atlas.retrieval.search import RetrievalService
+from atlas.security.guard import Guard
+from atlas.security.rate_limit import (
+    Decision,
+    InMemoryRateLimiter,
+    Limit,
+    RateLimiter,
+)
 from atlas.services.annotation_service import AnnotationService
 from atlas.services.assistant_service import AssistantService
 from atlas.services.auth_service import AuthService, ClientInfo
@@ -47,6 +54,37 @@ def get_auth_service(db: DbDep, settings: SettingsDep) -> AuthService:
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+
+
+# One limiter for the process. Its counters are the state that makes limiting work, so it must
+# not be rebuilt per request — a fresh limiter every time would enforce nothing at all.
+_limiter = InMemoryRateLimiter()
+
+
+def reset_rate_limits() -> None:
+    """Clear every counter.
+
+    Exists for the test suite, which would otherwise share one limiter across hundreds of
+    tests and start rejecting registrations partway through a run — a failure that looks like
+    a bug in whatever test happened to be unlucky.
+    """
+    global _limiter
+    _limiter = InMemoryRateLimiter()
+
+
+def get_guard(settings: SettingsDep) -> Guard:
+    return Guard(_limiter if settings.rate_limiting_enabled else _NoopLimiter())
+
+
+GuardDep = Annotated[Guard, Depends(get_guard)]
+
+
+class _NoopLimiter(RateLimiter):
+    """Allows everything. Only reachable when rate limiting is deliberately disabled, which
+    `check_production_readiness` refuses to let happen in production."""
+
+    def check(self, key: str, limit: Limit) -> Decision:
+        return Decision(allowed=True, remaining=limit.requests, retry_after_seconds=0)
 
 
 @lru_cache(maxsize=1)

@@ -66,7 +66,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url=None if settings.is_production else "/openapi.json",
     )
 
-    app.add_middleware(RequestContextMiddleware)
+    # Read by `security.guard.client_address`, which needs it on every request and must not
+    # reach for global settings to get it.
+    app.state.trust_proxy_headers = settings.trust_proxy_headers
+
+    app.add_middleware(RequestContextMiddleware, send_hsts=settings.cookie_secure)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

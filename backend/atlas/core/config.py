@@ -90,6 +90,20 @@ class Settings(BaseSettings):
     embedding_dimensions: int = 1536
     """Fixed at the pgvector column level. Changing it requires a re-index migration."""
 
+    # --- Security -------------------------------------------------------------
+    trust_proxy_headers: bool = False
+    """Read the client's address from `X-Forwarded-For`.
+
+    Off by default and deliberately so. A client can send that header itself, so trusting it
+    when Atlas is directly exposed hands an attacker a way to look like a new address on every
+    request, which defeats rate limiting entirely. Turn it on only when a proxy you control
+    sets the header.
+    """
+
+    rate_limiting_enabled: bool = True
+    """An escape hatch for load testing. Never turn this off in production — there is a startup
+    check that says so."""
+
     # --- Ingestion ------------------------------------------------------------
     worker_enabled: bool = True
     worker_poll_seconds: float = 2.0
@@ -126,6 +140,8 @@ class Settings(BaseSettings):
             problems.append("COOKIE_SECURE must be true so session cookies require HTTPS")
         if self.debug:
             problems.append("DEBUG must be false")
+        if not self.rate_limiting_enabled:
+            problems.append("RATE_LIMITING_ENABLED must be true")
         return problems
 
 
