@@ -72,6 +72,9 @@ class Flashcard(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "flashcards"
     __table_args__ = (
         Index("ix_flashcards_owner_id_due_at", "owner_id", "due_at"),
+        # paper_id alone, not just as the second half of the composite below: deleting a
+        # paper cascades here, and without this the cascade sequentially scans the table.
+        Index("ix_flashcards_paper_id", "paper_id"),
         Index("ix_flashcards_owner_id_paper_id", "owner_id", "paper_id"),
     )
 
@@ -123,7 +126,10 @@ class CardReview(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """
 
     __tablename__ = "card_reviews"
-    __table_args__ = (Index("ix_card_reviews_owner_id_created_at", "owner_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_card_reviews_owner_id_created_at", "owner_id", "created_at"),
+        Index("ix_card_reviews_card_id", "card_id"),
+    )
 
     card_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("flashcards.id", ondelete="CASCADE"), nullable=False
@@ -150,7 +156,10 @@ class Quiz(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """
 
     __tablename__ = "quizzes"
-    __table_args__ = (Index("ix_quizzes_owner_id_created_at", "owner_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_quizzes_owner_id_created_at", "owner_id", "created_at"),
+        Index("ix_quizzes_paper_id", "paper_id"),
+    )
 
     owner_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False

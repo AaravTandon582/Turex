@@ -134,7 +134,7 @@ class TestMemoryIsBounded:
 
         before = limiter.tracked_keys
         clock.advance(7200)
-        for index in range(PRUNE_EVERY):
+        for _ in range(PRUNE_EVERY):
             limiter.check("active", limit)
 
         assert limiter.tracked_keys < before, (
@@ -169,9 +169,9 @@ class TestBruteForceIsRefused:
         attempts = [
             await client.post(
                 f"{api}/auth/login",
-                json={"email": REGISTRATION["email"], "password": f"wrong-guess-{index}"},
+                json={"email": REGISTRATION["email"], "password": "wrong-guess"},
             )
-            for index in range(LOGIN_PER_ACCOUNT.requests + 3)
+            for _ in range(LOGIN_PER_ACCOUNT.requests + 3)
         ]
         codes = [response.status_code for response in attempts]
 

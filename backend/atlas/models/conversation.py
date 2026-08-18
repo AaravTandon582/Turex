@@ -121,6 +121,7 @@ class MessageCitation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         Index("ix_message_citations_message_id_marker", "message_id", "marker"),
         Index("ix_message_citations_chunk_id", "chunk_id"),
+        Index("ix_message_citations_paper_id", "paper_id"),
     )
 
     message_id: Mapped[uuid.UUID] = mapped_column(

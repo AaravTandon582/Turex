@@ -123,7 +123,10 @@ class ProjectPaper(Base):
 
 class Hypothesis(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "hypotheses"
-    __table_args__ = (Index("ix_hypotheses_project_id_position", "project_id", "position"),)
+    __table_args__ = (
+        Index("ix_hypotheses_project_id_position", "project_id", "position"),
+        Index("ix_hypotheses_owner_id", "owner_id"),
+    )
 
     owner_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -170,6 +173,9 @@ class Evidence(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "evidence"
     __table_args__ = (
         Index("ix_evidence_hypothesis_id_stance", "hypothesis_id", "stance"),
+        # Both cascade from a paper being deleted.
+        Index("ix_evidence_chunk_id", "chunk_id"),
+        Index("ix_evidence_paper_id", "paper_id"),
         UniqueConstraint("hypothesis_id", "chunk_id", name="uq_evidence_hypothesis_id_chunk_id"),
     )
 
@@ -204,7 +210,10 @@ class Experiment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """
 
     __tablename__ = "experiments"
-    __table_args__ = (Index("ix_experiments_project_id_created_at", "project_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_experiments_project_id_created_at", "project_id", "created_at"),
+        Index("ix_experiments_owner_id", "owner_id"),
+    )
 
     owner_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -255,6 +264,7 @@ class Note(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_notes_owner_id_updated_at", "owner_id", "updated_at"),
         Index("ix_notes_project_id", "project_id"),
         Index("ix_notes_paper_id", "paper_id"),
+        Index("ix_notes_hypothesis_id", "hypothesis_id"),
     )
 
     owner_id: Mapped[uuid.UUID] = mapped_column(
@@ -278,7 +288,10 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """A next action inside a project."""
 
     __tablename__ = "tasks"
-    __table_args__ = (Index("ix_tasks_project_id_status", "project_id", "status"),)
+    __table_args__ = (
+        Index("ix_tasks_project_id_status", "project_id", "status"),
+        Index("ix_tasks_owner_id", "owner_id"),
+    )
 
     owner_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False

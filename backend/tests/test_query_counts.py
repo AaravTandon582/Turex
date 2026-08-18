@@ -131,3 +131,37 @@ async def test_recommendations_do_not_query_per_candidate(
     assert len(second) == len(first), (
         f"recommendations issued {len(first)} queries for 3 papers and {len(second)} for 6"
     )
+
+
+async def test_every_foreign_key_is_indexed(db) -> None:  # type: ignore[no-untyped-def]
+    """A foreign key without an index makes every cascading delete a table scan.
+
+    Ten of them were missing when this was written: deleting one paper sequentially scanned
+    flashcards, quizzes, message_citations, and evidence. It costs nothing at five papers and
+    is a scan per delete at any real size.
+
+    Composite indexes do not count. An index on (owner_id, paper_id) cannot serve a lookup on
+    paper_id alone, because paper_id is not the leading column — which is exactly the trap
+    that hid these.
+    """
+    from sqlalchemy import text
+
+    unindexed = list(
+        await db.scalars(
+            text(
+                """
+                SELECT c.conrelid::regclass || '.' || a.attname
+                FROM pg_constraint c
+                JOIN pg_attribute a
+                  ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+                WHERE c.contype = 'f'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM pg_index i
+                    WHERE i.indrelid = c.conrelid AND a.attnum = i.indkey[0]
+                  )
+                ORDER BY 1
+                """
+            )
+        )
+    )
+    assert not unindexed, f"foreign keys with no index: {unindexed}"
