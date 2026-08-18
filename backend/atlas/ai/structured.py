@@ -18,12 +18,16 @@ from typing import TypeVar
 from pydantic import BaseModel, ValidationError
 
 from atlas.core.errors import ProviderUnavailableError
+from atlas.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
 JSON_INSTRUCTION = """
-Reply with JSON and nothing else. No prose before it, no Markdown fence around it, no trailing
-commentary. If you cannot produce any entries, reply with an empty array.
+Reply with a single JSON array and nothing else — a `[`, the entries separated by commas, then
+a `]`. No prose before it, no Markdown fence around it, no trailing commentary. If you cannot
+produce any entries, reply with an empty array.
 """.strip()
 
 
@@ -37,20 +41,62 @@ def parse_items(raw: str, item_type: type[T]) -> list[T]:
 
     array = _extract_array(raw)
     if array is None:
+        array = _extract_objects(raw)
+    if array is None:
         raise ProviderUnavailableError(
             "The model did not return usable study material. Try again.",
             detail=f"no JSON array in a response of {len(raw)} characters",
         )
 
     items: list[T] = []
+    reasons: list[str] = []
     for entry in array:
         if not isinstance(entry, dict):
             continue
         try:
             items.append(item_type.model_validate(entry))
-        except ValidationError:
-            continue
+        except ValidationError as invalid:
+            reasons.append(
+                "; ".join(
+                    f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+                    for error in invalid.errors()[:3]
+                )
+            )
+
+    if array and not items:
+        # Every entry was rejected. That is a different failure from "the model produced
+        # nothing", and it must not be reported as an empty result — the caller would store
+        # an empty deck and call it success. Observed live: a model that referenced its source
+        # in prose instead of setting the `source` field, so all entries lacked it.
+        raise ProviderUnavailableError(
+            "The model's study material was not in a usable form. Try again.",
+            detail=f"{len(array)} entries returned, none valid: {reasons[:2]}",
+        )
+
+    if reasons:
+        logger.info(
+            "structured.entries_dropped",
+            extra={"kept": len(items), "dropped": len(reasons), "first_reason": reasons[0]},
+        )
     return items
+
+
+def _extract_objects(raw: str) -> list[object] | None:
+    """Read a bare sequence of JSON objects — JSON Lines, or objects separated by commas.
+
+    A real model asked for "JSON" returned one object per line with no enclosing brackets,
+    which is a fair reading of the instruction and which the array reader rejected outright.
+    Accepting it costs a few lines and turns a total failure into a normal result.
+    """
+    objects: list[object] = []
+    for candidate in _balanced_spans(_unfence(raw), "{", "}"):
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            objects.append(parsed)
+    return objects or None
 
 
 def _extract_array(raw: str) -> list[object] | None:
@@ -61,11 +107,7 @@ def _extract_array(raw: str) -> list[object] | None:
     inside string values would otherwise throw the slice off.
     """
 
-    text = raw.strip()
-    if text.startswith("```"):
-        # ```json ... ``` — drop the fence markers, keep everything between them.
-        text = text.split("\n", 1)[-1].removesuffix("```").strip()
-
+    text = _unfence(raw)
     start = text.find("[")
     if start == -1:
         return None
@@ -99,3 +141,44 @@ def _extract_array(raw: str) -> list[object] | None:
                 return parsed if isinstance(parsed, list) else None
 
     return None
+
+
+def _unfence(raw: str) -> str:
+    """Strip a Markdown code fence, which models add despite being asked not to."""
+    text = raw.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[-1].removesuffix("```").strip()
+    return text
+
+
+def _balanced_spans(text: str, opening: str, closing: str) -> list[str]:
+    """Every balanced `opening…closing` span at the top level, ignoring brackets in strings."""
+    spans: list[str] = []
+    depth = 0
+    start = -1
+    in_string = False
+    escaped = False
+
+    for index, character in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            continue
+
+        if character == '"':
+            in_string = True
+        elif character == opening:
+            if depth == 0:
+                start = index
+            depth += 1
+        elif character == closing and depth > 0:
+            depth -= 1
+            if depth == 0 and start != -1:
+                spans.append(text[start : index + 1])
+                start = -1
+
+    return spans

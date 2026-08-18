@@ -32,8 +32,10 @@ What makes a card worth keeping:
 Vary the kinds: `definition` for a term the paper defines, `concept` for an idea or mechanism,
 `finding` for a result the paper demonstrates, `method` for how something was done.
 
-Each card must set `source` to the number of the passage it came from. Use only the numbers
-you were given.
+Every entry must carry a `source` field holding the passage number as an integer. This is not
+optional and it is not something to mention in the answer instead — a card without a `source`
+field is discarded, because the server uses that number to attach the card to the real
+passage. Write `"source": 6`, not "Passage 6 says…". Use only the numbers you were given.
 
 {JSON_INSTRUCTION}
 
@@ -62,8 +64,11 @@ What makes a question worth asking:
   detailed option gives the answer away without the reader knowing anything.
 - The explanation says why the answer is right, in one or two sentences, from the passage.
 
-Each question must set `source` to the number of the passage it came from, and `answer` to the
-zero-based index of the correct option. Use only the numbers you were given.
+Every entry must carry a `source` field holding the passage number as an integer. This is not
+optional and it is not something to mention in the explanation instead — a question without a
+`source` field is discarded, because the server uses that number to attach the question to the
+real passage. Write `"source": 6`, not "Passage 6 states…". Use only the numbers you were
+given, and set `answer` to the zero-based index of the correct option.
 
 {JSON_INSTRUCTION}
 

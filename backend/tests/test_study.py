@@ -155,6 +155,49 @@ class TestStructuredParsing:
         card = a_card(front="What does the notation [i, j] mean in the paper?")
         assert len(parse_items(cards_json(card), GeneratedCard)) == 1
 
+    def test_reads_json_lines_without_an_enclosing_array(self) -> None:
+        """The shape a real model actually produced.
+
+        Asked for "JSON", Claude returned one object per line with no wrapping brackets — a
+        fair reading of the instruction that the array reader rejected outright, turning a set
+        of perfectly good flashcards into a 503.
+        """
+        lines = "\n".join(json.dumps(a_card(front=f"Question number {i} here?")) for i in range(3))
+        assert len(parse_items(lines, GeneratedCard)) == 3
+
+    def test_reads_objects_separated_by_commas_without_brackets(self) -> None:
+        loose = ",\n".join(json.dumps(a_card(front=f"Question number {i} here?")) for i in range(2))
+        assert len(parse_items(loose, GeneratedCard)) == 2
+
+    def test_json_lines_inside_a_markdown_fence(self) -> None:
+        lines = "\n".join(json.dumps(a_card(front=f"Question number {i} here?")) for i in range(2))
+        assert len(parse_items(f"```json\n{lines}\n```", GeneratedCard)) == 2
+
+    def test_braces_inside_strings_do_not_split_an_object(self) -> None:
+        card = a_card(front="What does the set {x : x > 0} denote in the paper?")
+        assert len(parse_items(json.dumps(card), GeneratedCard)) == 1
+
+    def test_an_array_is_still_preferred_over_loose_objects(self) -> None:
+        """The array reader runs first, so a well-formed array is never re-parsed loosely."""
+        assert len(parse_items(cards_json(a_card(), a_card()), GeneratedCard)) == 2
+
+    def test_entries_that_all_fail_validation_are_a_failure_not_an_empty_deck(self) -> None:
+        """Observed live: a model that referenced its source in prose and omitted the field.
+
+        Every entry was dropped, `parse_items` returned nothing, and the caller stored an
+        empty quiz and reported success. Losing every entry is a failure, not a result.
+        """
+        from atlas.core.errors import ProviderUnavailableError
+
+        without_source = [{k: v for k, v in a_card().items() if k != "source"} for _ in range(3)]
+        with pytest.raises(ProviderUnavailableError):
+            parse_items(cards_json(*without_source), GeneratedCard)
+
+    def test_some_invalid_entries_still_yield_the_valid_ones(self) -> None:
+        """The opposite case: nine good cards and one bad one is nine cards, not a failure."""
+        mixed = cards_json(a_card(), {k: v for k, v in a_card().items() if k != "source"})
+        assert len(parse_items(mixed, GeneratedCard)) == 1
+
     def test_a_truncated_response_is_a_failure_not_an_empty_deck(self) -> None:
         from atlas.core.errors import ProviderUnavailableError
 
@@ -348,16 +391,19 @@ class TestQuiz:
         ).json()
         question_id = quiz["questions"][0]["id"]
 
+        # Which index holds the right option is not knowable before submission — the server
+        # reorders them — so this answers arbitrarily and checks the score matches the reveal.
         response = await registered_client.post(
             f"{api}/quizzes/{quiz['id']}/submission", json={"answers": {question_id: 0}}
         )
 
         assert response.status_code == 200, response.text
         submitted = response.json()
-        assert submitted["correct_count"] == 1
         answered = submitted["questions"][0]
-        assert answered["correct_index"] == 0
+
         assert answered["selected_index"] == 0
+        assert answered["options"][answered["correct_index"]] == "Thirty-one percent"
+        assert submitted["correct_count"] == (1 if answered["correct_index"] == 0 else 0)
         assert answered["source_excerpt"].strip()
         assert answered["chunk_id"]
 
@@ -376,6 +422,48 @@ class TestQuiz:
         )
 
         assert second.status_code == 422
+
+    async def test_the_correct_answer_is_not_always_first(
+        self, registered_client: AsyncClient, api: str, run_worker, generator
+    ) -> None:
+        """A live model put the correct option first in every question of a quiz.
+
+        The server reorders, so the position of the answer does not follow the model's
+        drafting habits.
+        """
+        paper_id = await upload_and_index(registered_client, api, TRANSFORMERS_PDF, run_worker)
+        generator["provider"].reply = cards_json(*[a_question() for _ in range(8)])
+
+        quiz = (
+            await registered_client.post(f"{api}/papers/{paper_id}/quizzes", json={"count": 8})
+        ).json()
+        submitted = await registered_client.post(
+            f"{api}/quizzes/{quiz['id']}/submission", json={"answers": {}}
+        )
+
+        positions = {q["correct_index"] for q in submitted.json()["questions"]}
+        assert len(positions) > 1, (
+            f"every correct answer landed at index {positions}; the options were not reordered"
+        )
+
+    async def test_reordering_keeps_the_right_option_correct(
+        self, registered_client: AsyncClient, api: str, run_worker, generator
+    ) -> None:
+        """Reordering must move the index with the text, or it turns a good quiz into nonsense."""
+        paper_id = await upload_and_index(registered_client, api, TRANSFORMERS_PDF, run_worker)
+        generator["provider"].reply = cards_json(a_question())
+
+        quiz = (
+            await registered_client.post(f"{api}/papers/{paper_id}/quizzes", json={"count": 1})
+        ).json()
+        submitted = (
+            await registered_client.post(
+                f"{api}/quizzes/{quiz['id']}/submission", json={"answers": {}}
+            )
+        ).json()
+
+        question = submitted["questions"][0]
+        assert question["options"][question["correct_index"]] == "Thirty-one percent"
 
     async def test_a_question_citing_an_unknown_passage_is_discarded(
         self, registered_client: AsyncClient, api: str, run_worker, generator

@@ -11,6 +11,7 @@ The review half is ordinary bookkeeping over `study/scheduling.py`.
 
 from __future__ import annotations
 
+import random
 import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -196,12 +197,15 @@ class StudyService:
             passage = _resolve(passages, question.source)
             if passage is None:
                 continue
+            options, answer = _shuffle_options(
+                question.options, question.answer, seed=f"{paper.id}:{len(questions)}"
+            )
             questions.append(
                 QuizQuestion(
                     position=len(questions),
                     prompt=question.question.strip(),
-                    options=question.options,
-                    correct_index=question.answer,
+                    options=options,
+                    correct_index=answer,
                     explanation=question.explanation.strip(),
                     chunk_id=passage.id,
                     source_text=passage.content,
@@ -512,9 +516,25 @@ def _require_grounded(proposed: int, stored: int, label: str) -> None:
     """Fail loudly when nothing survived grounding.
 
     Returning an empty list here would read to the user as "this paper produced no cards",
-    when what actually happened is that every card cited a passage that does not exist.
+    when what actually happened is that every card cited a passage that does not exist — or
+    that the model produced nothing at all. Both are failures; neither is an empty deck.
     """
-    if proposed and not stored:
+    if not stored:
         raise ValidationError(
             f"Atlas could not ground any {label} in this paper's text. Try again."
         )
+
+
+def _shuffle_options(options: list[str], answer: int, *, seed: str) -> tuple[list[str], int]:
+    """Move the correct option somewhere other than wherever the model put it.
+
+    Observed live: a model that placed the correct answer first in every question of a quiz.
+    That is not dishonesty, it is a drafting habit — the true statement is the one it thinks of
+    first — but a quiz whose answer is always A tests nothing except pattern recognition.
+
+    Seeded from the paper and the question's position rather than the clock, so the same quiz
+    reads the same way every time it is loaded and the behaviour is testable.
+    """
+    order = list(range(len(options)))
+    random.Random(seed).shuffle(order)
+    return [options[index] for index in order], order.index(answer)

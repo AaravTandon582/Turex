@@ -17,11 +17,19 @@ HACK_CLUB = "https://ai.hackclub.com/proxy/v1"
 
 
 def settings_with(**overrides: object) -> Settings:
+    """Build settings from these values alone.
+
+    `_env_file=None` matters: without it pydantic-settings reads the developer's own `.env`,
+    and these tests silently start asserting against whatever key and base URL happen to be
+    configured on the machine running them. That is exactly what happened the first time a
+    real key was added — two tests that had always passed began failing for a reason that had
+    nothing to do with the code.
+    """
     base: dict[str, object] = {
         "database_url": "postgresql+asyncpg://localhost/atlas_test",
         "secret_key": "a-test-secret-key-that-is-long-enough",
     }
-    return Settings(**{**base, **overrides})  # type: ignore[arg-type]
+    return Settings(_env_file=None, **{**base, **overrides})  # type: ignore[arg-type]
 
 
 class TestOpenAICompatibleServices:
