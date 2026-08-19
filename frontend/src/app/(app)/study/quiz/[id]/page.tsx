@@ -20,6 +20,7 @@ export default function QuizPage() {
   const { id } = useParams<{ id: string }>();
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [written, setWritten] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +45,7 @@ export default function QuizPage() {
     setSubmitting(true);
     setError(null);
     try {
-      setQuiz(await study.submitQuiz(quiz.id, answers));
+      setQuiz(await study.submitQuiz(quiz.id, answers, written));
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
       setError("Your answers didn't save. Check your connection and try again.");
@@ -73,7 +74,9 @@ export default function QuizPage() {
   }
 
   const submitted = quiz.submitted_at !== null;
-  const answered = Object.keys(answers).length;
+  const shortAnswer = quiz.questions.every((question) => question.kind === "short_answer");
+  const answered =
+    Object.keys(answers).length + Object.values(written).filter((text) => text.trim()).length;
 
   return (
     <PageContainer width="reading">
@@ -81,10 +84,19 @@ export default function QuizPage() {
         <p className="text-[12px] text-ink-subtle">Quiz</p>
         <h1 className="mt-0.5 text-xl font-semibold tracking-[-0.01em] text-ink">{quiz.title}</h1>
         {submitted ? (
-          <p className="mt-2 text-[14px] text-ink-muted" data-tabular>
-            You scored <strong className="text-ink">{quiz.correct_count}</strong> out of{" "}
-            {quiz.question_count}.
-          </p>
+          shortAnswer ? (
+            // Not scored on purpose: matching free text against a model answer marks a correct
+            // answer wrong for choosing different words.
+            <p className="measure mt-2 text-[14px] text-ink-muted">
+              Compare what you wrote against what the paper says. Nothing here is graded — you
+              are the judge of whether you had it.
+            </p>
+          ) : (
+            <p className="mt-2 text-[14px] text-ink-muted" data-tabular>
+              You scored <strong className="text-ink">{quiz.correct_count}</strong> out of{" "}
+              {quiz.question_count}.
+            </p>
+          )
         ) : (
           <p className="mt-2 text-[13px] text-ink-muted" data-tabular>
             {answered} of {quiz.question_count} answered
@@ -99,8 +111,10 @@ export default function QuizPage() {
               question={question}
               position={position}
               selected={answers[question.id]}
+              written={written[question.id] ?? ""}
               submitted={submitted}
               onSelect={(index) => setAnswers((current) => ({ ...current, [question.id]: index }))}
+              onWrite={(text) => setWritten((current) => ({ ...current, [question.id]: text }))}
             />
           </li>
         ))}
@@ -138,16 +152,77 @@ function QuestionCard({
   question,
   position,
   selected,
+  written,
   submitted,
   onSelect,
+  onWrite,
 }: {
   question: QuizQuestion;
   position: number;
   selected: number | undefined;
+  written: string;
   submitted: boolean;
   onSelect: (index: number) => void;
+  onWrite: (text: string) => void;
 }) {
   const correct = question.correct_index;
+
+  if (question.kind === "short_answer") {
+    return (
+      <Card className="p-4">
+        <p className="measure text-[15px] leading-snug font-medium text-ink">
+          <span className="mr-1.5 text-ink-subtle" data-tabular>
+            {position + 1}.
+          </span>
+          {question.prompt}
+        </p>
+
+        {submitted ? (
+          <div className="mt-3 space-y-3">
+            <div>
+              <p className="text-[11px] font-semibold tracking-wide text-ink-subtle uppercase">
+                What you wrote
+              </p>
+              <p className="measure mt-1 text-[14px] leading-relaxed text-ink">
+                {question.written_answer?.trim() || (
+                  <span className="text-ink-subtle">You left this one blank.</span>
+                )}
+              </p>
+            </div>
+            <div className="border-t border-border pt-3">
+              <p className="text-[11px] font-semibold tracking-wide text-ink-subtle uppercase">
+                What the paper says
+              </p>
+              <p className="measure mt-1 text-[14px] leading-relaxed text-ink">
+                {question.model_answer}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <textarea
+            rows={3}
+            value={written}
+            onChange={(event) => onWrite(event.target.value)}
+            aria-label={`Your answer to question ${position + 1}`}
+            placeholder="Answer from memory, then compare."
+            className="mt-3 w-full resize-none rounded-md border border-border bg-surface px-3 py-2 text-[14px] leading-relaxed text-ink placeholder:text-ink-subtle focus:border-accent focus:outline-none"
+          />
+        )}
+
+        {submitted && question.source_excerpt && (
+          <details className="mt-3 border-t border-border pt-3">
+            <summary className="cursor-pointer text-[12px] text-ink-subtle hover:text-ink-muted">
+              The passage this came from
+              {question.source_page ? ` · page ${question.source_page}` : ""}
+            </summary>
+            <blockquote className="measure mt-2 border-l-2 border-border-strong pl-3 text-[13px] leading-relaxed text-ink-muted">
+              {question.source_excerpt}
+            </blockquote>
+          </details>
+        )}
+      </Card>
+    );
+  }
 
   return (
     <Card className="p-4">

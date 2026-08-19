@@ -19,13 +19,28 @@ export interface Flashcard {
   last_reviewed_at: string | null;
 }
 
+export type QuestionKind = "multiple_choice" | "short_answer";
+
+export interface Prerequisite {
+  concept: string;
+  why: string;
+  chunk_id: string;
+  source_excerpt: string;
+  source_page: number | null;
+}
+
 export interface QuizQuestion {
   id: string;
   position: number;
   prompt: string;
+  kind: QuestionKind;
+  /** Empty for a short-answer question, which has nothing to choose between. */
   options: string[];
   /** Present only after the quiz has been submitted — the server withholds it until then. */
-  correct_index?: number;
+  correct_index?: number | null;
+  /** What the paper says. Present only after submission, on short-answer questions. */
+  model_answer?: string | null;
+  written_answer?: string | null;
   explanation?: string;
   selected_index?: number | null;
   chunk_id?: string | null;
@@ -81,8 +96,16 @@ export const study = {
     api.post<Quiz>(`/papers/${paperId}/quizzes`, { count }),
   listQuizzes: () => api.get<Quiz[]>("/quizzes"),
   getQuiz: (quizId: string) => api.get<Quiz>(`/quizzes/${quizId}`),
-  submitQuiz: (quizId: string, answers: Record<string, number>) =>
-    api.post<Quiz>(`/quizzes/${quizId}/submission`, { answers }),
+  generateShortAnswers: (paperId: string, count = 5) =>
+    api.post<Quiz>(`/papers/${paperId}/short-answers`, { count }),
+  prerequisites: (paperId: string) =>
+    api.get<Prerequisite[]>(`/papers/${paperId}/prerequisites`),
+
+  submitQuiz: (
+    quizId: string,
+    answers: Record<string, number>,
+    written: Record<string, string> = {},
+  ) => api.post<Quiz>(`/quizzes/${quizId}/submission`, { answers, written }),
   deleteQuiz: (quizId: string) => api.delete<void>(`/quizzes/${quizId}`),
 
   progress: () => api.get<StudySummary>("/study/progress"),

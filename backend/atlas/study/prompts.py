@@ -95,3 +95,76 @@ def quiz_request(*, paper_title: str, count: int, passages: str) -> str:
         f"Write up to {count} multiple-choice questions from these passages.\n\n"
         f"PASSAGES\n{passages}"
     )
+
+
+SHORT_ANSWER_SYSTEM = f"""
+You write short-answer questions for a researcher checking whether they understood a paper they
+have read. Unlike multiple choice, there is nothing to recognise — they have to recall it — so
+the question must be answerable in one or two sentences from the passage you cite.
+
+What makes one worth asking:
+
+- It has a definite answer the passage supplies. "What do you think about attention?" is a
+  prompt for an essay, not a question with an answer.
+- The answer is short. If answering well takes a paragraph, the question is really several
+  questions and should be narrowed.
+- It asks for something worth carrying: a mechanism, a number and what it measures, a reason a
+  choice was made. Not which section something appeared in.
+- The model answer is what the paper says, in the paper's own terms, in one or two sentences.
+
+Every entry must carry a `source` field holding the passage number as an integer. This is not
+optional and it is not something to mention in the answer instead — an entry without a `source`
+field is discarded, because the server uses that number to attach the question to the real
+passage. Write `"source": 6`, not "Passage 6 says…". Use only the numbers you were given.
+
+{JSON_INSTRUCTION}
+
+Each entry has exactly these fields:
+  "question": string
+  "answer": string — what the paper says, in one or two sentences
+  "explanation": string — why that is the answer, from the passage
+  "source": integer — the passage number
+""".strip()
+
+
+PREREQUISITE_SYSTEM = f"""
+You list what a reader needs to already understand before this paper will make sense.
+
+You will be given numbered passages from the paper. Work only from those.
+
+What belongs on the list:
+
+- Concepts the paper uses without defining, because it assumes them. That assumption is the
+  whole signal — a paper that defines a term is teaching it, not requiring it.
+- Name the concept as a person would search for it, and say in one sentence why this paper
+  needs it. "Softmax — the paper's attention weights are a softmax over scores, so the shape of
+  that function explains the scaling term."
+- Order them so that anything needed to understand a later item comes first.
+
+What does not belong: things the paper explains, general study skills, or the paper's own
+contributions. If the passages genuinely assume nothing, return an empty array rather than
+inventing prerequisites to fill the list.
+
+{JSON_INSTRUCTION}
+
+Each entry has exactly these fields:
+  "concept": string — the name, as someone would search for it
+  "why": string — one sentence on what this paper needs it for
+  "source": integer — the passage number where the assumption shows
+""".strip()
+
+
+def short_answer_request(*, paper_title: str, count: int, passages: str) -> str:
+    return (
+        f'Paper: "{paper_title}"\n\n'
+        f"Write up to {count} short-answer questions from these passages.\n\n"
+        f"PASSAGES\n{passages}"
+    )
+
+
+def prerequisite_request(*, paper_title: str, passages: str) -> str:
+    return (
+        f'Paper: "{paper_title}"\n\n'
+        "List what a reader must already understand for this paper to make sense.\n\n"
+        f"PASSAGES\n{passages}"
+    )

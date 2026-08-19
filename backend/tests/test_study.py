@@ -516,3 +516,119 @@ class TestProgress:
 
 
 _NOW = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
+
+
+def a_short_answer(source: int = 1) -> dict[str, object]:
+    return {
+        "question": "What reduced the median latency, and by how much?",
+        "answer": "Key-value cache quantisation and speculative decoding, by thirty-one percent.",
+        "explanation": "The abstract states both techniques and the figure.",
+        "source": source,
+    }
+
+
+def a_prerequisite(source: int = 1) -> dict[str, object]:
+    return {
+        "concept": "Softmax",
+        "why": "Attention weights are a softmax over scores, and the paper never defines it.",
+        "source": source,
+    }
+
+
+@pytest.mark.usefixtures("generator")
+class TestShortAnswerQuestions:
+    """Recall rather than recognition. The server deliberately does not score these."""
+
+    async def test_questions_carry_no_options_and_withhold_the_answer(
+        self, registered_client: AsyncClient, api: str, run_worker, generator
+    ) -> None:
+        paper_id = await upload_and_index(registered_client, api, TRANSFORMERS_PDF, run_worker)
+        generator["provider"].reply = cards_json(a_short_answer(), a_short_answer())
+
+        created = await registered_client.post(
+            f"{api}/papers/{paper_id}/short-answers", json={"count": 2}
+        )
+
+        assert created.status_code == 201, created.text
+        for question in created.json()["questions"]:
+            assert question["kind"] == "short_answer"
+            assert question["options"] == [], "a short answer has nothing to choose between"
+            assert "model_answer" not in question, "the answer leaked before submission"
+
+    async def test_submitting_keeps_what_was_written_and_reveals_the_paper_answer(
+        self, registered_client: AsyncClient, api: str, run_worker, generator
+    ) -> None:
+        paper_id = await upload_and_index(registered_client, api, TRANSFORMERS_PDF, run_worker)
+        generator["provider"].reply = cards_json(a_short_answer())
+        quiz = (
+            await registered_client.post(
+                f"{api}/papers/{paper_id}/short-answers", json={"count": 1}
+            )
+        ).json()
+        question_id = quiz["questions"][0]["id"]
+
+        submitted = await registered_client.post(
+            f"{api}/quizzes/{quiz['id']}/submission",
+            json={"answers": {}, "written": {question_id: "quantisation, about a third"}},
+        )
+
+        assert submitted.status_code == 200, submitted.text
+        answered = submitted.json()["questions"][0]
+        assert answered["written_answer"] == "quantisation, about a third"
+        assert answered["model_answer"], "the paper's answer was not revealed"
+        assert answered["chunk_id"], "the question lost its passage"
+
+    async def test_a_short_answer_quiz_is_not_scored(
+        self, registered_client: AsyncClient, api: str, run_worker, generator
+    ) -> None:
+        """Matching free text against a model answer would mark a correct answer wrong for
+        using different words, so nothing is graded and no score is claimed."""
+        paper_id = await upload_and_index(registered_client, api, TRANSFORMERS_PDF, run_worker)
+        generator["provider"].reply = cards_json(a_short_answer())
+        quiz = (
+            await registered_client.post(
+                f"{api}/papers/{paper_id}/short-answers", json={"count": 1}
+            )
+        ).json()
+
+        submitted = await registered_client.post(
+            f"{api}/quizzes/{quiz['id']}/submission", json={"answers": {}, "written": {}}
+        )
+
+        assert submitted.json()["correct_count"] == 0
+
+    async def test_a_question_citing_an_unknown_passage_is_discarded(
+        self, registered_client: AsyncClient, api: str, run_worker, generator
+    ) -> None:
+        paper_id = await upload_and_index(registered_client, api, TRANSFORMERS_PDF, run_worker)
+        generator["provider"].reply = cards_json(a_short_answer(1), a_short_answer(404))
+
+        created = await registered_client.post(
+            f"{api}/papers/{paper_id}/short-answers", json={"count": 5}
+        )
+        assert created.json()["question_count"] == 1
+
+
+@pytest.mark.usefixtures("generator")
+class TestPrerequisites:
+    async def test_each_prerequisite_carries_the_passage_that_assumes_it(
+        self, registered_client: AsyncClient, api: str, run_worker, generator
+    ) -> None:
+        paper_id = await upload_and_index(registered_client, api, TRANSFORMERS_PDF, run_worker)
+        generator["provider"].reply = cards_json(a_prerequisite())
+
+        response = await registered_client.get(f"{api}/papers/{paper_id}/prerequisites")
+
+        assert response.status_code == 200, response.text
+        entries = response.json()
+        assert entries and entries[0]["concept"] == "Softmax"
+        assert entries[0]["chunk_id"], "a prerequisite with no passage cannot be checked"
+
+    async def test_an_invented_passage_number_is_dropped(
+        self, registered_client: AsyncClient, api: str, run_worker, generator
+    ) -> None:
+        paper_id = await upload_and_index(registered_client, api, TRANSFORMERS_PDF, run_worker)
+        generator["provider"].reply = cards_json(a_prerequisite(999))
+
+        response = await registered_client.get(f"{api}/papers/{paper_id}/prerequisites")
+        assert response.json() == []

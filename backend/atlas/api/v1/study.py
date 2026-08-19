@@ -8,9 +8,11 @@ from fastapi import APIRouter, Query, status
 
 from atlas.api.deps import CurrentUser, GuardDep, StudyServiceDep
 from atlas.schemas.study import (
+    SOURCE_EXCERPT_CHARS,
     FlashcardRead,
     GenerateCardsRequest,
     GenerateQuizRequest,
+    PrerequisiteRead,
     QuizRead,
     QuizSubmission,
     ReviewRequest,
@@ -87,6 +89,52 @@ async def generate_quiz(
     return QuizRead.of(quiz)
 
 
+@router.post(
+    "/papers/{paper_id}/short-answers", response_model=QuizRead, status_code=status.HTTP_201_CREATED
+)
+async def generate_short_answers(
+    paper_id: uuid.UUID,
+    payload: GenerateQuizRequest,
+    user: CurrentUser,
+    service: StudyServiceDep,
+    guard: GuardDep,
+) -> QuizRead:
+    """Questions that must be recalled rather than recognised.
+
+    Stored as a quiz so both kinds share the same history and grounding; the server does not
+    score them, because matching free text against a model answer marks correct answers wrong.
+    """
+    guard.by_user(user.id, policy.MODEL_CALLS_PER_USER, scope="model")
+    quiz = await service.generate_short_answers(owner=user, paper_id=paper_id, count=payload.count)
+    return QuizRead.of(quiz)
+
+
+@router.get("/papers/{paper_id}/prerequisites", response_model=list[PrerequisiteRead])
+async def paper_prerequisites(
+    paper_id: uuid.UUID,
+    user: CurrentUser,
+    service: StudyServiceDep,
+    guard: GuardDep,
+) -> list[PrerequisiteRead]:
+    """What a reader needs to understand before this paper will make sense.
+
+    Generated on request rather than stored: it is read once while deciding whether to attempt
+    a paper, and a stale copy would be worse than regenerating it.
+    """
+    guard.by_user(user.id, policy.MODEL_CALLS_PER_USER, scope="model")
+    entries = await service.prerequisites(owner=user, paper_id=paper_id)
+    return [
+        PrerequisiteRead(
+            concept=item.concept,
+            why=item.why,
+            chunk_id=chunk.id,
+            source_excerpt=chunk.content[:SOURCE_EXCERPT_CHARS],
+            source_page=chunk.page_start,
+        )
+        for item, chunk in entries
+    ]
+
+
 @router.get("/quizzes", response_model=list[QuizRead])
 async def list_quizzes(
     user: CurrentUser,
@@ -110,7 +158,9 @@ async def submit_quiz(
     user: CurrentUser,
     service: StudyServiceDep,
 ) -> QuizRead:
-    quiz = await service.submit_quiz(owner=user, quiz_id=quiz_id, answers=payload.answers)
+    quiz = await service.submit_quiz(
+        owner=user, quiz_id=quiz_id, answers=payload.answers, writings=payload.written
+    )
     return QuizRead.of(quiz)
 
 

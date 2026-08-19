@@ -1,13 +1,13 @@
 "use client";
 
-import { GraduationCap, ListChecks } from "lucide-react";
+import { GraduationCap, ListChecks, PenLine, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api";
-import { study, type Flashcard } from "@/lib/study";
+import { study, type Flashcard, type Prerequisite } from "@/lib/study";
 
 /**
  * Generate study material for one paper, from the paper's own page.
@@ -18,7 +18,8 @@ import { study, type Flashcard } from "@/lib/study";
 export function StudyPanel({ paperId }: { paperId: string }) {
   const router = useRouter();
   const [cards, setCards] = useState<Flashcard[] | null>(null);
-  const [busy, setBusy] = useState<"cards" | "quiz" | null>(null);
+  const [busy, setBusy] = useState<"cards" | "quiz" | "short" | "prereq" | null>(null);
+  const [prerequisites, setPrerequisites] = useState<Prerequisite[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,6 +37,30 @@ export function StudyPanel({ paperId }: { paperId: string }) {
     try {
       const created = await study.generateCards(paperId, 10);
       setCards((current) => [...created, ...(current ?? [])]);
+    } catch (caught) {
+      setError(describe(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function generateShortAnswers() {
+    setBusy("short");
+    setError(null);
+    try {
+      const quiz = await study.generateShortAnswers(paperId, 5);
+      router.push(`/study/quiz/${quiz.id}`);
+    } catch (caught) {
+      setError(describe(caught));
+      setBusy(null);
+    }
+  }
+
+  async function loadPrerequisites() {
+    setBusy("prereq");
+    setError(null);
+    try {
+      setPrerequisites(await study.prerequisites(paperId));
     } catch (caught) {
       setError(describe(caught));
     } finally {
@@ -76,6 +101,24 @@ export function StudyPanel({ paperId }: { paperId: string }) {
           <ListChecks />
           Take a quiz
         </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          loading={busy === "short"}
+          onClick={() => void generateShortAnswers()}
+        >
+          <PenLine />
+          Answer from memory
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          loading={busy === "prereq"}
+          onClick={() => void loadPrerequisites()}
+        >
+          <Sparkles />
+          What should I know first?
+        </Button>
 
         {cards && cards.length > 0 && (
           <Link
@@ -93,6 +136,33 @@ export function StudyPanel({ paperId }: { paperId: string }) {
         <p role="alert" className="mt-2 text-[13px] text-danger">
           {error}
         </p>
+      )}
+
+      {prerequisites !== null && (
+        <div className="mt-4">
+          <h3 className="text-[12px] font-semibold text-ink-muted">
+            Before this paper makes sense
+          </h3>
+          {prerequisites.length === 0 ? (
+            <p className="mt-1 text-[13px] text-ink-subtle">
+              Nothing in these passages assumes prior knowledge that isn&rsquo;t explained here.
+            </p>
+          ) : (
+            <ol className="mt-2 space-y-2">
+              {prerequisites.map((item) => (
+                <li key={item.concept} className="measure">
+                  <p className="text-[13px] font-medium text-ink">{item.concept}</p>
+                  <p className="mt-0.5 text-[13px] leading-relaxed text-ink-muted">{item.why}</p>
+                  {item.source_page && (
+                    <p className="mt-0.5 text-[12px] text-ink-subtle">
+                      assumed on page {item.source_page}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
       )}
     </section>
   );

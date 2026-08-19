@@ -7,7 +7,14 @@ from datetime import datetime
 
 from pydantic import Field
 
-from atlas.models.study import CardKind, Flashcard, Quiz, QuizQuestion, ReviewRating
+from atlas.models.study import (
+    CardKind,
+    Flashcard,
+    QuestionKind,
+    Quiz,
+    QuizQuestion,
+    ReviewRating,
+)
 from atlas.schemas.base import AtlasModel
 from atlas.services.study_service import (
     MAX_CARDS_PER_RUN,
@@ -69,6 +76,16 @@ class ReviewRequest(AtlasModel):
     rating: ReviewRating
 
 
+class PrerequisiteRead(AtlasModel):
+    """A concept the paper assumes, with the passage where the assumption shows."""
+
+    concept: str
+    why: str
+    chunk_id: uuid.UUID
+    source_excerpt: str
+    source_page: int | None
+
+
 class QuizQuestionRead(AtlasModel):
     """A question as the browser sees it while the quiz is being taken.
 
@@ -80,7 +97,9 @@ class QuizQuestionRead(AtlasModel):
     id: uuid.UUID
     position: int
     prompt: str
+    kind: QuestionKind
     options: list[str]
+    """Empty for a short-answer question, which has nothing to choose between."""
 
     @classmethod
     def of(cls, question: QuizQuestion) -> QuizQuestionRead:
@@ -88,14 +107,19 @@ class QuizQuestionRead(AtlasModel):
             id=question.id,
             position=question.position,
             prompt=question.prompt,
+            kind=question.kind,
             options=question.options,
         )
 
 
 class QuizQuestionResult(QuizQuestionRead):
-    correct_index: int
+    correct_index: int | None
+    """Null on a short-answer question, which the server does not score."""
+
+    model_answer: str | None
     explanation: str
     selected_index: int | None
+    written_answer: str | None
     chunk_id: uuid.UUID | None
     source_excerpt: str
     source_page: int | None
@@ -106,10 +130,13 @@ class QuizQuestionResult(QuizQuestionRead):
             id=question.id,
             position=question.position,
             prompt=question.prompt,
+            kind=question.kind,
             options=question.options,
             correct_index=question.correct_index,
+            model_answer=question.model_answer,
             explanation=question.explanation,
             selected_index=question.selected_index,
+            written_answer=question.written_answer,
             chunk_id=question.chunk_id,
             source_excerpt=_excerpt(question.source_text),
             source_page=question.source_page,
@@ -154,8 +181,12 @@ class GenerateQuizRequest(AtlasModel):
 
 class QuizSubmission(AtlasModel):
     answers: dict[uuid.UUID, int] = Field(default_factory=dict)
-    """Question id to chosen option index. A question left out is scored as unanswered rather
-    than wrong-by-default, so a partial submission reports what it actually measured."""
+    """Question id to chosen option index, for multiple-choice questions."""
+
+    written: dict[uuid.UUID, str] = Field(default_factory=dict)
+    """Question id to what the learner wrote, for short-answer questions. Kept rather than
+    scored: comparing free text to a model answer by string matching would mark a correct
+    answer wrong for using different words."""
 
 
 class PaperProgressRead(AtlasModel):

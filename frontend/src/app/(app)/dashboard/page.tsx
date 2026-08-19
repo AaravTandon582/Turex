@@ -33,6 +33,10 @@ export default function DashboardPage() {
   );
   const projects = useAsync(() => workspace.listProjects(), []);
   const recommendations = useAsync(() => discovery.recommendations(3), []);
+  // Experiments that have not finished, and the last few notes. Both are work in flight, which
+  // is what this page is for — a dashboard that only shows finished things shows nothing to do.
+  const experiments = useAsync(() => workspace.listExperiments(), []);
+  const notes = useAsync(() => workspace.listNotes(), []);
 
   return (
     <PageContainer>
@@ -153,6 +157,79 @@ export default function DashboardPage() {
           </ul>
         </section>
       )}
+
+      <div className="mt-10 grid gap-4 lg:grid-cols-2">
+        <section aria-labelledby="upcoming-experiments">
+          <h2 id="upcoming-experiments" className="mb-3 text-[13px] font-semibold text-ink-muted">
+            Experiments in flight
+          </h2>
+          <AsyncBoundary state={experiments} skeleton={<Skeleton className="h-24 w-full rounded-lg" />}>
+            {(all) => {
+              const open = all.filter(
+                (experiment) => experiment.status === "planned" || experiment.status === "running",
+              );
+              return open.length === 0 ? (
+                <p className="text-[13px] text-ink-subtle">
+                  Nothing planned or running. An experiment turns a hypothesis into something you
+                  can actually check.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {open.slice(0, 4).map((experiment) => (
+                    <li key={experiment.id}>
+                      <Card className="transition-[border-color] hover:border-border-strong">
+                        <Link
+                          href={`/projects/${experiment.project_id}`}
+                          className="block rounded-lg p-3"
+                        >
+                          <p className="line-clamp-1 text-[13px] font-medium text-ink">
+                            {experiment.title}
+                          </p>
+                          <p className="mt-1 text-[12px] text-ink-subtle capitalize">
+                            {experiment.status}
+                          </p>
+                        </Link>
+                      </Card>
+                    </li>
+                  ))}
+                </ul>
+              );
+            }}
+          </AsyncBoundary>
+        </section>
+
+        <section aria-labelledby="recent-notes">
+          <h2 id="recent-notes" className="mb-3 text-[13px] font-semibold text-ink-muted">
+            Recent notes
+          </h2>
+          <AsyncBoundary state={notes} skeleton={<Skeleton className="h-24 w-full rounded-lg" />}>
+            {(all) =>
+              all.length === 0 ? (
+                <p className="text-[13px] text-ink-subtle">
+                  Nothing written yet. A thought arrives before it is clear where it goes.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {all.slice(0, 4).map((note) => (
+                    <li key={note.id}>
+                      <Card className="transition-[border-color] hover:border-border-strong">
+                        <Link href={`/notebook?note=${note.id}`} className="block rounded-lg p-3">
+                          <p className="line-clamp-1 text-[13px] font-medium text-ink">
+                            {note.title || "Untitled note"}
+                          </p>
+                          <p className="mt-1 line-clamp-1 text-[12px] text-ink-subtle">
+                            {note.content.replace(/\s+/g, " ").trim() || "Empty"}
+                          </p>
+                        </Link>
+                      </Card>
+                    </li>
+                  ))}
+                </ul>
+              )
+            }
+          </AsyncBoundary>
+        </section>
+      </div>
 
       {stats.data?.total === 0 && (
         <section className="mt-10" aria-labelledby="get-started">

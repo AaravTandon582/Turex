@@ -48,6 +48,18 @@ class CardKind(enum.StrEnum):
     method = "method"
 
 
+class QuestionKind(enum.StrEnum):
+    """How a question is answered.
+
+    Multiple choice is checkable by the server, so it is scored. A short answer is not — the
+    learner compares their own answer against the paper's, which is a different and often
+    better exercise, because recalling a claim is harder than recognising it.
+    """
+
+    multiple_choice = "multiple_choice"
+    short_answer = "short_answer"
+
+
 class ReviewRating(enum.StrEnum):
     """How the review went, in the learner's own judgement.
 
@@ -172,7 +184,7 @@ class Quiz(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
 
 
 class QuizQuestion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """One multiple-choice question, its answer, and the passage that settles it."""
+    """One question, its answer, and the passage that settles it."""
 
     __tablename__ = "quiz_questions"
     __table_args__ = (
@@ -185,8 +197,23 @@ class QuizQuestion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     position: Mapped[int] = mapped_column(Integer, nullable=False)
 
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
-    options: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
-    correct_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[QuestionKind] = mapped_column(
+        _enum(QuestionKind, "question_kind"),
+        nullable=False,
+        default=QuestionKind.multiple_choice,
+        server_default=QuestionKind.multiple_choice.value,
+    )
+
+    options: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    """Empty for a short-answer question, which has nothing to choose between."""
+
+    correct_index: Mapped[int | None] = mapped_column(Integer)
+    """Null for a short-answer question. Scoring a free-text answer by string comparison would
+    mark a correct answer wrong for using different words, which teaches the wrong lesson."""
+
+    model_answer: Mapped[str | None] = mapped_column(Text)
+    """What the paper says, for a short-answer question. Shown after the learner commits."""
+
     explanation: Mapped[str] = mapped_column(Text, nullable=False)
 
     chunk_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -196,6 +223,10 @@ class QuizQuestion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     source_page: Mapped[int | None] = mapped_column(Integer)
 
     selected_index: Mapped[int | None] = mapped_column(Integer)
-    """What the user chose. Null until the quiz is submitted."""
+    """What the user chose. Null until the quiz is submitted, and on short-answer questions."""
+
+    written_answer: Mapped[str | None] = mapped_column(Text)
+    """What the user wrote, for a short-answer question. Kept so they can compare it against
+    the paper's answer rather than having to remember what they said."""
 
     quiz: Mapped[Quiz] = relationship(back_populates="questions", lazy="raise_on_sql")

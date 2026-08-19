@@ -28,13 +28,25 @@ from atlas.core.errors import NotFoundError, ValidationError
 from atlas.core.logging import get_logger
 from atlas.ingestion.chunking import is_non_content_section
 from atlas.models.paper import Paper, PaperChunk, PaperSection, ProcessingStatus
-from atlas.models.study import CardKind, CardReview, Flashcard, Quiz, QuizQuestion, ReviewRating
+from atlas.models.study import (
+    CardKind,
+    CardReview,
+    Flashcard,
+    QuestionKind,
+    Quiz,
+    QuizQuestion,
+    ReviewRating,
+)
 from atlas.models.user import User
 from atlas.study.prompts import (
     FLASHCARD_SYSTEM,
+    PREREQUISITE_SYSTEM,
     QUIZ_SYSTEM,
+    SHORT_ANSWER_SYSTEM,
     flashcard_request,
+    prerequisite_request,
     quiz_request,
+    short_answer_request,
 )
 from atlas.study.scheduling import MASTERED_INTERVAL_DAYS, STARTING_EASE, next_schedule
 
@@ -65,6 +77,19 @@ class GeneratedCard(BaseModel):
     front: str = Field(min_length=5, max_length=500)
     back: str = Field(min_length=2, max_length=2000)
     kind: CardKind
+    source: int
+
+
+class GeneratedShortAnswer(BaseModel):
+    question: str = Field(min_length=8, max_length=500)
+    answer: str = Field(min_length=2, max_length=2000)
+    explanation: str = Field(min_length=2, max_length=2000)
+    source: int
+
+
+class GeneratedPrerequisite(BaseModel):
+    concept: str = Field(min_length=2, max_length=200)
+    why: str = Field(min_length=5, max_length=600)
     source: int
 
 
@@ -203,6 +228,7 @@ class StudyService:
             questions.append(
                 QuizQuestion(
                     position=len(questions),
+                    kind=QuestionKind.multiple_choice,
                     prompt=question.question.strip(),
                     options=options,
                     correct_index=answer,
@@ -224,6 +250,82 @@ class StudyService:
             extra={"paper_id": str(paper.id), "proposed": len(proposed), "stored": len(questions)},
         )
         return await self.get_quiz(owner=owner, quiz_id=quiz.id)
+
+    async def generate_short_answers(self, *, owner: User, paper_id: uuid.UUID, count: int) -> Quiz:
+        """A quiz of recall questions rather than recognition ones.
+
+        Stored as a quiz so the two kinds share history, scoring surfaces, and the same
+        grounding: every question keeps the passage it came from.
+        """
+        paper = await self._owned_paper(owner, paper_id)
+        passages = await self._passages(paper.id)
+        count = max(1, min(count, MAX_QUIZ_QUESTIONS))
+
+        raw = await self._complete(
+            system=SHORT_ANSWER_SYSTEM,
+            user=short_answer_request(
+                paper_title=paper.display_title, count=count, passages=_render(passages)
+            ),
+            max_output_tokens=6000,
+        )
+
+        proposed = parse_items(raw, GeneratedShortAnswer)[:count]
+        questions: list[QuizQuestion] = []
+        for item in proposed:
+            passage = _resolve(passages, item.source)
+            if passage is None:
+                continue
+            questions.append(
+                QuizQuestion(
+                    position=len(questions),
+                    kind=QuestionKind.short_answer,
+                    prompt=item.question.strip(),
+                    options=[],
+                    correct_index=None,
+                    model_answer=item.answer.strip(),
+                    explanation=item.explanation.strip(),
+                    chunk_id=passage.id,
+                    source_text=passage.content,
+                    source_page=passage.page_start,
+                )
+            )
+
+        _require_grounded(len(proposed), len(questions), "short-answer questions")
+        quiz = Quiz(owner_id=owner.id, paper_id=paper.id, title=paper.display_title)
+        quiz.questions = questions
+        self._db.add(quiz)
+        await self._db.commit()
+
+        logger.info(
+            "short_answers.generated",
+            extra={"paper_id": str(paper.id), "stored": len(questions)},
+        )
+        return await self.get_quiz(owner=owner, quiz_id=quiz.id)
+
+    async def prerequisites(
+        self, *, owner: User, paper_id: uuid.UUID
+    ) -> list[tuple[GeneratedPrerequisite, PaperChunk]]:
+        """What a reader must already understand for this paper to make sense.
+
+        Returned rather than stored: unlike a flashcard, this is read once while deciding
+        whether to attempt a paper, and a stale copy would be worse than regenerating it.
+        Each entry still carries the passage that shows the assumption, so it can be checked.
+        """
+        paper = await self._owned_paper(owner, paper_id)
+        passages = await self._passages(paper.id)
+
+        raw = await self._complete(
+            system=PREREQUISITE_SYSTEM,
+            user=prerequisite_request(paper_title=paper.display_title, passages=_render(passages)),
+            max_output_tokens=3000,
+        )
+
+        grounded: list[tuple[GeneratedPrerequisite, PaperChunk]] = []
+        for item in parse_items(raw, GeneratedPrerequisite):
+            passage = _resolve(passages, item.source)
+            if passage is not None:
+                grounded.append((item, passage))
+        return grounded
 
     async def _complete(self, *, system: str, user: str, max_output_tokens: int) -> str:
         result = await self._provider().complete(
@@ -379,7 +481,12 @@ class StudyService:
         return list(await self._db.scalars(statement))
 
     async def submit_quiz(
-        self, *, owner: User, quiz_id: uuid.UUID, answers: dict[uuid.UUID, int]
+        self,
+        *,
+        owner: User,
+        quiz_id: uuid.UUID,
+        answers: dict[uuid.UUID, int],
+        writings: dict[uuid.UUID, str] | None = None,
     ) -> Quiz:
         """Record the chosen answers and score the quiz.
 
@@ -393,6 +500,15 @@ class StudyService:
 
         correct = 0
         for question in quiz.questions:
+            if question.kind is QuestionKind.short_answer:
+                # Not scored. Free text compared to a model answer by string matching would
+                # mark a correct answer wrong for using different words, so the learner
+                # compares the two themselves.
+                written = (writings or {}).get(question.id)
+                if written is not None:
+                    question.written_answer = written.strip()[:4000]
+                continue
+
             selected = answers.get(question.id)
             if selected is not None and not 0 <= selected < len(question.options):
                 raise ValidationError("An answer refers to an option that doesn't exist.")
@@ -401,6 +517,8 @@ class StudyService:
                 correct += 1
 
         quiz.submitted_at = datetime.now(UTC)
+        # Counts only what was scored. A quiz of short answers reports zero correct out of
+        # zero scored, which is honest; claiming a score for questions nobody graded is not.
         quiz.correct_count = correct
         await self._db.commit()
         return quiz
