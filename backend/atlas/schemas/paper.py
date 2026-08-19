@@ -9,7 +9,7 @@ from typing import Annotated, Generic, Literal, TypeVar
 from pydantic import ConfigDict, Field, field_validator
 
 from atlas.models.job import IngestionStage
-from atlas.models.paper import ProcessingStatus, ReadingStatus
+from atlas.models.paper import PaperSource, ProcessingStatus, ReadingStatus
 from atlas.schemas.base import AtlasModel
 
 T = TypeVar("T")
@@ -66,6 +66,10 @@ class PaperSummary(AtlasModel):
     reading_status: ReadingStatus
     is_favorite: bool
     original_filename: str
+    source: PaperSource
+    """Where the paper came from — uploaded, or fetched from arXiv, a DOI, or a URL."""
+
+    source_url: str | None
     file_size_bytes: int
     last_opened_at: datetime | None
     created_at: datetime
@@ -181,3 +185,9 @@ class LibraryStats(AtlasModel):
     failed: int
     unread: int
     favorites: int
+
+
+class AddByReference(AtlasModel):
+    """A link, a DOI, or an arXiv id — whichever the person happened to have."""
+
+    reference: str = Field(min_length=4, max_length=2000)

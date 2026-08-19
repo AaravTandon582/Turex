@@ -31,6 +31,8 @@ export interface PaperSummary {
   reading_status: ReadingStatus;
   is_favorite: boolean;
   original_filename: string;
+  source: "upload" | "arxiv" | "doi" | "url";
+  source_url: string | null;
   file_size_bytes: number;
   last_opened_at: string | null;
   created_at: string;
@@ -116,6 +118,10 @@ export const papers = {
 
   update: (id: string, patch: Partial<Pick<PaperSummary, "reading_status" | "is_favorite" | "title">>) =>
     api.patch<PaperDetail>(`/papers/${id}`, patch),
+
+  /** Add by link, DOI, or arXiv id. The server works out which it is. */
+  addByReference: (reference: string) =>
+    api.post<PaperDetail>("/papers/from-reference", { reference }),
 
   markOpened: (id: string) => api.post<PaperDetail>(`/papers/${id}/opened`),
 

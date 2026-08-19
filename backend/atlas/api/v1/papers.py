@@ -11,6 +11,7 @@ from atlas.api.deps import CurrentUser, GuardDep, PaperServiceDep
 from atlas.models.job import STAGE_LABELS, IngestionJob
 from atlas.models.paper import Paper
 from atlas.schemas.paper import (
+    AddByReference,
     IngestionProgress,
     LibraryStats,
     Page,
@@ -79,6 +80,29 @@ async def upload_paper(
         content_type=file.content_type,
         data=data,
     )
+    if result.already_existed:
+        response.status_code = status.HTTP_200_OK
+    return await _detail(service, result.paper)
+
+
+@router.post("/from-reference", response_model=PaperDetail, status_code=status.HTTP_202_ACCEPTED)
+async def add_paper_from_reference(
+    payload: AddByReference,
+    user: CurrentUser,
+    service: PaperServiceDep,
+    response: Response,
+    guard: GuardDep,
+) -> PaperDetail:
+    """Add a paper from a link, a DOI, or an arXiv id.
+
+    Answers as an upload does: **202** when the document is queued, **200** when those exact
+    bytes are already in the library.
+
+    Fetching a URL a caller supplied is a server-side request forgery risk, so the fetcher
+    refuses non-public addresses and re-checks on every redirect — see `ingestion/fetching.py`.
+    """
+    guard.by_user(user.id, policy.UPLOADS_PER_USER, scope="upload")
+    result = await service.add_from_identifier(owner=user, reference=payload.reference)
     if result.already_existed:
         response.status_code = status.HTTP_200_OK
     return await _detail(service, result.paper)

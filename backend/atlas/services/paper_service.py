@@ -26,6 +26,8 @@ from atlas.core.errors import (
     ValidationError,
 )
 from atlas.core.logging import get_logger
+from atlas.ingestion.fetching import fetch_document
+from atlas.ingestion.identifiers import IdentifierKind, ResolvedIdentifier, parse_identifier
 from atlas.ingestion.pipeline import count_chunks
 from atlas.models.job import IngestionJob, JobStatus
 from atlas.models.library import Collection, CollectionPaper, PaperTag, Tag
@@ -74,6 +76,52 @@ class PaperService:
         return await self._db.scalar(
             select(Paper).where(Paper.owner_id == owner_id, Paper.content_hash == content_hash)
         )
+
+    async def add_from_identifier(self, *, owner: User, reference: str) -> UploadResult:
+        """Add a paper from a URL, a DOI, or an arXiv id.
+
+        The document is fetched and then handed to the same `upload` path, so a paper added
+        this way is validated, stored, deduplicated, and ingested exactly like an uploaded
+        one. Nothing here trusts the source more than a file picker would.
+        """
+        try:
+            resolved = parse_identifier(reference)
+        except ValueError as exc:
+            raise ValidationError(
+                "That doesn't look like a link, a DOI, or an arXiv id.", detail=str(exc)
+            ) from exc
+
+        document = await fetch_document(resolved.pdf_url, max_bytes=self._settings.max_upload_bytes)
+
+        if not document.data.startswith(PDF_MAGIC):
+            # Most publishers answer a DOI with a landing page, not the file. Saying so beats
+            # a generic failure that implies Atlas could have reached a paywalled paper.
+            raise ValidationError(
+                "That link gave a web page rather than a PDF. Download the PDF and upload it.",
+                detail=f"{resolved.kind} resolved to {document.content_type}",
+            )
+
+        result = await self.upload(
+            owner=owner,
+            filename=_filename_for(resolved),
+            content_type="application/pdf",
+            data=document.data,
+        )
+
+        if not result.already_existed:
+            result.paper.source = _SOURCE_FOR_KIND[resolved.kind]
+            result.paper.source_url = document.final_url
+            if resolved.kind is IdentifierKind.arxiv:
+                result.paper.arxiv_id = resolved.value[:64]
+            elif resolved.kind is IdentifierKind.doi:
+                result.paper.doi = resolved.value[:255]
+            await self._db.flush()
+
+        logger.info(
+            "paper added from an identifier",
+            extra={"kind": resolved.kind.value, "paper_id": str(result.paper.id)},
+        )
+        return result
 
     async def upload(
         self, *, owner: User, filename: str, content_type: str | None, data: bytes
@@ -491,3 +539,18 @@ def safe_filename(filename: str) -> str:
     cleaned = "".join(character for character in base if character.isprintable()).strip()
     cleaned = cleaned.lstrip(".") or "document.pdf"
     return cleaned[:500]
+
+
+_SOURCE_FOR_KIND = {
+    IdentifierKind.arxiv: PaperSource.arxiv,
+    IdentifierKind.doi: PaperSource.doi,
+    IdentifierKind.url: PaperSource.url,
+}
+
+
+def _filename_for(resolved: ResolvedIdentifier) -> str:
+    """A readable filename, since there is no uploaded one to keep."""
+    if resolved.kind is IdentifierKind.url:
+        tail = resolved.pdf_url.rstrip("/").rsplit("/", 1)[-1]
+        return tail if tail.lower().endswith(".pdf") else "paper.pdf"
+    return f"{resolved.value.replace('/', '-')}.pdf"

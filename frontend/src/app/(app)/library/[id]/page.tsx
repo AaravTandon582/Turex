@@ -136,6 +136,13 @@ export default function PaperPage() {
           {paper.publication_year && <Meta label="Year" value={String(paper.publication_year)} />}
           {paper.page_count && <Meta label="Pages" value={String(paper.page_count)} />}
           <Meta label="Size" value={formatFileSize(paper.file_size_bytes)} />
+          {paper.source !== "upload" && paper.source_url && (
+            <ExternalMeta
+              label="Added from"
+              value={paper.source === "arxiv" ? "arXiv" : paper.source === "doi" ? "DOI" : "Link"}
+              href={paper.source_url}
+            />
+          )}
           {paper.arxiv_id && (
             <ExternalMeta
               label="arXiv"
