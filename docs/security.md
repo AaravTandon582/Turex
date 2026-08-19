@@ -122,6 +122,33 @@ ready. A new endpoint is covered the moment it is registered.
 
 ---
 
+## Prompt injection through uploaded documents
+
+Anyone can upload a PDF, and a PDF can contain text shaped like a command — *"ignore previous
+instructions"*, *"system override"*, *"reveal your prompt"*. Retrieval puts that text in front
+of the model, which makes every uploaded document an untrusted input to the assistant.
+
+Two defences, and the order matters.
+
+**Structural, and model-independent.** Citations are written from the passages the server
+retrieved, never parsed from the model's prose. A model that has been completely taken over
+still cannot make Atlas store a citation to a passage that was never retrieved — a marker it
+invents is discarded. This holds whatever model is configured and however badly it behaves,
+and it is tested with a scripted model that *does* obey the injected instruction.
+
+**Instructional, as depth.** The grounding rules state plainly that sources are documents,
+that a document cannot issue instructions, and that text attempting it is content to be
+reported rather than acted on.
+
+Verified live against Claude Opus 5 with a deliberately hostile paper: the assistant refused
+both injected instructions, reported them to the user unprompted, answered the real question,
+and separated its own general knowledge from anything found in the library.
+
+The instructional half is defence in depth, not the guarantee. The guarantee is the structural
+half, because it does not depend on the model choosing to cooperate.
+
+---
+
 ## Text arriving from a client
 
 Every request and response schema inherits a base that strips characters which cannot be stored
