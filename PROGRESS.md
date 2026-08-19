@@ -335,6 +335,22 @@ left the development database recording the old id, so Alembic refused to run. A
 was never affected — the test suite migrates from `base` every session — but it would have
 stopped anyone who had already migrated.
 
+**A second hardening pass, driven by probing the running API rather than reading it.** Eight
+defects, six of them pre-existing and none caught by the suite as it stood:
+
+- **Editing a project or a note returned 500.** `updated_at` used a server-side `onupdate`, so
+  SQLAlchemy expired the attribute after every UPDATE and re-read it during serialisation — IO
+  in a sync context. It surfaced only on the two endpoints whose response includes that column,
+  and nothing tested editing either. Editing a project had never worked.
+- **A null byte in any text field returned 500**, on every text field in the API at once.
+- **An explicit `null` in a PATCH body returned 500** where the column was NOT NULL. Now 422,
+  while nullable columns still accept null as "clear this".
+- **Concurrent uploads of the same file raced on one temporary path** in storage, giving one
+  client a 500 every time.
+- **Concurrent refreshes revoked the session**, logging users out for having two tabs open, and
+  separately lost writes because the session row was never locked.
+- **Ten foreign keys and eight owner columns had no index.**
+
 **Two lint errors in my own security code** — a ref written during render and a non-literal
 dependency list — plus a test-isolation bug where the process-global limiter exhausted the
 registration limit partway through the suite and failed 181 unrelated tests.
