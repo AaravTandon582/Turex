@@ -10,7 +10,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -100,59 +100,68 @@ class AuthService:
     async def refresh(self, *, refresh_token: str, client: ClientInfo) -> IssuedSession:
         """Rotate a refresh token.
 
-        A token that was already rotated away is treated as stolen: the session is revoked and
-        the caller must sign in again.
+        A token presented after it was rotated away is treated as stolen and ends the session —
+        unless it arrives inside the grace window, which is what several browser tabs
+        refreshing at the same moment look like.
+
+        The row is locked for the duration. Without the lock, concurrent refreshes all read the
+        session before any of them commits, each believes it holds the current token, and the
+        last write wins — leaving the other clients holding tokens that were never stored.
         """
         token_hash = security.hash_refresh_token(refresh_token)
 
-        replayed = await self._db.scalar(
-            select(UserSession).where(UserSession.previous_token_hash == token_hash)
+        # One query, one lock. Matching both columns together avoids taking two locks in an
+        # order that could deadlock, and means the decision below is made on state that cannot
+        # change underneath it.
+        session = await self._db.scalar(
+            select(UserSession)
+            .where(
+                or_(
+                    UserSession.refresh_token_hash == token_hash,
+                    UserSession.previous_token_hash == token_hash,
+                )
+            )
+            .with_for_update()
         )
-        if replayed is not None:
-            # Two things present a token that was just rotated away: a thief replaying a
-            # stolen one, and a second browser tab that refreshed at the same moment. They are
-            # indistinguishable from the token alone, so they are told apart by *when*.
-            #
-            # Inside the grace window it is a concurrent client. Revoking there would log
-            # people out for having two tabs open, which is the failure that makes teams turn
-            # rotation off altogether — a worse outcome than the race.
+        if session is None:
+            raise UnauthenticatedError("Your session expired. Sign in again.")
+
+        presented_previous = session.refresh_token_hash != token_hash
+
+        if presented_previous:
             within_grace = (
-                replayed.rotated_at is not None
-                and replayed.is_active
-                and datetime.now(UTC) - replayed.rotated_at
+                session.rotated_at is not None
+                and session.is_active
+                and datetime.now(UTC) - session.rotated_at
                 <= timedelta(seconds=self._settings.refresh_grace_seconds)
             )
+            if not within_grace:
+                session.revoked_at = datetime.now(UTC)
+                # Commit before raising. The request-scoped transaction rolls back on error,
+                # and revoking a session whose token has demonstrably leaked must outlive that.
+                await self._db.commit()
+                logger.warning(
+                    "refresh token replay detected; session revoked",
+                    extra={"user_id": str(session.user_id), "session_id": str(session.id)},
+                )
+                raise UnauthenticatedError("Your session ended. Sign in again.")
 
-            if within_grace:
-                user = await self._db.get(User, replayed.user_id)
-                if user is not None and user.is_active:
-                    logger.info(
-                        "refresh raced with a concurrent rotation; issuing a fresh token",
-                        extra={"session_id": str(replayed.id)},
-                    )
-                    return await self._rotate(replayed, user, client)
-
-            replayed.revoked_at = datetime.now(UTC)
-            # Commit before raising. The request-scoped transaction rolls back on error, and
-            # revoking a session whose token has demonstrably leaked must outlive that.
-            await self._db.commit()
-            logger.warning(
-                "refresh token replay detected; session revoked",
-                extra={"user_id": str(replayed.user_id), "session_id": str(replayed.id)},
-            )
-            raise UnauthenticatedError("Your session ended. Sign in again.")
-
-        session = await self._db.scalar(
-            select(UserSession).where(UserSession.refresh_token_hash == token_hash)
-        )
-        if session is None or not session.is_active:
+        if not session.is_active:
             raise UnauthenticatedError("Your session expired. Sign in again.")
 
         user = await self._db.get(User, session.user_id)
         if user is None or not user.is_active:
             raise UnauthenticatedError("Your session expired. Sign in again.")
 
-        return await self._rotate(session, user, client)
+        if presented_previous:
+            logger.info(
+                "refresh raced with a concurrent rotation; issuing a fresh token",
+                extra={"session_id": str(session.id)},
+            )
+
+        # A racing tab keeps the window anchored where it was, so every request in the burst is
+        # accepted and the window still closes on schedule instead of being pushed forward.
+        return await self._rotate(session, user, client, preserve_window=presented_previous)
 
     async def revoke(self, *, refresh_token: str | None) -> None:
         """Sign out. Missing or unknown tokens succeed silently — the goal state is reached."""
@@ -200,11 +209,26 @@ class AuthService:
         await self._db.flush()
         return self._build(user, session, refresh_token)
 
-    async def _rotate(self, session: UserSession, user: User, client: ClientInfo) -> IssuedSession:
+    async def _rotate(
+        self,
+        session: UserSession,
+        user: User,
+        client: ClientInfo,
+        *,
+        preserve_window: bool = False,
+    ) -> IssuedSession:
+        """Issue a new refresh token for this session.
+
+        `preserve_window` is set when the caller presented the *previous* token inside the
+        grace period — several tabs refreshing at once. Leaving the window anchored where it
+        was means every tab in the burst is accepted, and the window still closes on schedule
+        rather than being pushed forward by each new arrival.
+        """
         refresh_token = security.generate_refresh_token()
-        session.previous_token_hash = session.refresh_token_hash
+        if not preserve_window:
+            session.previous_token_hash = session.refresh_token_hash
+            session.rotated_at = datetime.now(UTC)
         session.refresh_token_hash = security.hash_refresh_token(refresh_token)
-        session.rotated_at = datetime.now(UTC)
         session.expires_at = datetime.now(UTC) + timedelta(
             seconds=self._settings.refresh_token_ttl_seconds
         )

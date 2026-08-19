@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, MetaData, func, text
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
@@ -45,9 +45,20 @@ class TimestampMixin:
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
-        onupdate=func.now(),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
+    """Stamped in Python on update, not by the database.
+
+    `onupdate=func.now()` puts the new value on the server, so SQLAlchemy has to mark the
+    attribute expired after every UPDATE and re-read it. That read is IO, and it happened
+    during response serialisation — a sync context — which raised MissingGreenlet and turned
+    every edit into a 500. It only showed on the two endpoints whose response includes this
+    column, which is why it went unnoticed.
+
+    A Python-side value travels in the UPDATE statement itself, so nothing needs re-reading.
+    `created_at` keeps its server default: inserts fetch it back through RETURNING already.
+    """
 
 
 class OwnedMixin:

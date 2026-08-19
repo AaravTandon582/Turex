@@ -519,3 +519,94 @@ class TestWorkspacePrivacy:
 
         # The rows exist — they are simply invisible to the other account.
         assert len(list(await db.scalars(select(Project)))) == 1
+
+
+class TestEveryUpdateEndpointWorks:
+    """Editing was untested on two resources, and broken on exactly those two.
+
+    `updated_at` used a server-side `onupdate`, so SQLAlchemy expired the attribute after each
+    UPDATE and re-read it during response serialisation — IO in a sync context, raising
+    MissingGreenlet. It surfaced only where the response included that column, which is why
+    nothing caught it: the endpoints that were tested did not serialise it.
+
+    These cover the whole surface rather than one resource, because the fault was in shared
+    code and a single test would have proved only that one endpoint escaped it.
+    """
+
+    async def test_a_project_can_be_edited(self, registered_client: AsyncClient, api: str) -> None:
+        project = (
+            await registered_client.post(
+                f"{api}/projects", json={"name": "Before", "research_question": "q"}
+            )
+        ).json()
+
+        response = await registered_client.patch(
+            f"{api}/projects/{project['id']}", json={"name": "After", "status": "paused"}
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["name"] == "After"
+        assert response.json()["status"] == "paused"
+
+    async def test_editing_a_project_moves_its_updated_timestamp(
+        self, registered_client: AsyncClient, api: str
+    ) -> None:
+        """The column that caused the bug, asserted directly."""
+        project = (
+            await registered_client.post(
+                f"{api}/projects", json={"name": "Timestamps", "research_question": "q"}
+            )
+        ).json()
+
+        edited = (
+            await registered_client.patch(
+                f"{api}/projects/{project['id']}", json={"name": "Edited"}
+            )
+        ).json()
+
+        assert edited["updated_at"] >= project["updated_at"]
+
+    async def test_a_note_can_be_edited(self, registered_client: AsyncClient, api: str) -> None:
+        note = (await registered_client.post(f"{api}/notes", json={"content": "draft"})).json()
+
+        response = await registered_client.patch(
+            f"{api}/notes/{note['id']}", json={"content": "revised"}
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["content"] == "revised"
+
+    async def test_an_explicit_null_is_refused_where_the_column_cannot_be_null(
+        self, registered_client: AsyncClient, api: str
+    ) -> None:
+        """`exclude_unset` separates omitted from sent, but null counts as sent — and reached
+        a NOT NULL column as a 500."""
+        project = (
+            await registered_client.post(
+                f"{api}/projects", json={"name": "Nulls", "research_question": "q"}
+            )
+        ).json()
+
+        for field in ("name", "status"):
+            response = await registered_client.patch(
+                f"{api}/projects/{project['id']}", json={field: None}
+            )
+            assert response.status_code == 422, f"{field}=null gave {response.status_code}"
+
+    async def test_an_explicit_null_still_clears_a_nullable_column(
+        self, registered_client: AsyncClient, api: str
+    ) -> None:
+        """The other half: refusing every null would break clearing an optional field."""
+        project = (
+            await registered_client.post(
+                f"{api}/projects",
+                json={"name": "Nullable", "research_question": "q", "description": "set"},
+            )
+        ).json()
+
+        response = await registered_client.patch(
+            f"{api}/projects/{project['id']}", json={"description": None}
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["description"] is None

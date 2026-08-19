@@ -52,3 +52,48 @@ class AtlasModel(BaseModel):
         # `mode="before"` so this runs ahead of field validation. Length limits then apply to
         # the cleaned text, which is what actually gets stored.
         return _clean(data)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _refuse_explicit_null(cls, data: Any) -> Any:
+        """Reject `"field": null` for fields backed by a column that cannot be null.
+
+        Partial updates are collected with `exclude_unset`, which correctly distinguishes a
+        field the client left out from one it sent. An explicit null counts as sent, so it
+        reached a NOT NULL column and surfaced as HTTP 500 — a server error caused by a
+        well-formed request. This is the only place the raw payload is still visible, which is
+        what makes "omitted" and "sent as null" separable at all.
+        """
+        if not isinstance(data, dict):
+            return data
+
+        for name, field in cls.model_fields.items():
+            if not any(isinstance(marker, _NeverNull) for marker in field.metadata):
+                continue
+            for key in (name, field.alias):
+                if key is not None and key in data and data[key] is None:
+                    raise ValueError(f"{key} cannot be null; omit it to leave it unchanged")
+        return data
+
+
+class _NeverNull:
+    """Marker for a field that may be omitted but not explicitly set to null."""
+
+
+NeverNull = _NeverNull()
+"""Used as `Annotated[str | None, NeverNull] = None`.
+
+A `BeforeValidator` inside the union does not work: when the value is null, Pydantic resolves
+to the `None` branch and the validator on the other branch never runs. So the marker is
+inspected by the model validator on `AtlasModel`, where the raw payload is still visible and
+"omitted" can be told apart from "sent as null".
+
+Partial updates are collected with `exclude_unset`, which correctly distinguishes a field the
+client left out from one it sent. But an explicit `null` counts as sent, so it flowed through
+to a NOT NULL column and surfaced as HTTP 500 — an unhandled server error caused by a
+well-formed request.
+
+Fields backed by a nullable column keep plain `| None`, where null legitimately means "clear
+this". Only fields whose column cannot be null use this, and they now answer 422 with a
+message that says what to do instead.
+"""

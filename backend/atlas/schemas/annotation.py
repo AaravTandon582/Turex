@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import ConfigDict, Field, field_validator
 
 from atlas.models.annotation import HighlightColour
-from atlas.schemas.base import AtlasModel
+from atlas.schemas.base import AtlasModel, NeverNull
 from atlas.services.citations import CitationStyle
 
 
@@ -43,7 +44,7 @@ class AnnotationCreate(AtlasModel):
 
 
 class AnnotationUpdate(AtlasModel):
-    colour: HighlightColour | None = None
+    colour: Annotated[HighlightColour | None, NeverNull] = None
     note: str | None = Field(default=None, max_length=10_000)
     clear_note: bool = False
     """Removing a note has to be explicit: an absent `note` means "leave it alone"."""

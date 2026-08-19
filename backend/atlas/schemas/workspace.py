@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from typing import Annotated
 
 from pydantic import ConfigDict, Field, field_validator
 
@@ -14,7 +15,7 @@ from atlas.models.workspace import (
     ProjectStatus,
     TaskStatus,
 )
-from atlas.schemas.base import AtlasModel
+from atlas.schemas.base import AtlasModel, NeverNull
 
 
 def _blank_to_none(value: str | None) -> str | None:
@@ -64,10 +65,10 @@ class ProjectCreate(AtlasModel):
 
 
 class ProjectUpdate(AtlasModel):
-    name: str | None = Field(default=None, min_length=1, max_length=200)
+    name: Annotated[str | None, NeverNull] = Field(default=None, min_length=1, max_length=200)
     research_question: str | None = Field(default=None, max_length=2000)
     description: str | None = None
-    status: ProjectStatus | None = None
+    status: Annotated[ProjectStatus | None, NeverNull] = None
 
 
 class ProjectPaperRead(AtlasModel):
@@ -137,10 +138,10 @@ class HypothesisCreate(AtlasModel):
 
 
 class HypothesisUpdate(AtlasModel):
-    statement: str | None = Field(default=None, min_length=1, max_length=4000)
+    statement: Annotated[str | None, NeverNull] = Field(default=None, min_length=1, max_length=4000)
     motivation: str | None = None
     assumptions: str | None = None
-    status: HypothesisStatus | None = None
+    status: Annotated[HypothesisStatus | None, NeverNull] = None
     project_id: uuid.UUID | None = None
     position: int | None = None
 
@@ -201,7 +202,7 @@ class ExperimentCreate(AtlasModel):
 
 
 class ExperimentUpdate(AtlasModel):
-    title: str | None = Field(default=None, min_length=1, max_length=300)
+    title: Annotated[str | None, NeverNull] = Field(default=None, min_length=1, max_length=300)
     hypothesis_id: uuid.UUID | None = None
     objective: str | None = None
     independent_variables: str | None = None
@@ -214,7 +215,7 @@ class ExperimentUpdate(AtlasModel):
     expected_result: str | None = None
     actual_result: str | None = None
     interpretation: str | None = None
-    status: ExperimentStatus | None = None
+    status: Annotated[ExperimentStatus | None, NeverNull] = None
     run_on: date | None = None
 
 
@@ -244,7 +245,7 @@ class NoteCreate(AtlasModel):
 
 class NoteUpdate(AtlasModel):
     title: str | None = Field(default=None, max_length=300)
-    content: str | None = None
+    content: Annotated[str | None, NeverNull] = None
     project_id: uuid.UUID | None = None
     paper_id: uuid.UUID | None = None
     hypothesis_id: uuid.UUID | None = None
@@ -268,6 +269,6 @@ class TaskCreate(AtlasModel):
 
 
 class TaskUpdate(AtlasModel):
-    title: str | None = Field(default=None, min_length=1, max_length=300)
-    status: TaskStatus | None = None
+    title: Annotated[str | None, NeverNull] = Field(default=None, min_length=1, max_length=300)
+    status: Annotated[TaskStatus | None, NeverNull] = None
     position: int | None = None
