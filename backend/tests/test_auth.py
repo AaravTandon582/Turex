@@ -6,6 +6,8 @@ tokens rotate, that a replayed token destroys the session, and that signing out 
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -165,16 +167,50 @@ class TestRefresh:
     async def test_replaying_a_rotated_token_revokes_the_session(
         self, registered_client: AsyncClient, api: str, db: AsyncSession
     ) -> None:
+        """A token replayed after the grace window is theft, and ends the session.
+
+        The rotation is aged deliberately. Replaying *immediately* is the concurrent-tab case
+        covered below, and the two must not be conflated — telling them apart is the whole
+        point of recording when the rotation happened.
+        """
         stolen = registered_client.cookies[REFRESH_COOKIE_NAME]
         await registered_client.post(f"{api}/auth/refresh")
+
+        session = await db.scalar(select(UserSession))
+        assert session is not None
+        session.rotated_at = datetime.now(UTC) - timedelta(hours=1)
+        await db.commit()
 
         registered_client.cookies.set(REFRESH_COOKIE_NAME, stolen)
         response = await registered_client.post(f"{api}/auth/refresh")
 
         assert response.status_code == 401
-        session = await db.scalar(select(UserSession))
-        assert session is not None
+        await db.refresh(session)
         assert session.revoked_at is not None, "replay must revoke the session, not just fail"
+
+    async def test_tabs_refreshing_at_once_do_not_end_the_session(
+        self, registered_client: AsyncClient, api: str, db: AsyncSession
+    ) -> None:
+        """Several tabs refreshing together all present the token that was just rotated away.
+
+        That is indistinguishable from a replay by token alone, and revoking there logs someone
+        out for having tabs open. Before the grace window existed, five concurrent refreshes
+        left the session dead.
+        """
+        import asyncio
+
+        responses = await asyncio.gather(
+            *[registered_client.post(f"{api}/auth/refresh") for _ in range(5)]
+        )
+
+        codes = [response.status_code for response in responses]
+        assert all(code == 200 for code in codes), codes
+
+        still_signed_in = await registered_client.get(f"{api}/auth/me")
+        assert still_signed_in.status_code == 200, "the session was revoked by its own tabs"
+
+        session = await db.scalar(select(UserSession))
+        assert session is not None and session.revoked_at is None
 
     async def test_requires_a_refresh_cookie(self, client: AsyncClient, api: str) -> None:
         response = await client.post(f"{api}/auth/refresh")

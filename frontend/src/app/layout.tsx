@@ -51,7 +51,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${plexSans.variable} ${plexSerif.variable} ${plexMono.variable}`}
     >
       <head>
-        {/* Runs before paint so the correct theme is applied on the first frame. */}
+        {/*
+          Runs before paint so the correct theme is applied on the first frame, which is the
+          only way to avoid a flash of the wrong one.
+
+          `dangerouslySetInnerHTML` is safe here and nowhere else in this app: the script is a
+          module constant built at compile time from another constant, and no user input can
+          reach it. Anything with a runtime value in it would not belong here.
+        */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="min-h-dvh antialiased">

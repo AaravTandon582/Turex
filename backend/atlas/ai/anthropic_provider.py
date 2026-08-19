@@ -6,7 +6,7 @@ error translation, and refusal handling. The rest of Atlas sees only `ChatProvid
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator
 from typing import Any
 
 import anthropic
@@ -168,7 +168,3 @@ class AnthropicChatProvider(ChatProvider):
 
 def _to_wire(message: ChatMessage) -> dict[str, str]:
     return {"role": message.role.value, "content": message.content}
-
-
-def build_messages(turns: Sequence[ChatMessage]) -> list[dict[str, str]]:
-    return [_to_wire(turn) for turn in turns]

@@ -59,11 +59,14 @@ class AuthService:
             full_name=full_name,
             password_hash=security.hash_password(password),
         )
-        self._db.add(user)
+        # A savepoint, not a full rollback: rolling back the whole transaction here would
+        # discard any work the caller had already done and expire every object loaded in the
+        # session, so a duplicate email would corrupt more than it reports.
         try:
-            await self._db.flush()
+            async with self._db.begin_nested():
+                self._db.add(user)
+                await self._db.flush()
         except IntegrityError as exc:
-            await self._db.rollback()
             raise ConflictError(
                 "An account with that email already exists.",
                 detail="duplicate email on registration",
@@ -106,6 +109,29 @@ class AuthService:
             select(UserSession).where(UserSession.previous_token_hash == token_hash)
         )
         if replayed is not None:
+            # Two things present a token that was just rotated away: a thief replaying a
+            # stolen one, and a second browser tab that refreshed at the same moment. They are
+            # indistinguishable from the token alone, so they are told apart by *when*.
+            #
+            # Inside the grace window it is a concurrent client. Revoking there would log
+            # people out for having two tabs open, which is the failure that makes teams turn
+            # rotation off altogether — a worse outcome than the race.
+            within_grace = (
+                replayed.rotated_at is not None
+                and replayed.is_active
+                and datetime.now(UTC) - replayed.rotated_at
+                <= timedelta(seconds=self._settings.refresh_grace_seconds)
+            )
+
+            if within_grace:
+                user = await self._db.get(User, replayed.user_id)
+                if user is not None and user.is_active:
+                    logger.info(
+                        "refresh raced with a concurrent rotation; issuing a fresh token",
+                        extra={"session_id": str(replayed.id)},
+                    )
+                    return await self._rotate(replayed, user, client)
+
             replayed.revoked_at = datetime.now(UTC)
             # Commit before raising. The request-scoped transaction rolls back on error, and
             # revoking a session whose token has demonstrably leaked must outlive that.
@@ -178,6 +204,7 @@ class AuthService:
         refresh_token = security.generate_refresh_token()
         session.previous_token_hash = session.refresh_token_hash
         session.refresh_token_hash = security.hash_refresh_token(refresh_token)
+        session.rotated_at = datetime.now(UTC)
         session.expires_at = datetime.now(UTC) + timedelta(
             seconds=self._settings.refresh_token_ttl_seconds
         )

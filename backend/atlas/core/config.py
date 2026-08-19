@@ -100,6 +100,19 @@ class Settings(BaseSettings):
     sets the header.
     """
 
+    refresh_grace_seconds: int = 10
+    """How long the previous refresh token stays acceptable after a rotation.
+
+    Without a grace period, two browser tabs refreshing at the same moment are
+    indistinguishable from a stolen token: both present the token that was just rotated away,
+    and revoking the session logs the user out for having tabs open — the failure that makes
+    teams disable rotation entirely, which is far worse than the race.
+
+    Ten seconds covers a concurrent burst (which completes in milliseconds) plus a slow
+    request, and is far too short to help someone replaying a token captured earlier. Outside
+    it, a replay still revokes the whole session.
+    """
+
     rate_limiting_enabled: bool = True
     """An escape hatch for load testing. Never turn this off in production — there is a startup
     check that says so."""

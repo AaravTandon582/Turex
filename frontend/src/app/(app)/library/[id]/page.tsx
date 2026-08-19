@@ -299,7 +299,7 @@ function ExternalMeta({ label, value, href }: { label: string; value: string; hr
         <a
           href={href}
           target="_blank"
-          rel="noreferrer"
+          rel="noreferrer noopener"
           className="inline-flex items-center gap-1 text-accent hover:underline"
         >
           {value}

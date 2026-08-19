@@ -215,10 +215,6 @@ _FORMATTERS = {
 }
 
 
-def format_citation(paper: Paper, style: CitationStyle) -> FormattedCitation:
-    return _FORMATTERS[style](paper)
-
-
 def format_all(paper: Paper) -> list[FormattedCitation]:
     """Every style at once — the reader shows them together so the user picks and copies."""
     return [formatter(paper) for formatter in _FORMATTERS.values()]

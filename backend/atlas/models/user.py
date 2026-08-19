@@ -55,6 +55,15 @@ class UserSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     refresh_token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     previous_token_hash: Mapped[str | None] = mapped_column(String(64))
+    """The token this session rotated away from, kept so a replay can be recognised."""
+
+    rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    """When the rotation happened.
+
+    Needed to tell two situations apart that look identical otherwise: a stolen token being
+    replayed, and two browser tabs refreshing at the same moment. Both present the previous
+    token; only one of them is an attack. See `AuthService.refresh`.
+    """
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     user_agent: Mapped[str | None] = mapped_column(String(400))

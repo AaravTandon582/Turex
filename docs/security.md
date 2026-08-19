@@ -96,8 +96,13 @@ is unpleasant to undo, and browsers ignore it over plain HTTP anyway.
 - Short-lived signed access token (15 minutes) in an httpOnly cookie
 - Opaque refresh token (30 days), stored only as a SHA-256 hash
 - Rotation on every refresh, with **replay detection**: presenting an already-used refresh
-  token revokes the whole session, because that means either the token leaked or two clients
-  are sharing one, and both are worth ending
+  token revokes the whole session
+- A **10-second grace window** on that detection, because two browser tabs refreshing at the
+  same moment both present the token that was just rotated away — indistinguishable from a
+  replay by the token alone. They are told apart by *when*: inside the window it is a
+  concurrent client and a fresh token is issued; outside it, the session is revoked. Without
+  this, five concurrent refreshes left the session dead and the user logged out for having
+  tabs open, which is the failure that makes teams disable rotation altogether
 - `SameSite=Lax`, so a cross-site form post cannot ride the session
 - The session row is checked on every request, so signing out takes effect immediately rather
   than when the access token happens to expire
@@ -168,8 +173,6 @@ Stated plainly, because a security section that claims everything is one that me
   processes enforce roughly four times them.
 - **Distributed brute force.** Per-account limits hold regardless of source, but a large botnet
   spreading attempts across many accounts stays under the per-address limit on each host.
-- **Distributed brute force**, continued: per-account limits hold regardless of source, so an
-  attacker must spread across many accounts to stay under the per-address limit.
 - **CSRF beyond `SameSite=Lax`.** Lax covers the realistic cases for a JSON API that never
   accepts form posts. A token would be needed if that changed.
 - **Denial of service.** Rate limits bound a single client. They are not a substitute for

@@ -31,7 +31,6 @@ from atlas.models.job import IngestionJob, JobStatus
 from atlas.models.library import Collection, CollectionPaper, PaperTag, Tag
 from atlas.models.paper import (
     Paper,
-    PaperChunk,
     PaperSection,
     PaperSource,
     ProcessingStatus,
@@ -104,17 +103,19 @@ class PaperService:
             file_size_bytes=stored.size_bytes,
             status=ProcessingStatus.pending,
         )
-        self._db.add(paper)
-
+        # Inserted inside a savepoint. Two uploads of the same file can both check, both
+        # miss, and both insert — one then loses on the unique constraint. Without the
+        # savepoint the only way to recover is to roll back the whole transaction, which
+        # discards unrelated work and expires every object already loaded in this session.
+        # The savepoint undoes exactly the failed INSERT and leaves the rest intact.
         try:
-            await self._db.flush()
+            async with self._db.begin_nested():
+                self._db.add(paper)
+                await self._db.flush()
         except IntegrityError as exc:
-            # Two concurrent uploads of the same file: both checked, both missed, both
-            # inserted, and this one lost. The sequential path returns the existing paper in
-            # exactly this situation, so returning an error here would mean the same action
-            # succeeds or fails depending on timing — which is what a double-clicked upload
-            # button produces.
-            await self._db.rollback()
+            # The sequential path returns the existing paper in exactly this situation, so
+            # failing here would mean the same action succeeds or fails depending on timing —
+            # which is what a double-clicked upload button produces.
             winner = await self._db.scalar(
                 select(Paper).where(Paper.owner_id == owner_id, Paper.content_hash == content_hash)
             )
@@ -418,11 +419,11 @@ class CollectionService:
 
     async def create(self, *, owner: User, name: str, description: str | None) -> Collection:
         collection = Collection(owner_id=owner.id, name=name, description=description)
-        self._db.add(collection)
         try:
-            await self._db.flush()
+            async with self._db.begin_nested():
+                self._db.add(collection)
+                await self._db.flush()
         except IntegrityError as exc:
-            await self._db.rollback()
             raise ConflictError("You already have a collection with that name.") from exc
         return collection
 
@@ -466,13 +467,6 @@ class CollectionService:
                 CollectionPaper.paper_id == paper_id,
             )
         )
-
-
-async def chunks_for_paper(db: AsyncSession, paper_id: uuid.UUID) -> list[PaperChunk]:
-    rows = await db.scalars(
-        select(PaperChunk).where(PaperChunk.paper_id == paper_id).order_by(PaperChunk.ordinal)
-    )
-    return list(rows)
 
 
 def safe_filename(filename: str) -> str:
