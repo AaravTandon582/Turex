@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { NotePreview } from "@/components/notebook/note-preview";
 import { EmptyState, Skeleton } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 import { describe } from "@/lib/use-async";
@@ -211,6 +212,9 @@ function NoteEditor({
   const [title, setTitle] = useState(note.title ?? "");
   const [content, setContent] = useState(note.content);
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
+  // Write and read are separate views rather than a split pane: a note is narrow, and half a
+  // screen each makes both halves worse on the laptop this is actually used on.
+  const [view, setView] = useState<"write" | "read">("write");
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -284,6 +288,30 @@ function NoteEditor({
           </select>
         </label>
 
+        <div
+          role="tablist"
+          aria-label="Note view"
+          className="flex rounded-md border border-border bg-surface-sunken p-0.5"
+        >
+          {(["write", "read"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              role="tab"
+              aria-selected={view === mode}
+              onClick={() => setView(mode)}
+              className={cn(
+                "rounded-sm px-2 py-1 text-[12px] capitalize transition-colors",
+                view === mode
+                  ? "bg-surface text-ink shadow-[var(--shadow-sm)]"
+                  : "text-ink-subtle hover:text-ink-muted",
+              )}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+
         <button
           type="button"
           aria-label="Delete note"
@@ -304,13 +332,19 @@ function NoteEditor({
             className="w-full bg-transparent text-2xl font-semibold tracking-[-0.02em] text-ink placeholder:text-ink-subtle focus:outline-none"
           />
 
-          <textarea
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
-            placeholder="Markdown, LaTeX, tables, code — write however you think."
-            aria-label="Note content"
-            className="mt-5 min-h-[60vh] w-full resize-none bg-transparent font-serif text-[16px] leading-[1.75] text-ink placeholder:font-sans placeholder:text-[15px] placeholder:text-ink-subtle focus:outline-none"
-          />
+          {view === "write" ? (
+            <textarea
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              placeholder="Markdown, LaTeX, tables, code — write however you think."
+              aria-label="Note content"
+              className="mt-5 min-h-[60vh] w-full resize-none bg-transparent font-serif text-[16px] leading-[1.75] text-ink placeholder:font-sans placeholder:text-[15px] placeholder:text-ink-subtle focus:outline-none"
+            />
+          ) : (
+            <div className="mt-5 min-h-[60vh]">
+              <NotePreview content={content} />
+            </div>
+          )}
         </div>
       </div>
     </div>
