@@ -173,6 +173,7 @@ function ResearchQuestion({ project, onSaved }: { project: Project; onSaved: () 
   return (
     <div className="measure mt-2 space-y-2">
       <textarea
+        aria-label="Note"
         rows={2}
         autoFocus
         value={draft}

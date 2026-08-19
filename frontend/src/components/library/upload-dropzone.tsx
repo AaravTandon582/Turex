@@ -129,6 +129,7 @@ export function UploadDropzone({ onUploaded }: { onUploaded: () => void }) {
         </p>
 
         <input
+          aria-label="Choose PDFs to upload"
           ref={inputRef}
           type="file"
           accept="application/pdf,.pdf"

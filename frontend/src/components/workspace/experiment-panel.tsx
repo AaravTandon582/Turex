@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, FlaskConical, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/ui/async-boundary";
@@ -271,15 +271,22 @@ function EditableField({
   onSave: (value: string) => void;
 }) {
   const [draft, setDraft] = useState(value);
+  // Generated rather than derived from the label: two fields can share a label text, and
+  // duplicate ids would point both labels at the same control.
+  const fieldId = useId();
 
   useEffect(() => setDraft(value), [value]);
 
   return (
     <div className="space-y-1">
-      <label className="block text-[11px] font-semibold tracking-wide text-ink-muted uppercase">
+      <label
+        htmlFor={fieldId}
+        className="block text-[11px] font-semibold tracking-wide text-ink-muted uppercase"
+      >
         {label}
       </label>
       <textarea
+        id={fieldId}
         rows={draft.length > 90 ? 3 : 1}
         value={draft}
         placeholder={placeholder}

@@ -215,6 +215,7 @@ function HighlightEntry({
       {editing ? (
         <div className="mt-2 space-y-1.5">
           <textarea
+            aria-label="Note on this highlight"
             value={note}
             autoFocus
             rows={3}
