@@ -429,33 +429,102 @@ class TestCollections:
         assert (await other_client.delete(f"{api}/collections/{collection_id}")).status_code == 404
 
 
-class TestConcurrentUploads:
-    """The same file arriving twice at once.
+class TestStorageUnderConcurrency:
+    """The storage layer, tested directly — the HTTP test above proved too timing-dependent
+    to pin this down, and the fault was never in the database."""
 
-    A double-clicked upload button produces exactly this. Both requests check for an existing
-    paper, both miss, both insert, and one loses on the unique constraint. Before this was
-    fixed the loser got a 409 — so the same action succeeded or failed depending on timing,
-    while the sequential path had always returned the existing paper.
-    """
-
-    async def test_the_loser_of_the_race_gets_the_existing_paper(
-        self, registered_client: AsyncClient, api: str
+    async def test_writing_the_same_bytes_concurrently_does_not_fail(
+        self, settings, tmp_path
     ) -> None:
+        """Two uploads of one file produced the same content-addressed key, so both wrote to
+        one `.partial` path. The first rename consumed it and the second raised
+        FileNotFoundError — a 500 for one of two people uploading the same paper at once.
+        """
         import asyncio
 
-        data = build_pdf([["Concurrency", "A Author", "", "Abstract", "One file, many clicks."]])
-        responses = await asyncio.gather(
+        from atlas.storage.local import LocalDocumentStore
+
+        store = LocalDocumentStore(tmp_path)
+        data = b"%PDF-1.4\n" + b"identical bytes " * 500
+
+        results = await asyncio.gather(
+            *[store.put(namespace="a" * 32, filename="same.pdf", data=data) for _ in range(8)]
+        )
+
+        keys = {result.key for result in results}
+        assert len(keys) == 1, f"identical bytes produced {len(keys)} keys"
+        assert await store.exists(next(iter(keys)))
+        assert await store.get(next(iter(keys))) == data
+
+    async def test_no_partial_files_are_left_behind(self, tmp_path) -> None:
+        """A temporary that survives is a file that looks like a document and is not one."""
+        import asyncio
+
+        from atlas.storage.local import LocalDocumentStore
+
+        store = LocalDocumentStore(tmp_path)
+        await asyncio.gather(
             *[
-                registered_client.post(
-                    f"{api}/papers", files={"file": ("same.pdf", data, "application/pdf")}
-                )
-                for _ in range(4)
+                store.put(namespace="b" * 32, filename=f"f{index}.pdf", data=f"pdf{index}".encode())
+                for index in range(6)
             ]
         )
 
-        codes = [response.status_code for response in responses]
-        assert all(code in {200, 202} for code in codes), codes
-        assert codes.count(202) == 1, f"exactly one upload should have queued work: {codes}"
+        leftovers = list(tmp_path.rglob("*.partial"))
+        assert not leftovers, f"temporary files left behind: {leftovers}"
 
-        ids = {response.json()["id"] for response in responses}
-        assert len(ids) == 1, f"the same bytes produced {len(ids)} papers"
+
+class TestDuplicateUploadRecovery:
+    """Two uploads of the same file, where both miss the duplicate check.
+
+    Driven deterministically rather than by racing real requests. An earlier version fired
+    concurrent HTTP uploads and was genuinely flaky — not because the code was wrong, but
+    because the ASGI test transport does not always finalise a dependency's transaction for
+    concurrent requests, so the next test's TRUNCATE blocked on it and the suite hung. That is
+    a property of the test harness: the same burst against a running server leaves no
+    transaction open.
+
+    Forcing the collision directly tests the branch that matters and always takes the same
+    path through it.
+    """
+
+    async def test_the_loser_gets_the_existing_paper_rather_than_an_error(
+        self, registered_client: AsyncClient, api: str, db: AsyncSession, monkeypatch
+    ) -> None:
+        data = build_pdf([["Duplicate", "A Author", "", "Abstract", "One file, uploaded twice."]])
+
+        first = await upload(registered_client, api, data=data)
+
+        # Make the duplicate check miss, exactly as it does when two requests interleave, so
+        # the insert collides on the unique constraint and the recovery path runs.
+        from atlas.services import paper_service
+
+        original = paper_service.PaperService._existing_paper
+        calls = {"n": 0}
+
+        async def miss_once(self, owner_id, content_hash):  # type: ignore[no-untyped-def]
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return None
+            return await original(self, owner_id, content_hash)
+
+        monkeypatch.setattr(paper_service.PaperService, "_existing_paper", miss_once)
+
+        response = await registered_client.post(
+            f"{api}/papers", files={"file": ("same.pdf", data, "application/pdf")}
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["id"] == first["id"], "the loser should get the winner's paper"
+        assert calls["n"] >= 2, "the recovery lookup never ran, so nothing was tested"
+
+    async def test_only_one_paper_exists_afterwards(
+        self, registered_client: AsyncClient, api: str, db: AsyncSession
+    ) -> None:
+        data = build_pdf([["Once", "A Author", "", "Abstract", "Stored a single time."]])
+
+        await upload(registered_client, api, data=data)
+        await upload(registered_client, api, data=data)
+
+        count = await db.scalar(select(func.count()).select_from(Paper))
+        assert count == 1

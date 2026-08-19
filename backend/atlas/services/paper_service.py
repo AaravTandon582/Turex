@@ -64,6 +64,17 @@ class PaperService:
 
     # -- adding ------------------------------------------------------------------
 
+    async def _existing_paper(self, owner_id: uuid.UUID, content_hash: str) -> Paper | None:
+        """The paper in this library with these exact bytes, if there is one.
+
+        Used twice: once before inserting, and once after a unique-constraint failure to find
+        whichever concurrent upload won. Sharing the query keeps the two answers consistent —
+        they must agree, or a duplicate upload succeeds or fails depending on which ran.
+        """
+        return await self._db.scalar(
+            select(Paper).where(Paper.owner_id == owner_id, Paper.content_hash == content_hash)
+        )
+
     async def upload(
         self, *, owner: User, filename: str, content_type: str | None, data: bytes
     ) -> UploadResult:
@@ -82,9 +93,7 @@ class PaperService:
         stored = await self._store.put(namespace=owner_id.hex, filename=filename, data=data)
         content_hash = stored.content_hash
 
-        existing = await self._db.scalar(
-            select(Paper).where(Paper.owner_id == owner_id, Paper.content_hash == content_hash)
-        )
+        existing = await self._existing_paper(owner_id, content_hash)
         if existing is not None:
             # The same bytes are already in this library. Returning the existing paper is
             # what the user wants; a duplicate row is not.
@@ -116,9 +125,7 @@ class PaperService:
             # The sequential path returns the existing paper in exactly this situation, so
             # failing here would mean the same action succeeds or fails depending on timing —
             # which is what a double-clicked upload button produces.
-            winner = await self._db.scalar(
-                select(Paper).where(Paper.owner_id == owner_id, Paper.content_hash == content_hash)
-            )
+            winner = await self._existing_paper(owner_id, content_hash)
             if winner is None:
                 # Not the duplicate we expected. Some other constraint is unhappy, and
                 # guessing would hide it.

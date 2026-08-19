@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import re
+import uuid
 from pathlib import Path
 
 from atlas.core.logging import get_logger
@@ -45,11 +46,23 @@ class LocalDocumentStore(DocumentStore):
         if path.exists():
             # Content-addressed: identical bytes, nothing to do.
             return
+
         # Write to a sibling then rename, so a crash mid-write cannot leave a truncated file
         # that later reads would treat as a valid document.
-        temporary = path.with_suffix(f"{path.suffix}.partial")
-        temporary.write_bytes(data)
-        temporary.replace(path)
+        #
+        # The sibling's name must be unique per write, not derived from the key. Two uploads
+        # of the same file produce the same key, so a shared temporary name meant both wrote
+        # to one path, the first rename consumed it, and the second failed with
+        # FileNotFoundError — a 500 for one of two people uploading the same paper at once.
+        temporary = path.with_name(f"{path.name}.{uuid.uuid4().hex}.partial")
+        try:
+            temporary.write_bytes(data)
+            # `replace` is atomic on POSIX, so a concurrent writer either sees no file or the
+            # complete one. Losing the race is not an error: the bytes are identical by
+            # construction, and the winner's file is exactly what this one would have written.
+            temporary.replace(path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     # -- reading ----------------------------------------------------------------
 

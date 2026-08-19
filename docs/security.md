@@ -144,6 +144,9 @@ every text field in the API at once.
   are attacker-controlled
 - Size-capped before anything is read into memory
 - Stored under a content-addressed key, so the uploaded filename never reaches the filesystem
+- Written to a uniquely-named temporary and renamed into place, so a crash cannot leave a
+  truncated file that later reads treat as a valid document — and two people uploading the
+  same paper at once cannot collide on one temporary path
 - The filename is reduced to a bare basename before storage, and stripped again in the
   `Content-Disposition` header
 - Nothing in a PDF is executed. Text is extracted; document actions and embedded JavaScript are
