@@ -13,22 +13,16 @@ from sqlalchemy import DateTime, ForeignKey, Index, String, Text, UniqueConstrai
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from atlas.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from atlas.db.base import Base, OwnedMixin, TimestampMixin, UUIDPrimaryKeyMixin
 from atlas.models.paper import Paper
 
 
-class Collection(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Collection(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
     """A named group of papers. A paper may belong to any number of collections."""
 
     __tablename__ = "collections"
     __table_args__ = (UniqueConstraint("owner_id", "name", name="uq_collections_owner_id_name"),)
 
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
 
@@ -63,18 +57,12 @@ class CollectionPaper(Base):
     paper: Mapped[Paper] = relationship()
 
 
-class Tag(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Tag(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
     """A free-form label. Lighter than a collection — no description, no ordering."""
 
     __tablename__ = "tags"
     __table_args__ = (UniqueConstraint("owner_id", "name", name="uq_tags_owner_id_name"),)
 
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
     name: Mapped[str] = mapped_column(String(64), nullable=False)
 
 

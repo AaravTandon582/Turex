@@ -31,7 +31,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from atlas.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from atlas.db.base import Base, OwnedMixin, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class CardKind(enum.StrEnum):
@@ -66,7 +66,7 @@ def _enum(python_enum: type[enum.Enum], name: str) -> Enum:
     return Enum(python_enum, name=name, native_enum=False, validate_strings=True, length=32)
 
 
-class Flashcard(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Flashcard(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
     """One question and its answer, with the passage both came from."""
 
     __tablename__ = "flashcards"
@@ -78,9 +78,6 @@ class Flashcard(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_flashcards_owner_id_paper_id", "owner_id", "paper_id"),
     )
 
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
     paper_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("papers.id", ondelete="CASCADE"), nullable=False
     )
@@ -118,7 +115,7 @@ class Flashcard(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
 
-class CardReview(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class CardReview(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
     """One grading of one card.
 
     Kept as its own table rather than only mutating the card, so "how is my recall trending"
@@ -134,11 +131,6 @@ class CardReview(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     card_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("flashcards.id", ondelete="CASCADE"), nullable=False
     )
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    """Denormalised from the card so a review history query does not have to join through it."""
-
     rating: Mapped[ReviewRating] = mapped_column(
         _enum(ReviewRating, "review_rating"), nullable=False
     )
@@ -148,7 +140,7 @@ class CardReview(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     card: Mapped[Flashcard] = relationship(back_populates="reviews", lazy="raise_on_sql")
 
 
-class Quiz(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Quiz(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
     """A generated set of questions about one paper.
 
     A quiz is one attempt. Retaking generates a new quiz rather than resetting this one, so a
@@ -161,9 +153,6 @@ class Quiz(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_quizzes_paper_id", "paper_id"),
     )
 
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
     paper_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("papers.id", ondelete="CASCADE"), nullable=False
     )

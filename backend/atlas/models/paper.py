@@ -38,7 +38,7 @@ from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from atlas.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from atlas.db.base import Base, OwnedMixin, TimestampMixin, UUIDPrimaryKeyMixin
 
 EMBEDDING_DIMENSIONS = 1536
 """Fixed at the column level. Changing embedding model means a migration and a re-index —
@@ -78,7 +78,7 @@ def _enum(python_enum: type[enum.Enum], name: str) -> Enum:
     return Enum(python_enum, name=name, native_enum=False, validate_strings=True, length=32)
 
 
-class Paper(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Paper(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
     __tablename__ = "papers"
     __table_args__ = (
         # A user re-uploading the same file should land on the paper they already have
@@ -87,10 +87,6 @@ class Paper(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_papers_owner_id_created_at", "owner_id", "created_at"),
         Index("ix_papers_owner_id_status", "owner_id", "status"),
         CheckConstraint("page_count IS NULL OR page_count > 0", name="page_count_positive"),
-    )
-
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
 
     # -- Bibliographic metadata, extracted during ingestion --------------------

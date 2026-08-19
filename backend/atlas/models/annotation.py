@@ -20,7 +20,7 @@ from sqlalchemy import CheckConstraint, Enum, ForeignKey, Index, Integer, Text
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from atlas.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from atlas.db.base import Base, OwnedMixin, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class HighlightColour(enum.StrEnum):
@@ -36,7 +36,7 @@ class HighlightColour(enum.StrEnum):
     result = "result"
 
 
-class Annotation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Annotation(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
     __tablename__ = "annotations"
     __table_args__ = (
         Index("ix_annotations_paper_id_page_number", "paper_id", "page_number"),
@@ -46,9 +46,6 @@ class Annotation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint("text_offset >= 0", name="text_offset_non_negative"),
     )
 
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
     paper_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("papers.id", ondelete="CASCADE"), nullable=False
     )

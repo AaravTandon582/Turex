@@ -25,7 +25,7 @@ from sqlalchemy import Date, Enum, ForeignKey, Index, Integer, String, Text, Uni
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from atlas.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from atlas.db.base import Base, OwnedMixin, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 def _enum(python_enum: type[enum.Enum], name: str) -> Enum:
@@ -71,13 +71,10 @@ class TaskStatus(enum.StrEnum):
     done = "done"
 
 
-class Project(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Project(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
     __tablename__ = "projects"
     __table_args__ = (Index("ix_projects_owner_id_updated_at", "owner_id", "updated_at"),)
 
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
 
     research_question: Mapped[str | None] = mapped_column(Text)
@@ -121,16 +118,13 @@ class ProjectPaper(Base):
     project: Mapped[Project] = relationship(back_populates="papers")
 
 
-class Hypothesis(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Hypothesis(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
     __tablename__ = "hypotheses"
     __table_args__ = (
         Index("ix_hypotheses_project_id_position", "project_id", "position"),
         Index("ix_hypotheses_owner_id", "owner_id"),
     )
 
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
     )
@@ -202,7 +196,7 @@ class Evidence(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     hypothesis: Mapped[Hypothesis] = relationship(back_populates="evidence")
 
 
-class Experiment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Experiment(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
     """A planned or completed test.
 
     `expected_result` is recorded before running and never overwritten by `actual_result`.
@@ -215,9 +209,6 @@ class Experiment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_experiments_owner_id", "owner_id"),
     )
 
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
     )
@@ -251,7 +242,7 @@ class Experiment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     hypothesis: Mapped[Hypothesis | None] = relationship(back_populates="experiments")
 
 
-class Note(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Note(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
     """A note in the research notebook.
 
     Markdown, stored as written. Every link is optional and nullable — a thought arrives
@@ -267,9 +258,6 @@ class Note(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_notes_hypothesis_id", "hypothesis_id"),
     )
 
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
     title: Mapped[str | None] = mapped_column(String(300))
     content: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
 
@@ -284,7 +272,7 @@ class Note(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
 
-class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Task(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
     """A next action inside a project."""
 
     __tablename__ = "tasks"
@@ -293,9 +281,6 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_tasks_owner_id", "owner_id"),
     )
 
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
     project_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
     )

@@ -5,9 +5,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, MetaData, func, text
+from sqlalchemy import DateTime, ForeignKey, MetaData, func, text
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 
 # Deterministic constraint names. Without these, Alembic autogenerate emits unnamed
 # constraints that later migrations cannot drop by name.
@@ -48,3 +48,25 @@ class TimestampMixin:
         onupdate=func.now(),
         nullable=False,
     )
+
+
+class OwnedMixin:
+    """A row that belongs to exactly one account.
+
+    Thirteen models declared this same column by hand. Beyond the repetition, each copy was a
+    chance to get `ondelete` wrong — and a missing cascade there means a deleted account leaves
+    rows behind that no longer have an owner to scope them to, which is the worst kind of
+    orphan in a system whose central rule is that everything is owner-scoped.
+
+    The index matters as much as the column: every owner-scoped query filters on it, and
+    PostgreSQL does not index a foreign key just because it is one.
+    """
+
+    @declared_attr
+    def owner_id(cls) -> Mapped[uuid.UUID]:
+        return mapped_column(
+            PgUUID(as_uuid=True),
+            ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )

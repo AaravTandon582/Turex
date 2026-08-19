@@ -16,7 +16,7 @@ from sqlalchemy import Boolean, Enum, ForeignKey, Index, Integer, String, Text, 
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from atlas.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from atlas.db.base import Base, OwnedMixin, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class AssistantMode(enum.StrEnum):
@@ -46,13 +46,10 @@ def _enum(python_enum: type[enum.Enum], name: str) -> Enum:
     return Enum(python_enum, name=name, native_enum=False, validate_strings=True, length=32)
 
 
-class Conversation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Conversation(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
     __tablename__ = "conversations"
     __table_args__ = (Index("ix_conversations_owner_id_updated_at", "owner_id", "updated_at"),)
 
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
     title: Mapped[str | None] = mapped_column(String(300))
     """Derived from the first question. Null until that question is asked."""
 
