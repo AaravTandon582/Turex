@@ -122,6 +122,27 @@ ready. A new endpoint is covered the moment it is registered.
 
 ---
 
+## Fetching a URL the caller supplied
+
+`POST /papers/from-reference` downloads a document on the caller's behalf, which lends them the
+server's network position — cloud metadata endpoints, admin services on localhost, databases on
+a private subnet. That is server-side request forgery, and it is the most dangerous thing Atlas
+does.
+
+- Only `http` and `https`. `file://`, `gopher://` and the rest are refused.
+- The hostname is resolved and **every address it resolves to** is checked. Checking the name
+  alone is useless: anyone can point a name at `127.0.0.1`.
+- Every redirect is re-checked before it is taken, because a public URL redirecting to
+  `169.254.169.254` is the standard bypass.
+- The response is capped while streaming, and the declared `Content-Length` is used only to
+  reject early — never trusted.
+- Loopback, RFC 1918, link-local, multicast, and everything reserved are refused. A false
+  rejection is an inconvenience; a false acceptance is an internal service exposed.
+
+Verified against the running server: `127.0.0.1` and `169.254.169.254` are both refused.
+
+---
+
 ## Prompt injection through uploaded documents
 
 Anyone can upload a PDF, and a PDF can contain text shaped like a command — *"ignore previous

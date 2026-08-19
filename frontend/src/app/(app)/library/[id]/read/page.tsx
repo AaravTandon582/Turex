@@ -140,6 +140,12 @@ export default function ReaderPage() {
     }
   }
 
+  /** Route an equation from the Maths panel to the assistant, as a selection would. */
+  function askAboutEquation(equation: string) {
+    const { prompt, mode } = ACTIONS.equation;
+    setAskRequest({ question: prompt(equation), mode, quotedText: equation });
+  }
+
   function askAbout(action: SelectionAction) {
     if (!selection) return;
     const { prompt, mode } = ACTIONS[action];
@@ -292,6 +298,7 @@ export default function ReaderPage() {
                 onJumpToPage={jumpToPage}
                 onSelectAnnotation={setActiveAnnotationId}
                 onAnnotationsChanged={reloadAnnotations}
+                onAskAboutEquation={askAboutEquation}
               />
             </div>
             {askRequest && (

@@ -123,6 +123,10 @@ export const papers = {
   addByReference: (reference: string) =>
     api.post<PaperDetail>("/papers/from-reference", { reference }),
 
+  references: (id: string) => api.get<Reference[]>(`/papers/${id}/references`),
+
+  equations: (id: string) => api.get<Equation[]>(`/papers/${id}/equations`),
+
   markOpened: (id: string) => api.post<PaperDetail>(`/papers/${id}/opened`),
 
   reprocess: (id: string) => api.post<PaperDetail>(`/papers/${id}/reprocess`),
@@ -209,4 +213,24 @@ export function formatAuthors(authors: Author[], limit = 3): string {
   const names = authors.slice(0, limit).map((author) => author.name);
   if (authors.length > limit) return `${names.join(", ")} +${authors.length - limit}`;
   return names.join(", ");
+}
+
+export interface Equation {
+  id: string;
+  ordinal: number;
+  content: string;
+  /** The number the paper printed beside it, when it printed one. */
+  label: string | null;
+  page_number: number;
+}
+
+export interface Reference {
+  id: string;
+  ordinal: number;
+  /** Null for author-year styles, which print no number. */
+  marker: string | null;
+  text: string;
+  arxiv_id: string | null;
+  doi: string | null;
+  year: number | null;
 }

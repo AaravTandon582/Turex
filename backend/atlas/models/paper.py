@@ -233,3 +233,60 @@ class PaperChunk(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     paper: Mapped[Paper] = relationship(back_populates="chunks")
     section: Mapped[PaperSection | None] = relationship(back_populates="chunks")
+
+
+class PaperEquation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A displayed equation, found in the extracted text.
+
+    Stored rather than detected on demand so the reader can list them without re-parsing, and
+    so an equation keeps a stable id that an explanation can be attached to.
+
+    Detection is heuristic — PDF text extraction does not mark equations — so this table is
+    genuinely approximate in a way the rest of the schema is not. See `ingestion/equations.py`.
+    """
+
+    __tablename__ = "paper_equations"
+    __table_args__ = (
+        UniqueConstraint("paper_id", "ordinal", name="uq_paper_equations_paper_id_ordinal"),
+        Index("ix_paper_equations_paper_id_ordinal", "paper_id", "ordinal"),
+    )
+
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("papers.id", ondelete="CASCADE"), nullable=False
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    label: Mapped[str | None] = mapped_column(String(32))
+    """The number the paper gave it, when it gave one — what a reader cites."""
+
+    page_number: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class PaperReference(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One entry from a paper's bibliography.
+
+    Stored so a reader following `[12]` can see what it points at without scrolling to the
+    back, and so an entry carrying an arXiv id or a DOI can be added to the library in one
+    action — which is what turns a bibliography into a reading list.
+
+    Parsed from extracted text, so approximate. `marker` is null for author-year styles, which
+    print no number.
+    """
+
+    __tablename__ = "paper_references"
+    __table_args__ = (
+        UniqueConstraint("paper_id", "ordinal", name="uq_paper_references_paper_id_ordinal"),
+        Index("ix_paper_references_paper_id_ordinal", "paper_id", "ordinal"),
+    )
+
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("papers.id", ondelete="CASCADE"), nullable=False
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    marker: Mapped[str | None] = mapped_column(String(16))
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    arxiv_id: Mapped[str | None] = mapped_column(String(64))
+    doi: Mapped[str | None] = mapped_column(String(255))
+    year: Mapped[int | None] = mapped_column(Integer)

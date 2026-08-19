@@ -33,6 +33,8 @@ from atlas.models.job import IngestionJob, JobStatus
 from atlas.models.library import Collection, CollectionPaper, PaperTag, Tag
 from atlas.models.paper import (
     Paper,
+    PaperEquation,
+    PaperReference,
     PaperSection,
     PaperSource,
     ProcessingStatus,
@@ -65,6 +67,24 @@ class PaperService:
         self._settings = settings
 
     # -- adding ------------------------------------------------------------------
+
+    async def equations(self, *, owner: User, paper_id: uuid.UUID) -> list[PaperEquation]:
+        paper = await self.get(owner=owner, paper_id=paper_id)
+        rows = await self._db.scalars(
+            select(PaperEquation)
+            .where(PaperEquation.paper_id == paper.id)
+            .order_by(PaperEquation.ordinal)
+        )
+        return list(rows)
+
+    async def references(self, *, owner: User, paper_id: uuid.UUID) -> list[PaperReference]:
+        paper = await self.get(owner=owner, paper_id=paper_id)
+        rows = await self._db.scalars(
+            select(PaperReference)
+            .where(PaperReference.paper_id == paper.id)
+            .order_by(PaperReference.ordinal)
+        )
+        return list(rows)
 
     async def _existing_paper(self, owner_id: uuid.UUID, content_hash: str) -> Paper | None:
         """The paper in this library with these exact bytes, if there is one.

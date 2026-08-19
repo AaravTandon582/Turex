@@ -1,10 +1,22 @@
 "use client";
 
-import { Check, Copy, Highlighter, ListTree, Quote, Trash2 } from "lucide-react";
+import {
+  BookMarked,
+  Check,
+  Copy,
+  Highlighter,
+  ListTree,
+  Plus,
+  Quote,
+  Sigma,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState, Skeleton } from "@/components/ui/primitives";
+import { ApiError } from "@/lib/api";
+import { papers, type Equation, type Reference } from "@/lib/papers";
 import {
   annotations as annotationsApi,
   colourOf,
@@ -16,11 +28,13 @@ import {
 import { cn } from "@/lib/cn";
 import type { PaperSection } from "@/lib/papers";
 
-type Tab = "outline" | "highlights" | "cite";
+type Tab = "outline" | "highlights" | "equations" | "references" | "cite";
 
 const TABS: { value: Tab; label: string; icon: typeof ListTree }[] = [
   { value: "outline", label: "Outline", icon: ListTree },
   { value: "highlights", label: "Highlights", icon: Highlighter },
+  { value: "equations", label: "Maths", icon: Sigma },
+  { value: "references", label: "Refs", icon: BookMarked },
   { value: "cite", label: "Cite", icon: Quote },
 ];
 
@@ -30,6 +44,7 @@ export function ReaderSidebar({
   annotations,
   activeAnnotationId,
   onJumpToPage,
+  onAskAboutEquation,
   onSelectAnnotation,
   onAnnotationsChanged,
 }: {
@@ -38,6 +53,8 @@ export function ReaderSidebar({
   annotations: Annotation[];
   activeAnnotationId: string | null;
   onJumpToPage: (page: number) => void;
+  /** Route an equation to the assistant. Optional so the panel still lists them without it. */
+  onAskAboutEquation?: (equation: string) => void;
   onSelectAnnotation: (id: string | null) => void;
   onAnnotationsChanged: () => void;
 }) {
@@ -81,6 +98,10 @@ export function ReaderSidebar({
             onChanged={onAnnotationsChanged}
           />
         )}
+        {tab === "equations" && (
+          <Equations paperId={paperId} onJumpToPage={onJumpToPage} onAsk={onAskAboutEquation} />
+        )}
+        {tab === "references" && <References paperId={paperId} />}
         {tab === "cite" && <Citations paperId={paperId} />}
       </div>
     </div>
@@ -362,6 +383,239 @@ function Citations({ paperId }: { paperId: string }) {
           </pre>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * The equations found in this paper.
+ *
+ * Detection is heuristic — PDF text carries no markup for mathematics — so the list says so
+ * rather than presenting itself as complete. A reader who sees four equations in a panel that
+ * implies exhaustiveness will trust it and be wrong; one who is told it is approximate can use
+ * it for what it is, which is a way back to the page.
+ */
+function Equations({
+  paperId,
+  onJumpToPage,
+  onAsk,
+}: {
+  paperId: string;
+  onJumpToPage: (page: number) => void;
+  onAsk?: (equation: string) => void;
+}) {
+  const [equations, setEquations] = useState<Equation[] | null>(null);
+
+  useEffect(() => {
+    void papers
+      .equations(paperId)
+      .then(setEquations)
+      .catch(() => setEquations([]));
+  }, [paperId]);
+
+  if (equations === null) {
+    return (
+      <div className="space-y-2 p-3">
+        {Array.from({ length: 3 }, (_, index) => (
+          <Skeleton key={index} className="h-10 w-full rounded-sm" />
+        ))}
+      </div>
+    );
+  }
+
+  if (equations.length === 0) {
+    return (
+      <EmptyState
+        className="m-3 border-0"
+        icon={<Sigma />}
+        title="No equations found"
+        description="Atlas looks for displayed mathematics in the extracted text. A paper with none, or one whose equations are images rather than text, shows nothing here."
+      />
+    );
+  }
+
+  return (
+    <div className="p-2">
+      <ul className="space-y-1">
+        {equations.map((equation) => (
+          <li key={equation.id}>
+            <div className="rounded-sm border border-border bg-surface p-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[11px] text-ink-subtle" data-tabular>
+                  {equation.label ? `(${equation.label})` : "unnumbered"} · p{equation.page_number}
+                </span>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onJumpToPage(equation.page_number)}
+                    className="text-[11px] font-medium text-accent hover:underline"
+                  >
+                    Go to page
+                  </button>
+                  {onAsk && (
+                    <button
+                      type="button"
+                      onClick={() => onAsk(equation.content)}
+                      className="text-[11px] font-medium text-accent hover:underline"
+                    >
+                      Explain
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="scrollbar-slim mt-1 overflow-x-auto font-mono text-[12px] whitespace-pre text-ink">
+                {equation.content}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="px-1 py-2 text-[11px] leading-relaxed text-ink-subtle">
+        Found by pattern, not by markup — PDFs do not label their mathematics. Some equations
+        may be missing, and an equation rendered as an image will not appear at all.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The paper's bibliography, split into entries.
+ *
+ * An entry carrying an arXiv id or a DOI can be added to the library in one action, which is
+ * the point: a bibliography is a reading list that nobody has time to retype. The others are
+ * still listed, because knowing what `[12]` refers to without scrolling to the back is most of
+ * the value.
+ */
+function References({ paperId }: { paperId: string }) {
+  const [references, setReferences] = useState<Reference[] | null>(null);
+  const [adding, setAdding] = useState<string | null>(null);
+  const [added, setAdded] = useState<Set<string>>(new Set());
+  const [failed, setFailed] = useState<Record<string, string>>({});
+  const [filter, setFilter] = useState("");
+
+  useEffect(() => {
+    void papers
+      .references(paperId)
+      .then(setReferences)
+      .catch(() => setReferences([]));
+  }, [paperId]);
+
+  async function add(reference: Reference) {
+    const identifier = reference.arxiv_id ?? reference.doi;
+    if (!identifier) return;
+
+    setAdding(reference.id);
+    setFailed((current) => {
+      const next = { ...current };
+      delete next[reference.id];
+      return next;
+    });
+    try {
+      await papers.addByReference(identifier);
+      setAdded((current) => new Set(current).add(reference.id));
+    } catch (caught) {
+      setFailed((current) => ({
+        ...current,
+        [reference.id]:
+          caught instanceof ApiError ? caught.message : "Atlas couldn't fetch that one.",
+      }));
+    } finally {
+      setAdding(null);
+    }
+  }
+
+  if (references === null) {
+    return (
+      <div className="space-y-2 p-3">
+        {Array.from({ length: 4 }, (_, index) => (
+          <Skeleton key={index} className="h-9 w-full rounded-sm" />
+        ))}
+      </div>
+    );
+  }
+
+  if (references.length === 0) {
+    return (
+      <EmptyState
+        className="m-3 border-0"
+        icon={<BookMarked />}
+        title="No references found"
+        description="Atlas splits a bibliography out of the extracted text. A paper without one, or one whose references did not parse, shows nothing here."
+      />
+    );
+  }
+
+  const needle = filter.trim().toLowerCase();
+  const shown = needle
+    ? references.filter(
+        (reference) =>
+          reference.text.toLowerCase().includes(needle) || reference.marker === needle,
+      )
+    : references;
+
+  return (
+    <div className="p-2">
+      <input
+        type="search"
+        value={filter}
+        onChange={(event) => setFilter(event.target.value)}
+        placeholder="Find a reference, or type its number"
+        aria-label="Filter references"
+        className="mb-2 h-8 w-full rounded-md border border-border bg-surface px-2.5 text-[12px] text-ink placeholder:text-ink-subtle focus:border-accent focus:outline-none"
+      />
+
+      <ul className="space-y-1">
+        {shown.map((reference) => {
+          const identifier = reference.arxiv_id ?? reference.doi;
+          return (
+            <li key={reference.id} className="rounded-sm border border-border bg-surface p-2">
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5 shrink-0 font-mono text-[11px] text-ink-subtle">
+                  {reference.marker ? `[${reference.marker}]` : "—"}
+                </span>
+                <p className="min-w-0 flex-1 text-[12px] leading-relaxed text-ink-muted">
+                  {reference.text}
+                </p>
+              </div>
+
+              {identifier && (
+                <div className="mt-1.5 flex items-center gap-2 pl-6">
+                  {added.has(reference.id) ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-success">
+                      <Check className="size-3" aria-hidden />
+                      Added to your library
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={adding === reference.id}
+                      onClick={() => void add(reference)}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:underline disabled:opacity-50"
+                    >
+                      <Plus className="size-3" aria-hidden />
+                      {adding === reference.id ? "Fetching…" : "Add to library"}
+                    </button>
+                  )}
+                  <span className="truncate font-mono text-[10px] text-ink-subtle">
+                    {identifier}
+                  </span>
+                </div>
+              )}
+
+              {failed[reference.id] && (
+                <p role="alert" className="mt-1 pl-6 text-[11px] text-danger">
+                  {failed[reference.id]}
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      <p className="px-1 py-2 text-[11px] leading-relaxed text-ink-subtle">
+        Split from the extracted text, so some entries may be merged or clipped. Only references
+        carrying an arXiv id or a DOI can be fetched.
+      </p>
     </div>
   );
 }

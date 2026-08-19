@@ -191,3 +191,34 @@ class AddByReference(AtlasModel):
     """A link, a DOI, or an arXiv id — whichever the person happened to have."""
 
     reference: str = Field(min_length=4, max_length=2000)
+
+
+class EquationRead(AtlasModel):
+    """One equation found in a paper.
+
+    `label` is the number the paper printed beside it, when it printed one — that is what a
+    reader cites, and its absence is meaningful rather than missing data.
+    """
+
+    id: uuid.UUID
+    ordinal: int
+    content: str
+    label: str | None
+    page_number: int
+
+
+class ReferenceRead(AtlasModel):
+    """One bibliography entry.
+
+    `marker` is null for author-year citation styles, which print no number — absent rather
+    than missing. `arxiv_id` and `doi` are present when the entry carried one, and are what
+    makes a reference addable to the library in a single action.
+    """
+
+    id: uuid.UUID
+    ordinal: int
+    marker: str | None
+    text: str
+    arxiv_id: str | None
+    doi: str | None
+    year: int | None

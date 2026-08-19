@@ -7,13 +7,16 @@ for citations to be trustworthy.
 
 from __future__ import annotations
 
+import io
 import pathlib
 
 import pytest
 
 from atlas.core.errors import ProcessingFailedError
 from atlas.ingestion.chunking import MAX_CHARACTERS, chunk_document
+from atlas.ingestion.equations import detect_equations, looks_like_an_equation
 from atlas.ingestion.pdf import parse_pdf
+from atlas.ingestion.references import parse_references
 from atlas.ingestion.text import (
     clean_page,
     estimate_tokens,
@@ -281,3 +284,112 @@ class TestChunking:
     def test_records_a_token_estimate(self, tmp_path: pathlib.Path) -> None:
         for chunk in chunk_document(parse_pdf(write_pdf(tmp_path, build_paper_pdf()))):
             assert chunk.token_estimate > 0
+
+
+class TestEquationDetection:
+    """PDF text carries no markup for mathematics, so equations are recognised by evidence.
+
+    The thresholds were set against real papers, and the cases below are the ones that were
+    actually getting through when they were wrong.
+    """
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "FFN(x) = max(0,xW 1 +b1)W2 +b2",
+            "PE (pos,2i) =sin(pos/100002i/dmodel)",
+            "y =F (x,{Wi}) + x.",
+            "pη(z|x)∝ exp",
+            "d(z) = BERTd(z), q(x) = BERTq(x)",
+        ],
+    )
+    def test_recognises_displayed_equations(self, line: str) -> None:
+        assert looks_like_an_equation(line), line
+
+    @pytest.mark.parametrize(
+        ("line", "why"),
+        [
+            (
+                "We used the Adam optimizer [20] withβ1 = 0.9,β2 = 0.98 andε = 10-9. We varied it",
+                "a sentence that mentions mathematics",
+            ),
+            ("i.e., 3072 for the H = 768 and 4096 for the H = 1024.", "prose with numbers"),
+            ("Vaswani et al. (2017) is (L=6, H=1024, A=16)", "a citation"),
+            ("warmup_steps = 4000.", "a hyperparameter, not an equation"),
+            ("of 1√dk", "the tail of a wrapped sentence"),
+            ("net/forum?id=rJl3yM-Ab.", "a URL from the bibliography"),
+            ("Table 3 shows that accuracy = 91%", "a sentence about a table"),
+        ],
+    )
+    def test_refuses_prose_that_contains_symbols(self, line: str, why: str) -> None:
+        assert not looks_like_an_equation(line), f"{why}: {line}"
+
+    def test_equation_numbers_are_split_from_the_equation(self) -> None:
+        """The number is what a reader cites, so it is stored separately rather than left in
+        the middle of the mathematics."""
+        document = parse_pdf(
+            io.BytesIO(
+                build_pdf(
+                    [
+                        [
+                            "A Paper With Mathematics",
+                            "A Author",
+                            "",
+                            "1 Method",
+                            "The residual mapping is defined below.",
+                            "y = F(x, {Wi}) + x (1)",
+                        ]
+                    ]
+                )
+            )
+        )
+        equations = detect_equations(document)
+        assert equations, "no equation was found"
+        assert equations[0].label == "1"
+        assert "(1)" not in equations[0].content
+
+
+class TestReferenceParsing:
+    def test_numbered_entries_are_split_and_keep_their_number(self) -> None:
+        text = (
+            "References\n"
+            "[1] Jimmy Lei Ba, Jamie Ryan Kiros, and Geoffrey E Hinton. Layer normalization.\n"
+            "arXiv preprint arXiv:1607.06450, 2016.\n"
+            "[2] Dzmitry Bahdanau and Yoshua Bengio. Neural machine translation by jointly\n"
+            "learning to align and translate. CoRR, abs/1409.0473, 2014.\n"
+        )
+        entries = parse_references(text)
+
+        assert len(entries) == 2
+        assert entries[0].marker == "1"
+        assert entries[0].arxiv_id == "1607.06450"
+        assert entries[0].year == 2016
+        assert "Layer normalization" in entries[0].text
+        # Wrapped lines are joined back rather than becoming separate references.
+        assert "arXiv preprint" in entries[0].text
+
+    def test_author_year_entries_are_split_without_a_number(self) -> None:
+        """Author initials carry periods, and excluding them once reduced a whole bibliography
+        to a single entry."""
+        text = (
+            "References\n"
+            "Abramson, J., Ahuja, A., Barr, I., Brussee, A., and Carnevale, F. (2020).\n"
+            "Imitating interactive intelligence. arXiv preprint arXiv:2012.05672.\n"
+            "Achiam, J., Held, D., Tamar, A., and Abbeel, P. (2017). Constrained policy\n"
+            "optimization. In International Conference on Machine Learning.\n"
+        )
+        entries = parse_references(text)
+
+        assert len(entries) == 2
+        assert all(entry.marker is None for entry in entries)
+        assert entries[0].arxiv_id == "2012.05672"
+        assert entries[1].year == 2017
+
+    def test_a_doi_is_picked_up(self) -> None:
+        entries = parse_references(
+            "References\n[1] A Author. A title. Nature, 2015. doi:10.1038/nature14539.\n"
+        )
+        assert entries[0].doi == "10.1038/nature14539"
+
+    def test_an_empty_section_yields_nothing(self) -> None:
+        assert parse_references("References\n") == []

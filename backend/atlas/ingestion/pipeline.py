@@ -11,6 +11,7 @@ transient fault is retried with a backoff.
 from __future__ import annotations
 
 import asyncio
+import re
 import uuid
 from dataclasses import dataclass
 
@@ -21,14 +22,25 @@ from atlas.ai.base import EmbeddingProvider
 from atlas.core.errors import ProcessingFailedError
 from atlas.core.logging import get_logger
 from atlas.ingestion.chunking import chunk_document
+from atlas.ingestion.equations import detect_equations
 from atlas.ingestion.pdf import ParsedDocument, parse_pdf
+from atlas.ingestion.references import parse_references
 from atlas.models.job import IngestionJob, IngestionStage
-from atlas.models.paper import Paper, PaperChunk, PaperSection, ProcessingStatus
+from atlas.models.paper import (
+    Paper,
+    PaperChunk,
+    PaperEquation,
+    PaperReference,
+    PaperSection,
+    ProcessingStatus,
+)
 from atlas.retrieval.indexer import ChunkIndexer
 from atlas.storage.base import DocumentStore
 from atlas.workers.queue import JobQueue
 
 logger = get_logger(__name__)
+
+_REFERENCES_HEADING = re.compile(r"\b(references?|bibliography|works cited)\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +88,8 @@ class IngestionPipeline:
 
         await self._queue.report_progress(job, stage=IngestionStage.building_chunks, progress=70)
         chunk_count = await self._store_chunks(paper, document, sections)
+        equation_count = await self._store_equations(paper, document)
+        reference_count = await self._store_references(paper, document)
         await self._db.commit()
 
         indexed = 0
@@ -94,6 +108,8 @@ class IngestionPipeline:
                 "pages": paper.page_count,
                 "sections": len(sections),
                 "chunks": chunk_count,
+                "equations": equation_count,
+                "references": reference_count,
                 "indexed": indexed,
             },
         )
@@ -156,6 +172,55 @@ class IngestionPipeline:
             paper.doi = metadata.doi[:255]
         if paper.arxiv_id is None and metadata.arxiv_id:
             paper.arxiv_id = metadata.arxiv_id[:64]
+
+    async def _store_equations(self, paper: Paper, document: ParsedDocument) -> int:
+        """Replace this paper's equations with what the current parse found."""
+        await self._db.execute(delete(PaperEquation).where(PaperEquation.paper_id == paper.id))
+
+        found = detect_equations(document)
+        for ordinal, equation in enumerate(found):
+            self._db.add(
+                PaperEquation(
+                    paper_id=paper.id,
+                    ordinal=ordinal,
+                    content=equation.content,
+                    label=equation.label,
+                    page_number=equation.page_number,
+                )
+            )
+        await self._db.flush()
+        return len(found)
+
+    async def _store_references(self, paper: Paper, document: ParsedDocument) -> int:
+        """Replace this paper's bibliography entries with what the current parse found."""
+        await self._db.execute(delete(PaperReference).where(PaperReference.paper_id == paper.id))
+
+        section = next(
+            (
+                candidate
+                for candidate in document.sections
+                if _REFERENCES_HEADING.search(candidate.title)
+            ),
+            None,
+        )
+        if section is None:
+            return 0
+
+        found = parse_references(section.text)
+        for ordinal, reference in enumerate(found):
+            self._db.add(
+                PaperReference(
+                    paper_id=paper.id,
+                    ordinal=ordinal,
+                    marker=reference.marker,
+                    text=reference.text[:4000],
+                    arxiv_id=reference.arxiv_id,
+                    doi=reference.doi[:255] if reference.doi else None,
+                    year=reference.year,
+                )
+            )
+        await self._db.flush()
+        return len(found)
 
     async def _store_chunks(
         self,

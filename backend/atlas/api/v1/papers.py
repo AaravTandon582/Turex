@@ -12,6 +12,7 @@ from atlas.models.job import STAGE_LABELS, IngestionJob
 from atlas.models.paper import Paper
 from atlas.schemas.paper import (
     AddByReference,
+    EquationRead,
     IngestionProgress,
     LibraryStats,
     Page,
@@ -19,6 +20,7 @@ from atlas.schemas.paper import (
     PaperFilters,
     PaperSummary,
     PaperUpdate,
+    ReferenceRead,
     SectionRead,
 )
 from atlas.security import policy
@@ -163,6 +165,33 @@ async def reprocess_paper(
     await service.reprocess(owner=user, paper_id=paper_id)
     paper = await service.get(owner=user, paper_id=paper_id)
     return await _detail(service, paper)
+
+
+@router.get("/{paper_id}/equations", response_model=list[EquationRead])
+async def list_equations(
+    paper_id: uuid.UUID, user: CurrentUser, service: PaperServiceDep
+) -> list[EquationRead]:
+    """The displayed equations found in this paper.
+
+    Detection is heuristic — PDF text carries no markup for mathematics — so this list is
+    approximate in a way the rest of the API is not, and the reader should be told so rather
+    than shown an incomplete list presented as complete.
+    """
+    equations = await service.equations(owner=user, paper_id=paper_id)
+    return [EquationRead.model_validate(equation, from_attributes=True) for equation in equations]
+
+
+@router.get("/{paper_id}/references", response_model=list[ReferenceRead])
+async def list_references(
+    paper_id: uuid.UUID, user: CurrentUser, service: PaperServiceDep
+) -> list[ReferenceRead]:
+    """This paper's bibliography, split into entries.
+
+    Parsed from extracted text, so approximate. Entries carrying an arXiv id or a DOI can be
+    added to the library directly through `POST /papers/from-reference`.
+    """
+    references = await service.references(owner=user, paper_id=paper_id)
+    return [ReferenceRead.model_validate(entry, from_attributes=True) for entry in references]
 
 
 @router.get("/{paper_id}/sections", response_model=list[SectionRead])

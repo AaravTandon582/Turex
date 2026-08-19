@@ -90,6 +90,7 @@ log line produced while handling the request, which is how a reported failure ge
 | Method | Path | Notes |
 |---|---|---|
 | `POST` | `/papers` | Multipart upload. **202** when queued, **200** when the file is already in the library. |
+| `POST` | `/papers/from-reference` | Add by link, DOI, or arXiv id. Same 202/200 as upload. |
 | `GET` | `/papers` | Filter, sort, paginate — see below. |
 | `GET` | `/papers/stats` | Library counters in one query. |
 | `GET` | `/papers/{id}` | Includes abstract, counts, and ingestion progress. |
@@ -97,6 +98,8 @@ log line produced while handling the request, which is how a reported failure ge
 | `POST` | `/papers/{id}/opened` | Records a read; promotes `unread` → `reading`. |
 | `POST` | `/papers/{id}/reprocess` | 202. Re-runs ingestion, preserving user corrections. |
 | `GET` | `/papers/{id}/sections` | The section outline. |
+| `GET` | `/papers/{id}/equations` | Displayed equations found in the text. Heuristic; see below. |
+| `GET` | `/papers/{id}/references` | The bibliography, split into entries. Heuristic. |
 | `GET` | `/papers/{id}/file` | The original PDF, `inline`, `Cache-Control: private`. |
 | `DELETE` | `/papers/{id}` | 204. Removes derived data and, if unreferenced, the stored file. |
 
@@ -107,7 +110,19 @@ log line produced while handling the request, which is how a reported failure ge
 paper you know you have. Semantic search over the contents is a different endpoint,
 `GET /assistant/search`.
 
-### Collections
+**Equations and references are recognised, not marked up.** A PDF carries no structure for
+either: an equation is a line that is mathematical rather than prosaic, and a bibliography is a
+run of text where entries wrap unpredictably. Both endpoints are therefore approximate in a way
+the rest of the API is not, and both say so in the interface rather than presenting a partial
+list as complete. A reference carrying an arXiv id or a DOI can be added straight to the library
+through `POST /papers/from-reference`.
+
+**Adding by reference fetches a URL on the caller's behalf**, which is a server-side request
+forgery risk. The fetcher resolves the hostname and refuses every non-public address, re-checks
+on each redirect, caps the response while streaming, and permits only http and https. See
+[`security.md`](security.md).
+
+### Study
 
 | Method | Path | Notes |
 |---|---|---|
