@@ -202,12 +202,23 @@ and applies to that turn only.
 | `GET` | `/flashcards` | `paper_id`, `due_only`, `limit`. Most overdue first. |
 | `POST` | `/flashcards/{id}/reviews` | `{rating}` — `forgot`, `hard`, `good`, or `easy`. |
 | `DELETE` | `/flashcards/{id}` | 204. |
-| `POST` | `/papers/{id}/quizzes` | 201. Generates up to `count` (max 10) questions. |
+| `POST` | `/papers/{id}/quizzes` | 201. Generates up to `count` (max 10) multiple-choice questions. |
+| `POST` | `/papers/{id}/short-answers` | 201. Recall questions, returned as a quiz. Never scored — see below. |
+| `GET` | `/papers/{id}/prerequisites` | What the paper assumes a reader already knows. Generated per request. |
 | `GET` | `/quizzes` | Most recent first. |
 | `GET` | `/quizzes/{id}` | |
 | `POST` | `/quizzes/{id}/submission` | `{answers: {questionId: optionIndex}}`. Scored server-side. |
 | `DELETE` | `/quizzes/{id}` | 204. |
 | `GET` | `/study/progress` | Counts per paper and across the library. |
+
+**Short answers are deliberately not scored.** Comparing free text to a model answer by string
+matching marks a correct answer wrong for choosing different words, so `correct_index` is null
+on those questions and the quiz reports zero scored rather than claiming a score nobody graded.
+What the learner wrote and what the paper says are both returned after submission, side by side.
+
+**Prerequisites are generated on request rather than stored.** They are read once, while
+deciding whether to attempt a paper, and a stale copy would be worse than regenerating. Each
+entry carries the passage where the assumption shows, so it can be checked like everything else.
 
 **A quiz does not send its answer key until it has been submitted.** Before submission a
 question carries only `id`, `position`, `prompt`, and `options`. Afterwards the same question

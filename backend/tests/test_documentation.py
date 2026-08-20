@@ -37,6 +37,19 @@ class TestApiReference:
         invented = sorted(documented_endpoints() - implemented_endpoints(app))
         assert not invented, f"documented but not implemented: {invented}"
 
+    async def test_no_endpoint_exists_that_is_not_documented(self, app: Any) -> None:
+        """The other direction, which is how two endpoints slipped in undocumented.
+
+        `health` and `ready` are described in prose rather than in the endpoint tables, so they
+        are named here. Anything else added to this list should be a deliberate decision, not a
+        way to silence the test.
+        """
+        prose_documented = {"/health", "/ready"}
+        undocumented = sorted(
+            implemented_endpoints(app) - documented_endpoints() - prose_documented
+        )
+        assert not undocumented, f"implemented but undocumented: {undocumented}"
+
     async def test_the_comparison_is_actually_comparing_something(self, app: Any) -> None:
         """Guards the guard — a broken regex would make the test above pass trivially."""
         assert len(documented_endpoints()) > 30

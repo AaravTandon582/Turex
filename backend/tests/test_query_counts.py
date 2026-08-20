@@ -165,3 +165,28 @@ async def test_every_foreign_key_is_indexed(db) -> None:  # type: ignore[no-unty
         )
     )
     assert not unindexed, f"foreign keys with no index: {unindexed}"
+
+
+async def test_equations_and_references_are_one_query_each(
+    registered_client: AsyncClient, api: str, run_worker, db
+) -> None:
+    """Both are per-paper lists, so their cost must not scale with how many rows they return.
+
+    A loop that loaded each row's paper, or resolved each reference's identifier, would be
+    invisible on a short bibliography and painful on a long one.
+    """
+    paper_id = await upload_and_index(registered_client, api, paper_pdf(1), run_worker)
+
+    with count_queries() as equations:
+        assert (
+            await registered_client.get(f"{api}/papers/{paper_id}/equations")
+        ).status_code == 200
+    with count_queries() as references:
+        assert (
+            await registered_client.get(f"{api}/papers/{paper_id}/references")
+        ).status_code == 200
+
+    # Session lookup, ownership check, and the list itself. The exact number is not the point;
+    # that it is small and fixed is.
+    assert len(equations) <= 4, [statement[:60] for statement in equations]
+    assert len(references) <= 4, [statement[:60] for statement in references]
