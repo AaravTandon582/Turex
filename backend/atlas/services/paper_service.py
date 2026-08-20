@@ -86,6 +86,42 @@ class PaperService:
         )
         return list(rows)
 
+    async def _insert_or_find_duplicate(
+        self, paper: Paper, owner_id: uuid.UUID, content_hash: str
+    ) -> Paper | None:
+        """Insert the paper, or return whichever concurrent upload got there first.
+
+        The insert runs inside a savepoint. Two uploads of one file can both check, both miss,
+        and both insert; the loser fails on the unique constraint. Rolling back the whole
+        transaction to recover would discard unrelated work and expire every object already
+        loaded in this session — the savepoint undoes only the failed statement.
+
+        Returning the winner rather than an error matters because the sequential path returns
+        the existing paper in exactly this situation. Failing here would mean the same action
+        succeeds or fails depending on timing, which is what a double-clicked button produces.
+        """
+        try:
+            async with self._db.begin_nested():
+                self._db.add(paper)
+                await self._db.flush()
+        except IntegrityError as exc:
+            winner = await self._existing_paper(owner_id, content_hash)
+            if winner is None:
+                # Not the duplicate expected. Another constraint is unhappy, and guessing
+                # which would hide it.
+                raise ConflictError(
+                    "That paper couldn't be added to your library.",
+                    detail="integrity error with no matching existing paper",
+                ) from exc
+
+            logger.info(
+                "concurrent upload of the same file resolved to the existing paper",
+                extra={"paper_id": str(winner.id), "user_id": str(owner_id)},
+            )
+            return winner
+
+        return None
+
     async def _existing_paper(self, owner_id: uuid.UUID, content_hash: str) -> Paper | None:
         """The paper in this library with these exact bytes, if there is one.
 
@@ -180,32 +216,8 @@ class PaperService:
             file_size_bytes=stored.size_bytes,
             status=ProcessingStatus.pending,
         )
-        # Inserted inside a savepoint. Two uploads of the same file can both check, both
-        # miss, and both insert — one then loses on the unique constraint. Without the
-        # savepoint the only way to recover is to roll back the whole transaction, which
-        # discards unrelated work and expires every object already loaded in this session.
-        # The savepoint undoes exactly the failed INSERT and leaves the rest intact.
-        try:
-            async with self._db.begin_nested():
-                self._db.add(paper)
-                await self._db.flush()
-        except IntegrityError as exc:
-            # The sequential path returns the existing paper in exactly this situation, so
-            # failing here would mean the same action succeeds or fails depending on timing —
-            # which is what a double-clicked upload button produces.
-            winner = await self._existing_paper(owner_id, content_hash)
-            if winner is None:
-                # Not the duplicate we expected. Some other constraint is unhappy, and
-                # guessing would hide it.
-                raise ConflictError(
-                    "That paper couldn't be added to your library.",
-                    detail="integrity error with no matching existing paper",
-                ) from exc
-
-            logger.info(
-                "concurrent upload of the same file resolved to the existing paper",
-                extra={"paper_id": str(winner.id), "user_id": str(owner_id)},
-            )
+        winner = await self._insert_or_find_duplicate(paper, owner_id, content_hash)
+        if winner is not None:
             return UploadResult(paper=winner, job=None, already_existed=True)
 
         # Enqueued in the same transaction as the paper, so an upload cannot half-succeed.

@@ -16,6 +16,7 @@ import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import TypeVar
 
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import Select, func, select
@@ -68,37 +69,48 @@ MIN_USABLE_PASSAGES = 4
 
 MAX_CARDS_PER_RUN = 20
 MAX_QUIZ_QUESTIONS = 10
+MAX_PREREQUISITES = 12
+"""A list longer than this is a syllabus, not a way in."""
 QUIZ_OPTION_COUNT = 4
 
 
-class GeneratedCard(BaseModel):
+class Sourced(BaseModel):
+    """Anything the model produces that must name the passage it came from.
+
+    The `source` field is the whole grounding mechanism: the server turns that number into a
+    foreign key, and an item citing a number it was never shown is discarded.
+    """
+
+    source: int
+
+
+TItem = TypeVar("TItem", bound=Sourced)
+
+
+class GeneratedCard(Sourced):
     """A flashcard as the model proposes it, before it has been checked against a passage."""
 
     front: str = Field(min_length=5, max_length=500)
     back: str = Field(min_length=2, max_length=2000)
     kind: CardKind
-    source: int
 
 
-class GeneratedShortAnswer(BaseModel):
+class GeneratedShortAnswer(Sourced):
     question: str = Field(min_length=8, max_length=500)
     answer: str = Field(min_length=2, max_length=2000)
     explanation: str = Field(min_length=2, max_length=2000)
-    source: int
 
 
-class GeneratedPrerequisite(BaseModel):
+class GeneratedPrerequisite(Sourced):
     concept: str = Field(min_length=2, max_length=200)
     why: str = Field(min_length=5, max_length=600)
-    source: int
 
 
-class GeneratedQuestion(BaseModel):
+class GeneratedQuestion(Sourced):
     question: str = Field(min_length=8, max_length=500)
     options: list[str] = Field(min_length=QUIZ_OPTION_COUNT, max_length=QUIZ_OPTION_COUNT)
     answer: int
     explanation: str = Field(min_length=2, max_length=2000)
-    source: int
 
     @field_validator("answer")
     @classmethod
@@ -142,53 +154,89 @@ class StudyService:
     def __init__(self, db: AsyncSession, provider: Callable[[], ChatProvider]) -> None:
         self._db = db
         self._provider = provider
+        self._last_proposed = 0
+        """How many items the last generation proposed, before grounding dropped any. Needed
+        to tell "the model produced nothing" from "nothing it produced was grounded", which are
+        different failures and must not read the same to the user."""
         """A factory, not an instance: reading cards and reviewing them must keep working on a
         deployment with no model configured. Only generation resolves it."""
 
     # -- generation ---------------------------------------------------------------
 
+    async def _grounded_items(
+        self,
+        *,
+        owner: User,
+        paper_id: uuid.UUID,
+        item_type: type[TItem],
+        system: str,
+        request: Callable[[Paper, str], str],
+        limit: int,
+        max_output_tokens: int = 6000,
+    ) -> tuple[Paper, list[tuple[TItem, PaperChunk]]]:
+        """Ask the model for items about a paper, and keep only those tied to a real passage.
+
+        Every generator here ran the same seven steps: check ownership, choose passages, number
+        them, ask, parse, resolve each `source` back to a chunk, and drop what does not resolve.
+        Four copies of that is four places for the grounding rule to be weakened by accident —
+        and the rule is the whole reason this feature is trustworthy — so it lives once, here.
+
+        Callers get the paper and the surviving (item, passage) pairs, and do nothing but build
+        their own rows from them.
+        """
+        paper = await self._owned_paper(owner, paper_id)
+        passages = await self._passages(paper.id)
+
+        raw = await self._complete(
+            system=system,
+            user=request(paper, _render(passages)),
+            max_output_tokens=max_output_tokens,
+        )
+
+        grounded: list[tuple[TItem, PaperChunk]] = []
+        proposed = parse_items(raw, item_type)[:limit]
+        for item in proposed:
+            passage = _resolve(passages, item.source)
+            if passage is not None:
+                grounded.append((item, passage))
+
+        self._last_proposed = len(proposed)
+        return paper, grounded
+
     async def generate_flashcards(
         self, *, owner: User, paper_id: uuid.UUID, count: int
     ) -> list[Flashcard]:
-        paper = await self._owned_paper(owner, paper_id)
-        passages = await self._passages(paper.id)
         count = max(1, min(count, MAX_CARDS_PER_RUN))
-
-        raw = await self._complete(
+        paper, grounded = await self._grounded_items(
+            owner=owner,
+            paper_id=paper_id,
+            item_type=GeneratedCard,
             system=FLASHCARD_SYSTEM,
-            user=flashcard_request(
-                paper_title=paper.display_title,
-                count=count,
-                passages=_render(passages),
+            request=lambda paper, passages: flashcard_request(
+                paper_title=paper.display_title, count=count, passages=passages
             ),
-            max_output_tokens=6000,
+            limit=count,
         )
 
-        proposed = parse_items(raw, GeneratedCard)[:count]
-        cards: list[Flashcard] = []
         now = datetime.now(UTC)
-
-        for proposal in proposed:
-            passage = _resolve(passages, proposal.source)
-            if passage is None:
-                continue
-            cards.append(
-                Flashcard(
-                    owner_id=owner.id,
-                    paper_id=paper.id,
-                    chunk_id=passage.id,
-                    front=proposal.front.strip(),
-                    back=proposal.back.strip(),
-                    kind=proposal.kind,
-                    source_text=passage.content,
-                    source_page=passage.page_start,
-                    ease=STARTING_EASE,
-                    interval_days=0,
-                    due_at=now,
-                )
+        cards = [
+            Flashcard(
+                owner_id=owner.id,
+                paper_id=paper.id,
+                chunk_id=passage.id,
+                front=item.front.strip(),
+                back=item.back.strip(),
+                kind=item.kind,
+                source_text=passage.content,
+                source_page=passage.page_start,
+                ease=STARTING_EASE,
+                interval_days=0,
+                due_at=now,
             )
+            for item, passage in grounded
+        ]
 
-        _require_grounded(len(proposed), len(cards), "flashcards")
+        _require_grounded(self._last_proposed, len(cards), "flashcards")
         self._db.add_all(cards)
         await self._db.commit()
         for card in cards:
@@ -196,93 +244,39 @@ class StudyService:
 
         logger.info(
             "flashcards.generated",
-            extra={"paper_id": str(paper.id), "proposed": len(proposed), "stored": len(cards)},
+            extra={
+                "paper_id": str(paper.id),
+                "proposed": self._last_proposed,
+                "stored": len(cards),
+            },
         )
         return cards
 
     async def generate_quiz(self, *, owner: User, paper_id: uuid.UUID, count: int) -> Quiz:
-        paper = await self._owned_paper(owner, paper_id)
-        passages = await self._passages(paper.id)
         count = max(1, min(count, MAX_QUIZ_QUESTIONS))
-
-        raw = await self._complete(
+        paper, grounded = await self._grounded_items(
+            owner=owner,
+            paper_id=paper_id,
+            item_type=GeneratedQuestion,
             system=QUIZ_SYSTEM,
-            user=quiz_request(
-                paper_title=paper.display_title,
-                count=count,
-                passages=_render(passages),
+            request=lambda paper, passages: quiz_request(
+                paper_title=paper.display_title, count=count, passages=passages
             ),
-            max_output_tokens=6000,
+            limit=count,
         )
 
-        proposed = parse_items(raw, GeneratedQuestion)[:count]
         questions: list[QuizQuestion] = []
-
-        for question in proposed:
-            passage = _resolve(passages, question.source)
-            if passage is None:
-                continue
+        for item, passage in grounded:
             options, answer = _shuffle_options(
-                question.options, question.answer, seed=f"{paper.id}:{len(questions)}"
+                item.options, item.answer, seed=f"{paper.id}:{len(questions)}"
             )
             questions.append(
                 QuizQuestion(
                     position=len(questions),
                     kind=QuestionKind.multiple_choice,
-                    prompt=question.question.strip(),
+                    prompt=item.question.strip(),
                     options=options,
                     correct_index=answer,
-                    explanation=question.explanation.strip(),
-                    chunk_id=passage.id,
-                    source_text=passage.content,
-                    source_page=passage.page_start,
-                )
-            )
-
-        _require_grounded(len(proposed), len(questions), "quiz questions")
-        quiz = Quiz(owner_id=owner.id, paper_id=paper.id, title=paper.display_title)
-        quiz.questions = questions
-        self._db.add(quiz)
-        await self._db.commit()
-
-        logger.info(
-            "quiz.generated",
-            extra={"paper_id": str(paper.id), "proposed": len(proposed), "stored": len(questions)},
-        )
-        return await self.get_quiz(owner=owner, quiz_id=quiz.id)
-
-    async def generate_short_answers(self, *, owner: User, paper_id: uuid.UUID, count: int) -> Quiz:
-        """A quiz of recall questions rather than recognition ones.
-
-        Stored as a quiz so the two kinds share history, scoring surfaces, and the same
-        grounding: every question keeps the passage it came from.
-        """
-        paper = await self._owned_paper(owner, paper_id)
-        passages = await self._passages(paper.id)
-        count = max(1, min(count, MAX_QUIZ_QUESTIONS))
-
-        raw = await self._complete(
-            system=SHORT_ANSWER_SYSTEM,
-            user=short_answer_request(
-                paper_title=paper.display_title, count=count, passages=_render(passages)
-            ),
-            max_output_tokens=6000,
-        )
-
-        proposed = parse_items(raw, GeneratedShortAnswer)[:count]
-        questions: list[QuizQuestion] = []
-        for item in proposed:
-            passage = _resolve(passages, item.source)
-            if passage is None:
-                continue
-            questions.append(
-                QuizQuestion(
-                    position=len(questions),
-                    kind=QuestionKind.short_answer,
-                    prompt=item.question.strip(),
-                    options=[],
-                    correct_index=None,
-                    model_answer=item.answer.strip(),
                     explanation=item.explanation.strip(),
                     chunk_id=passage.id,
                     source_text=passage.content,
@@ -290,16 +284,53 @@ class StudyService:
                 )
             )
 
-        _require_grounded(len(proposed), len(questions), "short-answer questions")
+        _require_grounded(self._last_proposed, len(questions), "quiz questions")
+        return await self._save_quiz(owner, paper, questions, "quiz.generated")
+
+    async def generate_short_answers(self, *, owner: User, paper_id: uuid.UUID, count: int) -> Quiz:
+        """A quiz of recall questions rather than recognition ones.
+
+        Stored as a quiz so the two kinds share history, listing, and the same grounding.
+        """
+        count = max(1, min(count, MAX_QUIZ_QUESTIONS))
+        paper, grounded = await self._grounded_items(
+            owner=owner,
+            paper_id=paper_id,
+            item_type=GeneratedShortAnswer,
+            system=SHORT_ANSWER_SYSTEM,
+            request=lambda paper, passages: short_answer_request(
+                paper_title=paper.display_title, count=count, passages=passages
+            ),
+            limit=count,
+        )
+
+        questions = [
+            QuizQuestion(
+                position=position,
+                kind=QuestionKind.short_answer,
+                prompt=item.question.strip(),
+                options=[],
+                correct_index=None,
+                model_answer=item.answer.strip(),
+                explanation=item.explanation.strip(),
+                chunk_id=passage.id,
+                source_text=passage.content,
+                source_page=passage.page_start,
+            )
+            for position, (item, passage) in enumerate(grounded)
+        ]
+
+        _require_grounded(self._last_proposed, len(questions), "short-answer questions")
+        return await self._save_quiz(owner, paper, questions, "short_answers.generated")
+
+    async def _save_quiz(
+        self, owner: User, paper: Paper, questions: list[QuizQuestion], event: str
+    ) -> Quiz:
         quiz = Quiz(owner_id=owner.id, paper_id=paper.id, title=paper.display_title)
         quiz.questions = questions
         self._db.add(quiz)
         await self._db.commit()
-
-        logger.info(
-            "short_answers.generated",
-            extra={"paper_id": str(paper.id), "stored": len(questions)},
-        )
+        logger.info(event, extra={"paper_id": str(paper.id), "stored": len(questions)})
         return await self.get_quiz(owner=owner, quiz_id=quiz.id)
 
     async def prerequisites(
@@ -307,24 +338,20 @@ class StudyService:
     ) -> list[tuple[GeneratedPrerequisite, PaperChunk]]:
         """What a reader must already understand for this paper to make sense.
 
-        Returned rather than stored: unlike a flashcard, this is read once while deciding
+        Returned rather than stored: unlike a flashcard this is read once, while deciding
         whether to attempt a paper, and a stale copy would be worse than regenerating it.
-        Each entry still carries the passage that shows the assumption, so it can be checked.
         """
-        paper = await self._owned_paper(owner, paper_id)
-        passages = await self._passages(paper.id)
-
-        raw = await self._complete(
+        _, grounded = await self._grounded_items(
+            owner=owner,
+            paper_id=paper_id,
+            item_type=GeneratedPrerequisite,
             system=PREREQUISITE_SYSTEM,
-            user=prerequisite_request(paper_title=paper.display_title, passages=_render(passages)),
+            request=lambda paper, passages: prerequisite_request(
+                paper_title=paper.display_title, passages=passages
+            ),
+            limit=MAX_PREREQUISITES,
             max_output_tokens=3000,
         )
-
-        grounded: list[tuple[GeneratedPrerequisite, PaperChunk]] = []
-        for item in parse_items(raw, GeneratedPrerequisite):
-            passage = _resolve(passages, item.source)
-            if passage is not None:
-                grounded.append((item, passage))
         return grounded
 
     async def _complete(self, *, system: str, user: str, max_output_tokens: int) -> str:
