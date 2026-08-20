@@ -357,6 +357,26 @@ registration limit partway through the suite and failed 181 unrelated tests.
 
 ---
 
+## Feature completeness against the spec
+
+Every feature section of the specification is implemented. The six that were missing after
+M10 were closed afterwards:
+
+| Was missing | Now |
+|---|---|
+| Add a paper by URL | `POST /papers/from-reference`, with SSRF defences |
+| Add by DOI or arXiv id | Same endpoint; nine reference forms recognised |
+| Equations as separate objects | Recognised by evidence, listed in the reader, explainable |
+| Jump between references | Bibliography split into entries, filterable, one-click add |
+| Short-answer questions | Recall rather than recognition; deliberately unscored |
+| Prerequisite concepts | What a paper assumes, each tied to the passage that shows it |
+| Dashboard: experiments, notes | Both surfaced |
+
+Two remain approximate by nature and say so in the interface: equation detection and
+reference splitting both recognise structure a PDF does not mark up.
+
+---
+
 ## Decisions log (summary)
 
 Full rationale in [`docs/decisions.md`](docs/decisions.md).
