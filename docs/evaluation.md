@@ -71,6 +71,29 @@ field of each query in `evaluation/corpus.py`.
 
 ---
 
+## Reranking
+
+Fusion combines the vector and lexical rankings by position and never looks at the passages.
+Reranking looks: whether the query's terms appear, whether they appear *together*, whether the
+passage is a paragraph or a caption, and what kind of section it sits in — a weak section
+(acknowledgements, references, appendix) multiplies the score down rather than subtracting a
+little, because the query's words appearing there means less, not slightly less.
+
+**It does not move this benchmark.** recall@3 88% and MRR 0.646 with and without it, while
+demonstrably reordering two of the eight queries. That is stated rather than implied: the
+offline embedder is itself bag-of-words, so a lexical reranker mostly reinforces the signal
+that produced the ranking in the first place.
+
+It is kept for the failure it does fix — an acknowledgements paragraph containing the query's
+words outranking the method section that answers it — and because it is the seam a
+cross-encoder would slot into.
+
+The first version was worse than useless: a reciprocal position prior halves between the first
+and second result, a gap no content signal can close, so it reordered nothing while appearing
+to work. Only measuring it showed that.
+
+---
+
 ## Citation integrity
 
 Checked across the whole database rather than per feature:

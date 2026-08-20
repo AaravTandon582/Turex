@@ -404,7 +404,11 @@ Full rationale in [`docs/decisions.md`](docs/decisions.md).
   Hack Club AI on 2026-08-17: grounded answers with resolvable citations, honest refusal on a
   question the library does not contain, and grounded flashcards and quizzes. Four bugs were
   found and fixed in the process — see M9's notes.
-- **Reranking is a pass-through.** The pipeline stage exists but does nothing yet.
+- ~~Reranking is a pass-through.~~ **Resolved** — and that note was itself wrong: there was no
+  stage at all, not a pass-through one. A lexical reranker now reorders a wider candidate pool
+  by phrase match, term coverage, passage length, and section kind. It does not move the
+  offline benchmark, which is recorded in [`docs/evaluation.md`](docs/evaluation.md) rather
+  than glossed over.
 - ~~The reader has not been exercised in a browser.~~ **Resolved.** Playwright turned out to be
   installable after all, and 22 browser tests now cover PDF rendering, the text layer, text
   selection, highlight round-trips, every page on desktop and phone, and the notebook's

@@ -30,6 +30,7 @@ from sqlalchemy.sql.elements import TextClause
 from atlas.ai.base import EmbeddingProvider
 from atlas.core.logging import get_logger
 from atlas.models.paper import ProcessingStatus
+from atlas.retrieval.reranking import CANDIDATE_MULTIPLIER, rerank
 
 logger = get_logger(__name__)
 
@@ -207,7 +208,12 @@ class RetrievalService:
 
         vector_hits = await self._vector_search(owner_id, cleaned, scoped)
         lexical_hits = await self._lexical_search(owner_id, cleaned, scoped)
-        fused = fuse(vector_hits, lexical_hits)[:limit]
+
+        # Fusion ranks by position alone — it never looks at the passages. Reranking a wider
+        # pool than the caller asked for is what gives it something to reorder; reranking
+        # exactly `limit` results could only shuffle them.
+        pool = fuse(vector_hits, lexical_hits)[: limit * CANDIDATE_MULTIPLIER]
+        fused = rerank(cleaned, pool)[:limit]
 
         logger.info(
             "retrieved passages",
