@@ -45,28 +45,28 @@ class Guard:
     def __init__(self, limiter: RateLimiter) -> None:
         self._limiter = limiter
 
-    def by_address(self, request: Request, limit: Limit, *, scope: str) -> None:
-        self._enforce(f"{scope}:addr:{client_address(request)}", limit, scope=scope)
+    async def by_address(self, request: Request, limit: Limit, *, scope: str) -> None:
+        await self._enforce(f"{scope}:addr:{client_address(request)}", limit, scope=scope)
 
-    def by_user(self, user_id: uuid.UUID, limit: Limit, *, scope: str) -> None:
-        self._enforce(f"{scope}:user:{user_id}", limit, scope=scope)
+    async def by_user(self, user_id: uuid.UUID, limit: Limit, *, scope: str) -> None:
+        await self._enforce(f"{scope}:user:{user_id}", limit, scope=scope)
 
-    def by_identifier(self, identifier: str, limit: Limit, *, scope: str) -> None:
+    async def by_identifier(self, identifier: str, limit: Limit, *, scope: str) -> None:
         """Keyed on something the caller supplies — an email address on a login attempt.
 
         Lower-cased so `Person@example.com` and `person@example.com` share a bucket, since
         otherwise changing the capitalisation resets the counter.
         """
-        self._enforce(f"{scope}:id:{identifier.strip().lower()}", limit, scope=scope)
+        await self._enforce(f"{scope}:id:{identifier.strip().lower()}", limit, scope=scope)
 
-    def clear_identifier(self, identifier: str, *, scope: str) -> None:
+    async def clear_identifier(self, identifier: str, *, scope: str) -> None:
         """Forget an identifier's history after it succeeds legitimately."""
         reset = getattr(self._limiter, "reset", None)
         if reset is not None:
-            reset(f"{scope}:id:{identifier.strip().lower()}")
+            await reset(f"{scope}:id:{identifier.strip().lower()}")
 
-    def _enforce(self, key: str, limit: Limit, *, scope: str) -> None:
-        decision = self._limiter.check(key, limit)
+    async def _enforce(self, key: str, limit: Limit, *, scope: str) -> None:
+        decision = await self._limiter.check(key, limit)
         if decision.allowed:
             return
 

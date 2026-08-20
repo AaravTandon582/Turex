@@ -163,7 +163,7 @@ async def ask(
     """
     # Checked before the stream opens. Once an SSE response has started, the status code is
     # already sent and a 429 can no longer be expressed.
-    guard.by_user(user.id, policy.MODEL_CALLS_PER_USER, scope="model")
+    await guard.by_user(user.id, policy.MODEL_CALLS_PER_USER, scope="model")
 
     async def frames() -> AsyncIterator[str]:
         try:
@@ -231,7 +231,7 @@ async def semantic_search(
     paper_id: uuid.UUID | None = None,
 ) -> SearchResponse:
     """Search passages by meaning and by keyword, fused into one ranking."""
-    guard.by_user(user.id, policy.SEARCH_PER_USER, scope="search")
+    await guard.by_user(user.id, policy.SEARCH_PER_USER, scope="search")
     chunks = await retrieval.search(
         owner_id=user.id, query=q, limit=limit, paper_ids=[paper_id] if paper_id else None
     )

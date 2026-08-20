@@ -41,17 +41,17 @@ def limiter(clock: Clock) -> InMemoryRateLimiter:
 
 
 class TestTheCounter:
-    def test_allows_up_to_the_limit_then_refuses(self, limiter: InMemoryRateLimiter) -> None:
+    async def test_allows_up_to_the_limit_then_refuses(self, limiter: InMemoryRateLimiter) -> None:
         limit = Limit(requests=3, seconds=60)
-        assert [limiter.check("k", limit).allowed for _ in range(3)] == [True, True, True]
-        assert limiter.check("k", limit).allowed is False
+        assert [(await limiter.check("k", limit)).allowed for _ in range(3)] == [True, True, True]
+        assert (await limiter.check("k", limit)).allowed is False
 
-    def test_reports_how_long_to_wait(self, limiter: InMemoryRateLimiter) -> None:
+    async def test_reports_how_long_to_wait(self, limiter: InMemoryRateLimiter) -> None:
         limit = Limit(requests=1, seconds=60)
-        limiter.check("k", limit)
-        assert 1 <= limiter.check("k", limit).retry_after_seconds <= 61
+        await limiter.check("k", limit)
+        assert 1 <= (await limiter.check("k", limit)).retry_after_seconds <= 61
 
-    def test_the_window_slides_rather_than_resetting_in_steps(
+    async def test_the_window_slides_rather_than_resetting_in_steps(
         self, limiter: InMemoryRateLimiter, clock: Clock
     ) -> None:
         """A fixed window would allow the full allowance twice across a boundary.
@@ -61,36 +61,38 @@ class TestTheCounter:
         """
         limit = Limit(requests=3, seconds=60)
         for _ in range(3):
-            assert limiter.check("k", limit).allowed
+            assert (await limiter.check("k", limit)).allowed
 
         clock.advance(59)
-        assert limiter.check("k", limit).allowed is False, "still inside the window"
+        assert (await limiter.check("k", limit)).allowed is False, "still inside the window"
 
         clock.advance(2)
-        assert limiter.check("k", limit).allowed is True, "the first three have now aged out"
+        assert (await limiter.check("k", limit)).allowed is True, (
+            "the first three have now aged out"
+        )
 
-    def test_keys_do_not_interfere(self, limiter: InMemoryRateLimiter) -> None:
+    async def test_keys_do_not_interfere(self, limiter: InMemoryRateLimiter) -> None:
         limit = Limit(requests=1, seconds=60)
-        assert limiter.check("a", limit).allowed
-        assert limiter.check("b", limit).allowed
-        assert limiter.check("a", limit).allowed is False
+        assert (await limiter.check("a", limit)).allowed
+        assert (await limiter.check("b", limit)).allowed
+        assert (await limiter.check("a", limit)).allowed is False
 
-    def test_a_reset_forgives_a_key(self, limiter: InMemoryRateLimiter) -> None:
+    async def test_a_reset_forgives_a_key(self, limiter: InMemoryRateLimiter) -> None:
         limit = Limit(requests=1, seconds=60)
-        limiter.check("k", limit)
-        limiter.reset("k")
-        assert limiter.check("k", limit).allowed
+        await limiter.check("k", limit)
+        await limiter.reset("k")
+        assert (await limiter.check("k", limit)).allowed
 
-    def test_pruning_drops_only_inactive_keys(
+    async def test_pruning_drops_only_inactive_keys(
         self, limiter: InMemoryRateLimiter, clock: Clock
     ) -> None:
         """Without pruning the map grows once per client address and never shrinks."""
         limit = Limit(requests=5, seconds=60)
-        limiter.check("old", limit)
+        await limiter.check("old", limit)
         clock.advance(7200)
-        limiter.check("fresh", limit)
+        await limiter.check("fresh", limit)
 
-        assert limiter.prune(older_than_seconds=3600) == 1
+        assert await limiter.prune(older_than_seconds=3600) == 1
         assert limiter.tracked_keys == 1
 
     def test_a_limit_must_be_positive(self) -> None:
@@ -121,7 +123,7 @@ class TestTheCounter:
 
 
 class TestMemoryIsBounded:
-    def test_inactive_keys_are_swept_without_a_background_task(
+    async def test_inactive_keys_are_swept_without_a_background_task(
         self, limiter: InMemoryRateLimiter, clock: Clock
     ) -> None:
         """One key per client address, never removed, is a slow leak that only shows up in
@@ -130,12 +132,12 @@ class TestMemoryIsBounded:
 
         limit = Limit(requests=5, seconds=60)
         for index in range(PRUNE_EVERY // 2):
-            limiter.check(f"visitor-{index}", limit)
+            await limiter.check(f"visitor-{index}", limit)
 
         before = limiter.tracked_keys
         clock.advance(7200)
         for _ in range(PRUNE_EVERY):
-            limiter.check("active", limit)
+            await limiter.check("active", limit)
 
         assert limiter.tracked_keys < before, (
             f"{before} keys before, {limiter.tracked_keys} after — nothing was swept"
@@ -281,3 +283,92 @@ class TestExpensiveWorkIsBounded:
                 break
 
         assert 429 in codes
+
+
+class TestTheSharedLimiter:
+    """Counters in PostgreSQL, so every process sees the same ones.
+
+    The in-memory limiter is correct for one process and wrong for several: four workers each
+    keep their own counters, so a limit of eight becomes thirty-two. These use two independent
+    limiter instances to stand for two processes — which is exactly the case the in-memory one
+    gets wrong, and the reason this exists.
+    """
+
+    async def test_two_processes_share_one_allowance(self, db) -> None:  # type: ignore[no-untyped-def]
+        from atlas.db.session import get_session_factory
+        from atlas.security.database_limiter import DatabaseRateLimiter
+
+        first = DatabaseRateLimiter(get_session_factory())
+        second = DatabaseRateLimiter(get_session_factory())
+        limit = Limit(requests=4, seconds=300)
+        key = "shared:test:two-processes"
+
+        # Alternating between them: an in-memory limiter would allow all eight.
+        allowed = 0
+        for index in range(8):
+            limiter = first if index % 2 == 0 else second
+            if (await limiter.check(key, limit)).allowed:
+                allowed += 1
+
+        assert allowed == limit.requests, f"{allowed} allowed against a limit of {limit.requests}"
+
+    async def test_a_refusal_says_when_the_window_closes(self, db) -> None:  # type: ignore[no-untyped-def]
+        from atlas.db.session import get_session_factory
+        from atlas.security.database_limiter import DatabaseRateLimiter
+
+        limiter = DatabaseRateLimiter(get_session_factory())
+        limit = Limit(requests=1, seconds=120)
+        key = "shared:test:retry-after"
+
+        await limiter.check(key, limit)
+        decision = await limiter.check(key, limit)
+
+        assert decision.allowed is False
+        assert 0 < decision.retry_after_seconds <= limit.seconds
+
+    async def test_resetting_a_key_forgives_it(self, db) -> None:  # type: ignore[no-untyped-def]
+        """A correct password clears the account's failed attempts, whichever process sees it."""
+        from atlas.db.session import get_session_factory
+        from atlas.security.database_limiter import DatabaseRateLimiter
+
+        limiter = DatabaseRateLimiter(get_session_factory())
+        limit = Limit(requests=1, seconds=300)
+        key = "shared:test:reset"
+
+        await limiter.check(key, limit)
+        assert (await limiter.check(key, limit)).allowed is False
+
+        await limiter.reset(key)
+        assert (await limiter.check(key, limit)).allowed is True
+
+    async def test_keys_are_stored_hashed(self, db) -> None:  # type: ignore[no-untyped-def]
+        """A counter for a failed login would otherwise hold an email address, and the limiter
+        must not become where someone learns which accounts exist."""
+        from sqlalchemy import text as sql
+
+        from atlas.db.session import get_session_factory
+        from atlas.security.database_limiter import DatabaseRateLimiter
+
+        limiter = DatabaseRateLimiter(get_session_factory())
+        await limiter.check("login:id:someone@example.edu", Limit(requests=5, seconds=300))
+
+        stored = list(await db.scalars(sql("SELECT key_hash FROM rate_limit_counters")))
+        assert stored, "nothing was recorded"
+        assert not any("@" in value for value in stored)
+
+    async def test_old_windows_are_pruned(self, db) -> None:  # type: ignore[no-untyped-def]
+        """Rows accumulate while requests arrive and nothing removes them otherwise, and a
+        table that only grows is a slow leak wherever it lives."""
+        from sqlalchemy import text as sql
+
+        from atlas.db.session import get_session_factory
+        from atlas.security.database_limiter import DatabaseRateLimiter
+
+        limiter = DatabaseRateLimiter(get_session_factory())
+        await limiter.check("shared:test:prune", Limit(requests=5, seconds=60))
+        await db.execute(
+            sql("UPDATE rate_limit_counters SET window_start = window_start - interval '3 days'")
+        )
+        await db.commit()
+
+        assert await limiter.prune(older_than_seconds=86_400) >= 1

@@ -113,6 +113,15 @@ class Settings(BaseSettings):
     it, a replay still revokes the whole session.
     """
 
+    rate_limiting_shared: bool = False
+    """Keep rate-limit counters in PostgreSQL rather than in this process's memory.
+
+    Off by default because a single-process deployment does not need it and the in-memory
+    counters are faster. Turn it on whenever more than one worker serves requests: without it
+    each worker keeps its own counters, so the configured limit is multiplied by the number of
+    workers and a restart forgets everything.
+    """
+
     rate_limiting_enabled: bool = True
     """An escape hatch for load testing. Never turn this off in production — there is a startup
     check that says so."""

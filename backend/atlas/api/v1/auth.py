@@ -24,7 +24,7 @@ async def register(
     client: ClientInfoDep,
     guard: GuardDep,
 ) -> SessionResponse:
-    guard.by_address(request, policy.REGISTRATION_PER_ADDRESS, scope="register")
+    await guard.by_address(request, policy.REGISTRATION_PER_ADDRESS, scope="register")
     session = await auth.register(
         email=payload.email,
         full_name=payload.full_name,
@@ -53,14 +53,14 @@ async def login(
     # across many accounts. Both are checked before the password is verified, so a rejected
     # attempt costs no argon2 hashing — which is also what keeps this from being a way to
     # exhaust CPU on purpose.
-    guard.by_identifier(payload.email, policy.LOGIN_PER_ACCOUNT, scope="login")
-    guard.by_address(request, policy.LOGIN_PER_ADDRESS, scope="login")
+    await guard.by_identifier(payload.email, policy.LOGIN_PER_ACCOUNT, scope="login")
+    await guard.by_address(request, policy.LOGIN_PER_ADDRESS, scope="login")
 
     session = await auth.login(email=payload.email, password=payload.password, client=client)
 
     # A correct password clears the account's counter, so a person who mistypes several times
     # and then succeeds is not left throttled.
-    guard.clear_identifier(payload.email, scope="login")
+    await guard.clear_identifier(payload.email, scope="login")
     set_session_cookies(response, session, settings)
     return SessionResponse(
         user=UserRead.model_validate(session.user),
@@ -77,7 +77,7 @@ async def refresh(
     client: ClientInfoDep,
     guard: GuardDep,
 ) -> SessionResponse:
-    guard.by_address(request, policy.REFRESH_PER_ADDRESS, scope="refresh")
+    await guard.by_address(request, policy.REFRESH_PER_ADDRESS, scope="refresh")
     token = request.cookies.get(REFRESH_COOKIE_NAME)
     if not token:
         raise UnauthenticatedError(detail="no refresh cookie present")

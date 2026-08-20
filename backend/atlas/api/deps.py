@@ -16,9 +16,10 @@ from atlas.core.config import Settings, get_settings
 from atlas.core.errors import UnauthenticatedError
 from atlas.core.logging import bind_request_context
 from atlas.core.security import ACCESS_COOKIE_NAME, decode_access_token
-from atlas.db.session import get_db
+from atlas.db.session import get_db, get_session_factory
 from atlas.models.user import User, UserSession
 from atlas.retrieval.search import RetrievalService
+from atlas.security.database_limiter import DatabaseRateLimiter
 from atlas.security.guard import Guard
 from atlas.security.rate_limit import (
     Decision,
@@ -73,7 +74,11 @@ def reset_rate_limits() -> None:
 
 
 def get_guard(settings: SettingsDep) -> Guard:
-    return Guard(_limiter if settings.rate_limiting_enabled else _NoopLimiter())
+    if not settings.rate_limiting_enabled:
+        return Guard(_NoopLimiter())
+    if settings.rate_limiting_shared:
+        return Guard(DatabaseRateLimiter(get_session_factory()))
+    return Guard(_limiter)
 
 
 GuardDep = Annotated[Guard, Depends(get_guard)]
@@ -83,7 +88,7 @@ class _NoopLimiter(RateLimiter):
     """Allows everything. Only reachable when rate limiting is deliberately disabled, which
     `check_production_readiness` refuses to let happen in production."""
 
-    def check(self, key: str, limit: Limit) -> Decision:
+    async def check(self, key: str, limit: Limit) -> Decision:
         return Decision(allowed=True, remaining=limit.requests, retry_after_seconds=0)
 
 

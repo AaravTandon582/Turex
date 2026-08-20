@@ -73,7 +73,7 @@ async def upload_paper(
     Poll the paper to watch `ingestion.progress` advance. An upload of a file already in the
     library returns the existing paper with 200 rather than creating a duplicate.
     """
-    guard.by_user(user.id, policy.UPLOADS_PER_USER, scope="upload")
+    await guard.by_user(user.id, policy.UPLOADS_PER_USER, scope="upload")
 
     data = await file.read()
     result = await service.upload(
@@ -103,7 +103,7 @@ async def add_paper_from_reference(
     Fetching a URL a caller supplied is a server-side request forgery risk, so the fetcher
     refuses non-public addresses and re-checks on every redirect — see `ingestion/fetching.py`.
     """
-    guard.by_user(user.id, policy.UPLOADS_PER_USER, scope="upload")
+    await guard.by_user(user.id, policy.UPLOADS_PER_USER, scope="upload")
     result = await service.add_from_identifier(owner=user, reference=payload.reference)
     if result.already_existed:
         response.status_code = status.HTTP_200_OK

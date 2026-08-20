@@ -53,10 +53,26 @@ A sliding window, not fixed buckets — a fixed window lets an attacker spend th
 at the end of one window and again at the start of the next, which is double the intended rate
 at exactly the wrong moment.
 
-**It is per-process.** Four workers enforce roughly four times the configured limit, and a
-restart clears every counter. That is acceptable for a single-process deployment and is not
-acceptable at scale, which is why `RateLimiter` is an interface with the in-memory class behind
-it — a shared backend is a second implementation, not a rewrite.
+**Two implementations, chosen by configuration.** In-memory is the default: fastest, and
+correct for a single process. `RATE_LIMITING_SHARED=true` keeps the counters in PostgreSQL
+instead, which every process sees.
+
+Use the shared one whenever more than one worker serves requests. Without it each worker keeps
+its own counters, so a limit of eight becomes thirty-two across four workers, and a restart
+forgets everything — the difference between a limit and a suggestion. Verified: with it on, a
+brute-force run is cut off after eight attempts and is *still* cut off after the server
+restarts.
+
+The shared limiter uses a fixed window rather than a sliding one. A sliding window needs every
+timestamp kept and scanned; a fixed window needs one row per key per window and a single atomic
+`INSERT … ON CONFLICT DO UPDATE`, so two processes arriving together cannot both read the same
+count and both decide they are under the limit. The cost is that the allowance can be spent at
+the end of one window and again at the start of the next, so a momentary burst of twice the
+limit is possible. Eight login attempts becoming a momentary sixteen is not what stands between
+an attacker and a password, and halving the limit to prevent it would cost real usability.
+
+Keys are stored hashed. A counter row for a failed login would otherwise hold an email address,
+and the limiter should not become where someone learns which accounts exist.
 
 The key map is swept of inactive entries every thousand requests. Without that it grows once
 per distinct client address and never shrinks, which is a slow leak that only appears in

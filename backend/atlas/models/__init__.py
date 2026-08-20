@@ -27,6 +27,7 @@ from atlas.models.paper import (
     ProcessingStatus,
     ReadingStatus,
 )
+from atlas.models.security import RateLimitCounter
 from atlas.models.study import (
     CardKind,
     CardReview,
@@ -92,6 +93,7 @@ __all__ = [
     "QuestionKind",
     "Quiz",
     "QuizQuestion",
+    "RateLimitCounter",
     "ReadingStatus",
     "ReviewRating",
     "Tag",

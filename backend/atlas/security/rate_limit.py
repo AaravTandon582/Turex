@@ -58,8 +58,12 @@ class Decision:
 
 class RateLimiter(ABC):
     @abstractmethod
-    def check(self, key: str, limit: Limit) -> Decision:
+    async def check(self, key: str, limit: Limit) -> Decision:
         """Record an attempt against `key` and say whether it is allowed.
+
+        Asynchronous because a shared implementation must reach a database, and an interface
+        that is synchronous forces every such implementation to either block the event loop or
+        raise. The in-memory one does no I/O and simply never awaits.
 
         Recording and deciding are one operation deliberately. Splitting them invites a caller
         to check, do the work, and forget to record — which reads as working and enforces
@@ -81,14 +85,14 @@ class InMemoryRateLimiter(RateLimiter):
 
         self._since_prune = 0
 
-    def check(self, key: str, limit: Limit) -> Decision:
+    async def check(self, key: str, limit: Limit) -> Decision:
         # Housekeeping happens here rather than on a timer: the map only grows when requests
         # arrive, so the work belongs where the growth does and there is no background task to
         # start, supervise, or forget to stop.
         self._since_prune += 1
         if self._since_prune >= PRUNE_EVERY:
             self._since_prune = 0
-            self.prune()
+            await self.prune()
 
         now = self._now()
         window_start = now - limit.seconds
@@ -104,12 +108,12 @@ class InMemoryRateLimiter(RateLimiter):
         hits.append(now)
         return Decision(allowed=True, remaining=limit.requests - len(hits), retry_after_seconds=0)
 
-    def reset(self, key: str) -> None:
+    async def reset(self, key: str) -> None:
         """Forget a key's history. Called after a successful login, so one bad session of
         typos does not hold back someone who then gets it right."""
         self._hits.pop(key, None)
 
-    def prune(self, older_than_seconds: int = 3600) -> int:
+    async def prune(self, older_than_seconds: int = 3600) -> int:
         """Drop keys with no recent activity, and report how many went.
 
         Without this the map grows once per distinct client address and never shrinks, which is
