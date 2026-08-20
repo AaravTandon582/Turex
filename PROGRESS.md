@@ -414,8 +414,10 @@ Full rationale in [`docs/decisions.md`](docs/decisions.md).
 - **`react-hooks/set-state-in-effect` is a warning, not an error.** The rule cannot see across
   an `await`, so it flags every client-side fetch-on-mount. Downgraded with a note in
   `eslint.config.mjs` rather than silenced per call site.
-- **Multi-turn retrieval uses the question verbatim.** A follow-up like "what about the second
-  one?" retrieves on those words alone; query rewriting against history is not implemented.
+- ~~Multi-turn retrieval uses the question verbatim.~~ **Resolved.** A follow-up that leans on
+  the conversation is rewritten into a standalone question before searching, and only for
+  searching — the answer is still generated from what the user actually asked. A question that
+  already stands alone is left untouched, and a failed rewrite falls back to the original.
 
 ---
 

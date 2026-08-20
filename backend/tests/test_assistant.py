@@ -13,11 +13,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from atlas.ai.base import ChatMessage, Role
 from atlas.models.conversation import ConversationMessage, MessageCitation, MessageRole
+from atlas.retrieval.rewriting import needs_rewriting, rewrite_for_search
 from tests.support.scripted_provider import ScriptedChatProvider
 from tests.test_retrieval import TRANSFORMERS_PDF, upload_and_index
 
@@ -370,3 +373,67 @@ class TestFailures:
         # The stream opens before ownership is known, so the refusal arrives as a frame.
         assert "event: error" in body or response.status_code == 404
         assert "Show me their research" not in body
+
+
+class TestFollowUpQuestions:
+    """A follow-up carries its meaning in the previous turn, not in its own words.
+
+    "What about the second one?" searched literally returns passages about ordinality. The
+    answer is still generated from what the user actually asked — only the search string is
+    rewritten — and a rewrite that fails must leave retrieval exactly as it was.
+    """
+
+    @pytest.mark.parametrize(
+        "question",
+        ["what about the second one?", "why?", "and that one?", "is it faster than this?"],
+    )
+    def test_recognises_a_question_that_leans_on_the_conversation(self, question: str) -> None:
+        assert needs_rewriting(question, has_history=True)
+
+    @pytest.mark.parametrize(
+        "question",
+        [
+            "how does multi-head attention work?",
+            "what reduces inference latency in transformer models?",
+        ],
+    )
+    def test_leaves_a_standalone_question_alone(self, question: str) -> None:
+        """Rewriting a good question is a chance to lose the term that would have found it."""
+        assert not needs_rewriting(question, has_history=True)
+
+    def test_the_first_question_is_never_rewritten(self) -> None:
+        assert not needs_rewriting("what about it?", has_history=False)
+
+    async def test_a_follow_up_is_searched_on_the_rewritten_question(self) -> None:
+        provider = ScriptedChatProvider(answer="How does scaled dot-product attention work?")
+        rewritten = await rewrite_for_search(
+            provider=provider,
+            question="what about that one?",
+            history=[ChatMessage(role=Role.user, content="explain scaled dot-product attention")],
+        )
+        assert rewritten == "How does scaled dot-product attention work?"
+
+    async def test_a_failed_rewrite_falls_back_to_the_original(self) -> None:
+        """Degrading to today's behaviour is acceptable; degrading to a worse search is not."""
+
+        class Broken(ScriptedChatProvider):
+            async def complete(self, request):  # type: ignore[no-untyped-def]
+                raise RuntimeError("provider is down")
+
+        result = await rewrite_for_search(
+            provider=Broken(),
+            question="what about that one?",
+            history=[ChatMessage(role=Role.user, content="explain attention")],
+        )
+        assert result == "what about that one?"
+
+    @pytest.mark.parametrize("reply", ["", "   ", "a" * 500, "line one\nline two"])
+    async def test_an_unusable_rewrite_falls_back_to_the_original(self, reply: str) -> None:
+        """An empty, enormous, or multi-line answer is the model doing something other than
+        rewriting, and must not become the search."""
+        result = await rewrite_for_search(
+            provider=ScriptedChatProvider(answer=reply),
+            question="what about that one?",
+            history=[ChatMessage(role=Role.user, content="explain attention")],
+        )
+        assert result == "what about that one?"

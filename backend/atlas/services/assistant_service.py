@@ -42,6 +42,7 @@ from atlas.models.conversation import (
 from atlas.models.paper import Paper
 from atlas.models.user import User
 from atlas.retrieval.context import build_context, compose_user_turn, markers_used
+from atlas.retrieval.rewriting import rewrite_for_search
 from atlas.retrieval.search import RetrievalService, RetrievedChunk
 
 logger = get_logger(__name__)
@@ -182,9 +183,23 @@ class AssistantService:
         await self._db.commit()
 
         # -- retrieve ---------------------------------------------------------------
+        # A follow-up like "what about the second one?" carries nothing searchable — the words
+        # that matter were in the previous turn. The *answer* is still generated from what the
+        # user actually asked; only the search string is rewritten.
+        search_query = cleaned
+        if history:
+            try:
+                search_query = await rewrite_for_search(
+                    provider=self._provider(), question=cleaned, history=history
+                )
+            except AppError:
+                # No provider configured, or it is down. Retrieval still works on the literal
+                # question, which is exactly the behaviour before this existed.
+                search_query = cleaned
+
         chunks = await self._retrieval.search(
             owner_id=owner.id,
-            query=cleaned,
+            query=search_query,
             limit=MODE_RETRIEVAL_LIMIT[turn_mode],
             paper_ids=[conversation.paper_id] if conversation.paper_id else None,
         )
