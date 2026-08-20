@@ -3,7 +3,7 @@
 import { ArrowLeft, Minus, PanelRightClose, PanelRightOpen, Plus } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Document, pdfjs } from "react-pdf";
 
 import { AskPanel, type AskRequest } from "@/components/reader/ask-panel";
@@ -54,8 +54,21 @@ const ACTIONS: Record<SelectionAction, { mode: AssistantMode; prompt: (text: str
     },
   };
 
+/**
+ * Hoisted rather than written inline.
+ *
+ * `react-pdf` compares these by identity, so an object literal in the JSX is a new value on
+ * every render and the whole document reloads — which it warns about in the console and which
+ * shows up as the pages flashing while you scroll. `withCredentials` is needed because the PDF
+ * is served from the API origin behind a session cookie.
+ */
+const PDF_OPTIONS = { withCredentials: true } as const;
+
 export default function ReaderPage() {
   const { id } = useParams<{ id: string }>();
+  // Same reason as PDF_OPTIONS: a new string is fine, but recomputing it per render is not
+  // free and keeps the memo below honest.
+  const fileUrl = useMemo(() => papers.fileUrl(id), [id]);
 
   const [paper, setPaper] = useState<PaperDetail | null>(null);
   const [sections, setSections] = useState<PaperSection[]>([]);
@@ -241,9 +254,8 @@ export default function ReaderPage() {
         <div ref={scrollRef} className="scrollbar-slim flex-1 overflow-y-auto bg-surface-sunken">
           <div className="relative mx-auto w-fit py-8">
             <Document
-              file={papers.fileUrl(id)}
-              // The PDF is served from the API origin behind a session cookie.
-              options={{ withCredentials: true }}
+              file={fileUrl}
+              options={PDF_OPTIONS}
               onLoadSuccess={({ numPages }) => setPageCount(numPages)}
               onLoadError={() => setError("Atlas couldn't render this PDF.")}
               loading={<Skeleton className="h-[900px] w-[720px]" />}

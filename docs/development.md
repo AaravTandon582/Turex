@@ -155,3 +155,30 @@ authentication requires `allow_credentials`, and the two are mutually exclusive.
 
 **Signed in but every request 401s** — check that `NEXT_PUBLIC_API_URL` and `CORS_ORIGINS`
 agree, and that the browser is not blocking third-party cookies for `localhost`.
+
+---
+
+## Browser tests
+
+The API suite covers behaviour; these cover what only exists in a browser — whether the PDF
+paints, whether text can be selected out of it, whether a highlight survives the round trip,
+and whether any page spills sideways on a phone.
+
+They need more setup than the unit suite, so they are run deliberately rather than as part of
+`npm test`. A test that cannot run on a fresh checkout gets skipped, and a skipped test rots.
+
+```bash
+# three things must be up
+uvicorn atlas.main:create_app --factory     # the API
+python scripts/seed_demo.py                 # the demo account these tests sign in as
+npm run dev                                 # the web app
+
+npm run e2e                                 # then, in a fourth terminal
+```
+
+A setup project signs in once and every test reuses that session. Per-test sign-in meant
+eighteen logins a minute, which the account's own rate limit refused — correctly, and the
+suite was unrunnable against a properly configured server until it was fixed.
+
+If the setup step fails with a 429, an earlier run has spent the login allowance. Restarting
+the API clears the counters, since they are held in memory.
