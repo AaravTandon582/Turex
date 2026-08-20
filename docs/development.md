@@ -182,3 +182,39 @@ suite was unrunnable against a properly configured server until it was fixed.
 
 If the setup step fails with a 429, an earlier run has spent the login allowance. Restarting
 the API clears the counters, since they are held in memory.
+
+---
+
+## Running it in containers
+
+```bash
+cp backend/.env.example .env    # then set SECRET_KEY, and an API key if you want the assistant
+docker compose up --build
+```
+
+That brings up PostgreSQL with `pgvector`, runs the migrations, starts the API on `:8000`, and
+serves the web app on `:3000`.
+
+A few decisions worth knowing:
+
+- **Migrations run in the API's start command**, not in an entrypoint script. A failed
+  migration then stops the container rather than leaving it serving against a schema it does
+  not match.
+- **The API waits for the database to be *healthy*, not merely started.** Postgres accepts
+  connections a moment after its process appears, and starting before then fails in a way that
+  reads like a configuration error.
+- **`SECRET_KEY` has no default.** Compose refuses to start without it, because a default
+  secret is one that ends up in production.
+- **Shared rate limiting is on**, since more than one worker would otherwise each keep their
+  own counters.
+- **Uploaded PDFs live on a volume.** A container is disposable; a library is not.
+- **Both images run as an unprivileged user.** Nothing here needs root, and PDF parsing on
+  files someone else supplied is exactly the code to be careful about.
+
+**Not a production deployment.** It serves plain HTTP and has no TLS, no backups, and no
+process supervision beyond Docker's own. It exists so that running Atlas is one command, and so
+what runs elsewhere is what runs here.
+
+**Unverified locally.** Docker is not installed on the machine this was written on, so the
+compose file has been checked for structure and the Dockerfiles for the paths they reference,
+but neither image has been built. That is the one part of this repository that has not been run.

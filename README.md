@@ -56,7 +56,9 @@ their limits are in [`docs/security.md`](docs/security.md).
 
 ## Running Atlas locally
 
-Full setup, including troubleshooting, is in [`docs/development.md`](docs/development.md).
+The quickest way is `docker compose up --build`, which brings up the database, runs the
+migrations, and serves both halves. Full setup, including running it without containers and
+troubleshooting, is in [`docs/development.md`](docs/development.md).
 To see Atlas with a library already in it, run `python scripts/seed_demo.py` and follow
 [`docs/demo.md`](docs/demo.md).
 The short version:

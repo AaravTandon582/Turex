@@ -1,0 +1,71 @@
+# Atlas, in one command.
+#
+#   cp backend/.env.example .env   # then set SECRET_KEY and an API key
+#   docker compose up --build
+#
+# Deliberately not a production deployment: it serves over plain HTTP and keeps its data in a
+# local volume. It exists so that "run Atlas" is one command rather than a page of setup, and
+# so the thing that runs on someone else's machine is the same thing that runs here.
+
+services:
+  database:
+    # pgvector is not in the stock postgres image, and Atlas cannot start without it.
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-atlas-local-development}
+      POSTGRES_DB: atlas
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      # The API waits for this rather than for the container to exist: Postgres accepts
+      # connections a moment after the process starts, and starting before then fails in a way
+      # that looks like a configuration error.
+      test: ["CMD-SHELL", "pg_isready -U atlas -d atlas"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://atlas:${POSTGRES_PASSWORD:-atlas-local-development}@database/atlas
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env — see backend/.env.example}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      # Several workers would each keep their own rate-limit counters otherwise.
+      RATE_LIMITING_SHARED: "true"
+      CHAT_PROVIDER: ${CHAT_PROVIDER:-anthropic}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+    volumes:
+      - documents:/data
+    ports:
+      - "8000:8000"
+    # Migrations run here rather than in an entrypoint script so a failed migration stops the
+    # container instead of leaving it serving against a schema it does not match.
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn atlas.main:create_app --factory --host 0.0.0.0 --port 8000"
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        # Baked in at build time: Next inlines NEXT_PUBLIC_* into the bundle, so this cannot
+        # be supplied at start-up.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  database:
+  documents:

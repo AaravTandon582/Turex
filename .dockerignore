@@ -1,0 +1,12 @@
+**/node_modules
+**/.next
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/var
+**/test-results
+**/playwright-report
+**/e2e/.session.json
+.git
