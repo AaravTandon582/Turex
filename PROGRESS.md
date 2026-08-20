@@ -405,10 +405,13 @@ Full rationale in [`docs/decisions.md`](docs/decisions.md).
   question the library does not contain, and grounded flashcards and quizzes. Four bugs were
   found and fixed in the process — see M9's notes.
 - ~~Reranking is a pass-through.~~ **Resolved** — and that note was itself wrong: there was no
-  stage at all, not a pass-through one. A lexical reranker now reorders a wider candidate pool
-  by phrase match, term coverage, passage length, and section kind. It does not move the
-  offline benchmark, which is recorded in [`docs/evaluation.md`](docs/evaluation.md) rather
-  than glossed over.
+  stage at all, not a pass-through one. A lexical reranker reorders a wider candidate pool by
+  phrase match, term coverage, passage length, and section kind. It is worth nothing with the
+  offline embedder and **twelve points of recall@3 with a real one**, which only became visible
+  once there was a real embedding model to measure against.
+- ~~The benchmark can only report the offline floor.~~ **Resolved.** `qwen/qwen3-embedding-8b`
+  truncated to 1536 dimensions fits the existing column, so both columns are now measured:
+  recall@3 88% offline, **100%** with real embeddings.
 - ~~The reader has not been exercised in a browser.~~ **Resolved.** Playwright turned out to be
   installable after all, and 22 browser tests now cover PDF rendering, the text layer, text
   selection, highlight round-trips, every page on desktop and phone, and the notebook's

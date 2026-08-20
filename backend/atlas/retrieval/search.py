@@ -183,9 +183,14 @@ def _row_to_chunk(row: Row[Any]) -> RetrievedChunk:
 
 
 class RetrievalService:
-    def __init__(self, db: AsyncSession, embedder: EmbeddingProvider) -> None:
+    def __init__(
+        self, db: AsyncSession, embedder: EmbeddingProvider, *, rerank: bool = True
+    ) -> None:
         self._db = db
         self._embedder = embedder
+        self._rerank = rerank
+        """Off only for measurement. Reranking is worth 12 points of recall@3 with a real
+        embedding model, and the benchmark has to be able to run both ways to show that."""
 
     async def search(
         self,
@@ -213,7 +218,7 @@ class RetrievalService:
         # pool than the caller asked for is what gives it something to reorder; reranking
         # exactly `limit` results could only shuffle them.
         pool = fuse(vector_hits, lexical_hits)[: limit * CANDIDATE_MULTIPLIER]
-        fused = rerank(cleaned, pool)[:limit]
+        fused = (rerank(cleaned, pool) if self._rerank else pool)[:limit]
 
         logger.info(
             "retrieved passages",

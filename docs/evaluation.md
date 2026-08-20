@@ -42,25 +42,38 @@ sections were skipped.
 
 ### Current numbers
 
-| Metric | Value |
-|---|---|
-| recall@1 | 50% |
-| recall@3 | 88% |
-| recall@5 | 88% |
-| MRR | 0.646 |
+Measured both ways, because the embedder makes more difference than anything else in the
+pipeline:
 
-**These are floors for the offline embedder, not a claim about production quality.** CI has no
-API key, so the benchmark runs against `HashingEmbeddingProvider` — a deterministic
-bag-of-words stand-in with no semantics. It can match wording; it cannot connect *"which
-proteins gained most"* to *"the gain concentrates in proteins with fewer than one hundred
-effective sequences"*.
+| Metric | Offline embedder | Real embedding model |
+|---|---|---|
+| recall@1 | 50% | 38% |
+| recall@3 | 88% | **100%** |
+| recall@5 | 88% | **100%** |
+| MRR | 0.646 | 0.646 |
 
-One query fails for exactly that reason. It is kept, and pinned by a test that fails if a
-second query joins it or if it starts passing — a benchmark containing only cases the system
-passes measures nothing. See [`docs/decisions.md`](decisions.md) D11.
+The **offline** column is what CI enforces. It has no API key, so it runs against
+`HashingEmbeddingProvider` — a deterministic bag-of-words stand-in with no semantics. It can
+match wording; it cannot connect *"which proteins gained most"* to *"the gain concentrates in
+proteins with fewer than one hundred effective sequences"*. That query fails there, and is
+pinned by a test that fails if a second joins it **or if it starts passing** — a benchmark
+containing only cases the system passes measures nothing. See [`decisions.md`](decisions.md) D11.
 
-With a real embedding provider configured, run the same harness with `EMBEDDING_PROVIDER=openai`
-and expect materially better numbers.
+The **real** column is `qwen/qwen3-embedding-8b` through an OpenAI-compatible endpoint, asked
+for 1536 dimensions so it fits the existing `pgvector` column. Its native width is 4096, which
+would not have fit: pgvector's HNSW index stops at 2000 dimensions, so a wider vector means no
+fast search at all. Truncation is what makes it usable without a migration.
+
+Every query finds its answer within three results, including the one the offline embedder
+cannot. recall@1 is *lower* — semantic retrieval finds everything but orders the very top
+slightly differently — which is a real trade and worth stating rather than hiding behind the
+headline.
+
+```bash
+EMBEDDING_PROVIDER=openai python -m evaluation              # the real column
+EMBEDDING_PROVIDER=local  python -m evaluation              # the CI column
+EMBEDDING_PROVIDER=openai python -m evaluation --no-rerank  # what reranking is worth
+```
 
 ### What writing it found
 
@@ -79,14 +92,23 @@ passage is a paragraph or a caption, and what kind of section it sits in — a w
 (acknowledgements, references, appendix) multiplies the score down rather than subtracting a
 little, because the query's words appearing there means less, not slightly less.
 
-**It does not move this benchmark.** recall@3 88% and MRR 0.646 with and without it, while
-demonstrably reordering two of the eight queries. That is stated rather than implied: the
-offline embedder is itself bag-of-words, so a lexical reranker mostly reinforces the signal
-that produced the ranking in the first place.
+**What it is worth depends entirely on the embedder**, which is the useful finding:
 
-It is kept for the failure it does fix — an acknowledgements paragraph containing the query's
-words outranking the method section that answers it — and because it is the seam a
-cross-encoder would slot into.
+| | recall@3 | MRR |
+|---|---|---|
+| Offline embedder, fusion alone | 88% | 0.646 |
+| Offline embedder, reranked | 88% | 0.646 |
+| Real embeddings, fusion alone | 88% | 0.635 |
+| Real embeddings, reranked | **100%** | **0.646** |
+
+With the bag-of-words embedder it changes nothing: a lexical reranker reinforces the signal
+that already produced the ranking. With a semantic embedder it is worth twelve points of
+recall@3, because the two halves are then measuring different things and the lexical half
+corrects the top of the order.
+
+That is the whole argument for keeping it, and it only became visible once a real embedding
+model was available to measure against. Before that the honest report was "it changes nothing",
+which is what this document said.
 
 The first version was worse than useless: a reciprocal position prior halves between the first
 and second result, a gap no content signal can close, so it reordered nothing while appearing

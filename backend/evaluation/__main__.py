@@ -8,6 +8,7 @@ enforces, so the same numbers can be checked by hand and in CI without two imple
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import sys
 
@@ -27,6 +28,14 @@ the next one."""
 
 
 async def main() -> int:
+    parser = argparse.ArgumentParser(description="Score retrieval against the benchmark corpus.")
+    parser.add_argument(
+        "--no-rerank",
+        action="store_true",
+        help="Measure fusion alone, to show what reranking is worth.",
+    )
+    args = parser.parse_args()
+
     settings = get_settings()
     init_engine(settings)
     registry = get_registry(settings)
@@ -49,7 +58,9 @@ async def main() -> int:
 
             embedder = registry.embedder()
             await ingest_corpus(db, owner, embedder)
-            report = await run(db, owner.id, RetrievalService(db, embedder))
+            report = await run(
+                db, owner.id, RetrievalService(db, embedder, rerank=not args.no_rerank)
+            )
 
             print(report.render())
             print(f"\n  {report.chunks_indexed} chunks indexed")
