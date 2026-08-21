@@ -29,3 +29,6 @@ backend/var/
 .DS_Store
 .idea/
 .vscode/
+
+# The resumption token from an in-progress arXiv harvest. Local run state, not source.
+backend/.harvest-token

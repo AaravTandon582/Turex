@@ -47,7 +47,7 @@ def _summary(paper: Paper, job: IngestionJob | None = None) -> PaperSummary:
     return summary
 
 
-async def _detail(service: PaperService, paper: Paper) -> PaperDetail:
+async def build_detail(service: PaperService, paper: Paper) -> PaperDetail:
     """Assemble the full paper view, including how far ingestion has got."""
     section_count, chunk_count = await service.counts_for(paper.id)
     job = await service.latest_job(paper.id)
@@ -84,7 +84,7 @@ async def upload_paper(
     )
     if result.already_existed:
         response.status_code = status.HTTP_200_OK
-    return await _detail(service, result.paper)
+    return await build_detail(service, result.paper)
 
 
 @router.post("/from-reference", response_model=PaperDetail, status_code=status.HTTP_202_ACCEPTED)
@@ -107,7 +107,7 @@ async def add_paper_from_reference(
     result = await service.add_from_identifier(owner=user, reference=payload.reference)
     if result.already_existed:
         response.status_code = status.HTTP_200_OK
-    return await _detail(service, result.paper)
+    return await build_detail(service, result.paper)
 
 
 @router.get("", response_model=Page[PaperSummary])
@@ -136,7 +136,7 @@ async def get_paper(
     paper_id: uuid.UUID, user: CurrentUser, service: PaperServiceDep
 ) -> PaperDetail:
     paper = await service.get(owner=user, paper_id=paper_id)
-    return await _detail(service, paper)
+    return await build_detail(service, paper)
 
 
 @router.patch("/{paper_id}", response_model=PaperDetail)
@@ -144,7 +144,7 @@ async def update_paper(
     paper_id: uuid.UUID, patch: PaperUpdate, user: CurrentUser, service: PaperServiceDep
 ) -> PaperDetail:
     paper = await service.update(owner=user, paper_id=paper_id, patch=patch)
-    return await _detail(service, paper)
+    return await build_detail(service, paper)
 
 
 @router.post("/{paper_id}/opened", response_model=PaperDetail)
@@ -153,7 +153,7 @@ async def mark_opened(
 ) -> PaperDetail:
     """Record that the reader was opened. Moves an unread paper to 'reading'."""
     paper = await service.mark_opened(owner=user, paper_id=paper_id)
-    return await _detail(service, paper)
+    return await build_detail(service, paper)
 
 
 @router.post(
@@ -164,7 +164,7 @@ async def reprocess_paper(
 ) -> PaperDetail:
     await service.reprocess(owner=user, paper_id=paper_id)
     paper = await service.get(owner=user, paper_id=paper_id)
-    return await _detail(service, paper)
+    return await build_detail(service, paper)
 
 
 @router.get("/{paper_id}/equations", response_model=list[EquationRead])

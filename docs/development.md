@@ -85,6 +85,42 @@ Every model must be imported in `atlas/models/__init__.py`. Autogenerate compare
 `Base.metadata`, and a model nothing imports is invisible to it — the symptom is a migration
 that silently drops the table.
 
+### Filling the catalog
+
+The Discover page searches `catalog_papers`, which starts empty. Fill it from arXiv:
+
+```bash
+cd backend
+python -m scripts.harvest_arxiv --set cs --max-records 20000   # a few minutes
+python -m scripts.harvest_arxiv --set cs                       # all of computer science
+python -m scripts.harvest_arxiv                                # all of arXiv
+```
+
+Measured: about 66 papers a second (arXiv asks for three seconds between requests, and that is
+obeyed), and 3.4KB of database each.
+
+| | Time | Disk |
+|---|---|---|
+| 100,000 papers | ~25 min | ~340MB |
+| 500,000 papers | ~2 hours | ~1.7GB |
+| 2,600,000 papers (all of arXiv) | ~11 hours | ~8.7GB |
+
+Check `df -h` before the last one.
+
+**Stopping is safe at any point.** Every page is committed as it lands, and the resumption
+token is written to `backend/.harvest-token`:
+
+```bash
+python -m scripts.harvest_arxiv --resume "$(cat .harvest-token)"
+```
+
+Re-harvesting a range that overlaps an earlier run corrects the existing rows rather than
+duplicating them, so resuming is safe even when a token rewinds.
+
+The run refreshes the table's statistics as it goes. That is load-bearing rather than tidiness
+— see [`decisions.md`](decisions.md) D13 — so a harvest interrupted by Ctrl-C or a dropped
+connection still does it on the way out.
+
 ---
 
 ## Frontend

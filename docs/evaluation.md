@@ -218,12 +218,49 @@ the same library produced 30 concepts and 78 edges immediately.
 
 ---
 
+## The catalog, at scale
+
+192,400 papers harvested from arXiv's OAI-PMH feed onto a development machine, 650MB of
+database. Times are warm, three runs, while a harvest was still running against the same
+database:
+
+| Query | Time |
+|---|---|
+| `transformer attention` (390 matches) | 14ms |
+| `neural network` (~9,000 matches) | 170ms |
+| `learning` (40,670 matches — the widest word in the corpus) | 210–340ms |
+| browse newest, no query | 100ms |
+| browse a category | 122ms |
+| query + category + year bound | 46–60ms |
+| `GET /catalog/stats` | 134ms |
+
+**What measuring this found.** The same queries took 0.8–1.8 seconds before the table's
+statistics were refreshed — PostgreSQL was mis-estimating how many rows a common word matches
+and abandoning the GIN index for a sequential scan. Reading the query plan showed a `Seq Scan`
+where a `Bitmap Index Scan` belonged. The harvester now runs `ANALYZE` every fifty pages and
+at the end of every run, including runs that fail; see [`decisions.md`](decisions.md) D13.
+
+Nothing here needed the index to be redesigned, and nothing needed ranking quality to be
+traded away — which was the first thing considered, and would have been the wrong fix.
+
+**The result counter is bounded.** A `count(*)` over a text search is proportional to how many
+rows *match*, not how many are returned. Counting all 40,670 matches for `learning` costs more
+than finding the twenty anyone will read, so the count stops at 1,000 and the response carries
+`total_is_exact` so the UI renders `1,000+` rather than a precise-looking number that is not
+the truth.
+
+---
+
 ## Not measured
 
-- **Answer quality.** No live model call has been made — no API key was available while
-  building — so the assistant is exercised only with a scripted model. The retrieval half is
-  fully verified; the generation half is verified for grounding and failure handling, not for
-  whether a real model writes a good answer.
-- **The reader in a browser.** No browser automation was available. PDF rendering, text
-  selection, and highlight placement are verified by type-checking and a clean production
-  build, which is not the same as being looked at.
+- **Answer quality, systematically.** Live model calls are made and the assistant has been
+  driven end to end against a real model, so the claim that it is exercised only by a script
+  is no longer true. What is still missing is a *scored* generation benchmark: nothing
+  measures whether an answer is good, only that it is grounded, that its citations resolve,
+  and that a model which misbehaves cannot make Atlas misbehave.
+- **Semantic search over the catalog.** Catalog search is lexical, so it cannot connect a
+  description to a paper that uses different words for the same idea. This is a stated
+  limitation rather than an untested one — see [`decisions.md`](decisions.md) D13.
+- **A full arXiv mirror.** Measured to 192,400 papers. The whole of arXiv is roughly 2.6
+  million, which the same code should reach in about eleven hours and 8.7GB, but that has not
+  been run — and 8.7GB is more free disk than the development machine had.

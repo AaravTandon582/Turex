@@ -103,6 +103,39 @@ log line produced while handling the request, which is how a reported failure ge
 | `GET` | `/papers/{id}/file` | The original PDF, `inline`, `Cache-Control: private`. |
 | `DELETE` | `/papers/{id}` | 204. Removes derived data and, if unreferenced, the stored file. |
 
+### Catalog
+
+Papers Atlas knows about, as opposed to papers it has read. See
+[`architecture.md`](architecture.md) for why these are two tables rather than one.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/catalog/search` | Ranked full-text search over titles and abstracts. |
+| `GET` | `/catalog/stats` | How many papers, over what years, in which fields. |
+| `GET` | `/catalog/{id}` | One entry, including whether this reader already has it. |
+| `POST` | `/catalog/{id}/import` | Downloads the PDF and ingests it. 202 queued, 200 already held. |
+
+**Query parameters on `GET /catalog/search`:** `q`, `category`, `year_from`, `year_to`,
+`sort` (`relevance` · `newest`), `limit`, `offset`.
+
+All are optional. With no `q` this browses the newest papers, which is what the Discover page
+shows before anyone types. `category` matches the paper's *whole* category list, so a paper
+cross-listed into `cs.LG` is found when browsing `cs.LG`.
+
+`q` goes through `websearch_to_tsquery`, so quoted phrases, `or`, and a leading `-` to exclude
+all work — and malformed input is answered rather than raising, which is not true of the
+`to_tsquery` form.
+
+The response carries `total` and **`total_is_exact`**. Counting every match of a common word
+across a large catalog costs more than the search itself, so the count stops at 1,000; when
+`total_is_exact` is false, the UI must render `1,000+` rather than a precise-looking number.
+
+`offset` is capped at 10,000. Deep pagination makes PostgreSQL scan and discard every skipped
+row, and nobody reaches page five hundred by reading.
+
+`import` is rate limited against the **upload** budget, not the search one — the work it does
+is an upload: a download from arXiv, a parse, and an embedding call per chunk.
+
 **Query parameters on `GET /papers`:** `search`, `reading_status`, `status`, `collection_id`,
 `tag`, `favorites_only`, `sort` (`recent` · `title` · `year` · `opened`), `limit`, `offset`.
 

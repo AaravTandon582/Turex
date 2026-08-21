@@ -13,6 +13,7 @@ import { expect, test } from "@playwright/test";
 const PAGES = [
   "/dashboard",
   "/library",
+  "/discover",
   "/search",
   "/projects",
   "/notebook",

@@ -163,6 +163,29 @@ in dark mode never flashes white.
 
 ---
 
+## Two kinds of paper
+
+Atlas stores a paper two ways, and the distinction runs through the whole system.
+
+A **catalog paper** (`catalog_papers`) is one Atlas knows exists: title, authors, abstract,
+categories, dates. About 3.4KB, harvested in bulk from arXiv's OAI-PMH feed by
+`scripts/harvest_arxiv.py`, shared by every account, searched with PostgreSQL full text.
+Hundreds of thousands fit comfortably.
+
+A **library paper** (`papers`) is one a reader has: the stored PDF, parsed sections, chunks,
+embeddings. About a megabyte and fifty embedding calls. This is what the reader renders, what
+retrieval searches, and what a citation can point at.
+
+`POST /catalog/{id}/import` is the bridge, and it deliberately goes through
+`add_from_identifier` — the same path the "add by reference" box uses — rather than a shortcut
+of its own. The download gets the same SSRF checks, the file is validated by its bytes,
+identical files deduplicate, and ingestion is the pipeline an upload gets. An imported paper
+has nothing special about it, which is the point: everything downstream works without knowing
+where the paper came from.
+
+Nothing blurs the line. A catalog entry never pretends to have full text, and the assistant
+can only cite chunks, which only library papers have. See [`decisions.md`](decisions.md) D12.
+
 ## Cross-cutting mechanisms
 
 **Document ingestion** is asynchronous and database-backed. An upload writes the file to

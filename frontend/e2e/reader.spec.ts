@@ -26,6 +26,28 @@ async function openFirstPaperInReader(page: Page) {
   });
 }
 
+/**
+ * Select a few words near the start of the document.
+ *
+ * Done through the DOM because Playwright's drag does not reliably produce a range across the
+ * absolutely-positioned spans a PDF text layer is made of. The mouseup must originate inside
+ * the page container: the handler is there, and an event dispatched on `document` never
+ * reaches it.
+ */
+async function selectEarlyText(page: Page) {
+  await page.evaluate(() => {
+    const spans = document.querySelectorAll("[class*='textLayer'] span");
+    if (spans.length < 4) throw new Error("no text layer to select from");
+    const range = document.createRange();
+    range.setStart(spans[1].firstChild ?? spans[1], 0);
+    range.setEnd(spans[3].firstChild ?? spans[3], (spans[3].textContent ?? "").length);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    spans[3].dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+  });
+}
+
 test.describe("the reader", () => {
   test("renders the PDF and its text layer", async ({ page }) => {
     await openFirstPaperInReader(page);
@@ -48,26 +70,58 @@ test.describe("the reader", () => {
   test("selecting text offers to highlight it, and the highlight is saved", async ({ page }) => {
     await openFirstPaperInReader(page);
 
-    // Selection is made through the DOM because Playwright's drag does not reliably produce a
-    // range across the absolutely-positioned spans a PDF text layer is made of. The mouseup
-    // must originate inside the page container: the handler is there, and an event dispatched
-    // on `document` never reaches it.
-    await page.evaluate(() => {
-      const spans = document.querySelectorAll("[class*='textLayer'] span");
-      if (spans.length < 4) throw new Error("no text layer to select from");
-      const range = document.createRange();
-      range.setStart(spans[1].firstChild ?? spans[1], 0);
-      range.setEnd(spans[3].firstChild ?? spans[3], (spans[3].textContent ?? "").length);
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      spans[3].dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
-    });
+    await selectEarlyText(page);
 
     const swatch = page.locator('button[aria-label^="Highlight as"]').first();
     await expect(swatch).toBeVisible();
     await swatch.click();
 
+    await page.getByRole("tab", { name: "Highlights" }).click();
+    await expect(page.getByText(/no highlights/i)).toHaveCount(0);
+  });
+
+  test("the selection menu stays inside the page, and clickable", async ({ page }) => {
+    await openFirstPaperInReader(page);
+
+    // The regression this pins: the menu is centred on the selection and is about 410px wide,
+    // so a selection near the left margin — where most lines start — put half of it outside
+    // the page and underneath the sidebar. It still looked right, because the visible half was
+    // the half over the text; what failed was clicking, since the sidebar sits above and
+    // swallowed the press. The symptom was a highlight button that did nothing, on some
+    // selections and not others.
+    await selectEarlyText(page);
+
+    const swatch = page.locator('button[aria-label^="Highlight as"]').first();
+    await expect(swatch).toBeVisible();
+
+    const geometry = await page.evaluate(() => {
+      const button = document.querySelector<HTMLElement>('button[aria-label^="Highlight as"]');
+      const menu = button?.closest<HTMLElement>('[role="toolbar"]');
+      const pageBox = menu?.closest<HTMLElement>("[data-page]");
+      if (!button || !menu || !pageBox) throw new Error("the selection menu is not on a page");
+
+      const menuRect = menu.getBoundingClientRect();
+      const pageRect = pageBox.getBoundingClientRect();
+      const buttonRect = button.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        buttonRect.left + buttonRect.width / 2,
+        buttonRect.top + buttonRect.height / 2,
+      );
+
+      return {
+        overhangLeft: Math.round(pageRect.left - menuRect.left),
+        overhangRight: Math.round(menuRect.right - pageRect.right),
+        pressReachesTheButton: hit !== null && (hit === button || button.contains(hit)),
+      };
+    });
+
+    expect(geometry.overhangLeft, "the menu hangs off the left of the page").toBeLessThanOrEqual(1);
+    expect(geometry.overhangRight, "the menu hangs off the right of the page").toBeLessThanOrEqual(
+      1,
+    );
+    expect(geometry.pressReachesTheButton, "something is covering the highlight button").toBe(true);
+
+    await swatch.click();
     await page.getByRole("tab", { name: "Highlights" }).click();
     await expect(page.getByText(/no highlights/i)).toHaveCount(0);
   });

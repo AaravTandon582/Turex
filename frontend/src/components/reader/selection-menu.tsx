@@ -1,6 +1,7 @@
 "use client";
 
 import { Highlighter, MessageSquareQuote, Sigma, TriangleAlert } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { HIGHLIGHT_COLOURS, type HighlightColour } from "@/lib/annotations";
 import { cn } from "@/lib/cn";
@@ -25,13 +26,45 @@ export function SelectionMenu({
   onAsk: (action: SelectionAction) => void;
   onDismiss: () => void;
 }) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [left, setLeft] = useState(point.left);
+
+  /**
+   * Keep the menu inside the page it belongs to.
+   *
+   * It is centred on the selection, and it is about 410px wide, so a selection near the left
+   * margin — which is where most lines start — put half of it outside the page and underneath
+   * the sidebar. It still *looked* right, because the visible half was the half over the text;
+   * what failed was clicking, since the sidebar sits above and swallowed the press. The
+   * symptom was a highlight button that did nothing, on some selections and not others.
+   *
+   * Measured after layout rather than guessed: the width depends on the font, and a hardcoded
+   * figure would drift the moment an action is added to the toolbar.
+   */
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    const page = menu?.offsetParent as HTMLElement | null | undefined;
+    if (!menu || !page) {
+      setLeft(point.left);
+      return;
+    }
+
+    const half = menu.offsetWidth / 2;
+    // When the page is narrower than the menu the bounds cross over, and clamping to a
+    // reversed range would pin it to the wrong edge. Centring is the best available answer.
+    const smallest = Math.min(half, page.clientWidth / 2);
+    const largest = Math.max(page.clientWidth - half, page.clientWidth / 2);
+    setLeft(Math.min(Math.max(point.left, smallest), largest));
+  }, [point.left, point.top]);
+
   return (
     <div
+      ref={menuRef}
       role="toolbar"
       aria-label="Selection actions"
       // Positioned above the selection's first line, centred on it, and nudged clear of the
       // text so it never covers what the user just selected.
-      style={{ top: point.top - 8, left: point.left }}
+      style={{ top: point.top - 8, left }}
       className="absolute z-20 -translate-x-1/2 -translate-y-full animate-[var(--animate-rise)]"
       onMouseDown={(event) => event.preventDefault()}
     >

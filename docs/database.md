@@ -30,6 +30,33 @@ Accounts and browser sessions. A session stores only the SHA-256 hash of its ref
 plus `previous_token_hash` so a replayed token can be detected and the session revoked. See
 [`architecture.md`](architecture.md) → Authentication.
 
+### `catalog_papers`
+
+Papers Atlas knows about but has not read — arXiv metadata harvested in bulk. **The only table
+in the schema that is not owner-scoped**: this metadata is public and identical for every
+account, so a per-user copy would multiply hundreds of thousands of rows by the number of
+accounts to store the same bytes. What stays private is which papers an account has imported,
+and that lives in `papers`.
+
+| Group | Columns |
+|---|---|
+| Identity | `arxiv_id` (unique, version-less), `doi` |
+| Bibliographic | `title`, `abstract`, `authors` (JSONB), `categories` (JSONB), `primary_category`, `journal_ref`, `comments`, `published_on`, `updated_on` |
+| Search | `search_tsv` |
+| Provenance | `harvested_at` |
+
+`search_tsv` is maintained by the trigger `catalog_papers_search_tsv`, not by a generated
+column — PostgreSQL only allows immutable expressions in a generated column, and
+`setweight(to_tsvector(...))` over two columns is not accepted there. The guarantee that
+matters holds either way: nothing in the application writes the column, so nothing in the
+application can forget to. Title is weight A and abstract weight B.
+
+Indexes: GIN on `search_tsv` (the one that has to stay fast as the table grows), GIN
+`jsonb_path_ops` on `categories` for containment, plus `published_on` and
+`(primary_category, published_on)` for browsing.
+
+Filled by `python -m scripts.harvest_arxiv`. See [`decisions.md`](decisions.md) D12 and D13.
+
 ### `papers`
 
 One row per document in a user's library.

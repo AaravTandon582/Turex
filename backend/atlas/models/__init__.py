@@ -7,6 +7,7 @@ that silently drops the table.
 
 from atlas.db.base import Base
 from atlas.models.annotation import Annotation, HighlightColour
+from atlas.models.catalog import CatalogPaper
 from atlas.models.conversation import (
     AssistantMode,
     Conversation,
@@ -60,6 +61,7 @@ __all__ = [
     "Base",
     "CardKind",
     "CardReview",
+    "CatalogPaper",
     "Collection",
     "CollectionPaper",
     "Conversation",

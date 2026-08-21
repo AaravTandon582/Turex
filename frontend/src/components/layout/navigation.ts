@@ -2,6 +2,7 @@ import {
   BookOpen,
   FlaskConical,
   Home,
+  Compass,
   Library,
   MessagesSquare,
   Search,
@@ -19,14 +20,18 @@ export interface NavItem {
 }
 
 /**
- * The whole product, in eight destinations.
+ * The whole product, in nine destinations.
  *
- * Ordered along the research loop — read, organise, investigate, write, connect, learn, ask — so the
- * sidebar reflects how the work actually flows rather than grouping by feature area.
+ * Ordered along the research loop — read, find, organise, investigate, write, connect, learn, ask — so
+ * the sidebar reflects how the work actually flows rather than grouping by feature area.
+ *
+ * Discover sits beside Library because they are the two halves of the same idea: the papers you
+ * have, and the papers you could have.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/dashboard", label: "Home", icon: Home, shortcut: "h" },
   { href: "/library", label: "Library", icon: Library, shortcut: "l" },
+  { href: "/discover", label: "Discover", icon: Compass, shortcut: "d" },
   { href: "/search", label: "Search", icon: Search, shortcut: "s" },
   { href: "/projects", label: "Projects", icon: FlaskConical, shortcut: "p" },
   { href: "/notebook", label: "Notebook", icon: BookOpen, shortcut: "n" },

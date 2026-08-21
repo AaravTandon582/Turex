@@ -26,6 +26,16 @@ interface PdfPageProps {
   activeAnnotationId: string | null;
   onSelect: (selection: PageSelection | null) => void;
   onHighlightClick: (annotationId: string) => void;
+  /**
+   * Height as a multiple of width, used to reserve space before the page paints.
+   *
+   * Measured from the document rather than assumed. It was hardcoded to 1.294 — US Letter —
+   * and roughly half of arXiv is A4 at 1.414, so every page of an A4 paper grew by nine per
+   * cent of its height the moment it rendered. On a long paper the pages below never stop
+   * moving, which makes reading while it loads unpleasant and makes clicking anything on the
+   * page a matter of timing.
+   */
+  aspectRatio: number;
   /** The selection menu, when the active selection is on this page. Rendered here because
       the coordinates come from this page's text layer. */
   overlay?: ReactNode;
@@ -45,6 +55,7 @@ export function PdfPage({
   activeAnnotationId,
   onSelect,
   onHighlightClick,
+  aspectRatio,
   overlay,
 }: PdfPageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -118,7 +129,7 @@ export function PdfPage({
         loading={
           <div
             className="animate-[var(--animate-shimmer)] bg-surface-sunken"
-            style={{ width, height: width * 1.294 }}
+            style={{ width, height: width * aspectRatio }}
           />
         }
       />

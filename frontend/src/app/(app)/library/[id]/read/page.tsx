@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Document, pdfjs } from "react-pdf";
+import type { PDFDocumentProxy } from "pdfjs-dist";
 
 import { AskPanel, type AskRequest } from "@/components/reader/ask-panel";
 import { PdfPage, type PageSelection } from "@/components/reader/pdf-page";
@@ -64,6 +65,9 @@ const ACTIONS: Record<SelectionAction, { mode: AssistantMode; prompt: (text: str
  */
 const PDF_OPTIONS = { withCredentials: true } as const;
 
+/** US Letter. The default until the document reports its own size. */
+const LETTER_ASPECT_RATIO = 792 / 612;
+
 export default function ReaderPage() {
   const { id } = useParams<{ id: string }>();
   // Same reason as PDF_OPTIONS: a new string is fine, but recomputing it per render is not
@@ -81,6 +85,14 @@ export default function ReaderPage() {
   const [selection, setSelection] = useState<PageSelection | null>(null);
   const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
   const [askRequest, setAskRequest] = useState<AskRequest | null>(null);
+
+  /**
+   * Page height as a multiple of width, so the placeholders reserve the right space.
+   *
+   * US Letter until the document says otherwise, because it is the more common of the two and
+   * a wrong guess for one frame is better than a page of zero height. See `PdfPage`.
+   */
+  const [aspectRatio, setAspectRatio] = useState(LETTER_ASPECT_RATIO);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const width = Math.round(BASE_WIDTH * ZOOM_STEPS[zoomIndex]);
@@ -180,6 +192,25 @@ export default function ReaderPage() {
 
     console.error("PDF failed to render", cause);
     setError("Atlas couldn't render this PDF. It may be corrupted or password-protected.");
+  }
+
+  /**
+   * Read the real page proportions off the document.
+   *
+   * Page one only: a paper's pages are the same size as each other in every case that matters,
+   * and asking for all of them would mean a round trip per page before anything is reserved.
+   * A landscape figure page will be reserved wrongly, which costs one shift on that page
+   * rather than a shift on every page below every page.
+   */
+  async function measureAspectRatio(document: PDFDocumentProxy) {
+    try {
+      const first = await document.getPage(1);
+      const { width: pageWidth, height: pageHeight } = first.getViewport({ scale: 1 });
+      if (pageWidth > 0 && pageHeight > 0) setAspectRatio(pageHeight / pageWidth);
+    } catch {
+      // Keep the default. A paper that cannot report its own page size still renders; it just
+      // reserves Letter-shaped space, which is what it did before this existed.
+    }
   }
 
   /** Route an equation from the Maths panel to the assistant, as a selection would. */
@@ -285,7 +316,10 @@ export default function ReaderPage() {
             <Document
               file={fileUrl}
               options={PDF_OPTIONS}
-              onLoadSuccess={({ numPages }) => setPageCount(numPages)}
+              onLoadSuccess={(document) => {
+                setPageCount(document.numPages);
+                void measureAspectRatio(document);
+              }}
               onLoadError={(cause) => void handlePdfError(cause)}
               loading={<Skeleton className="h-[900px] w-[720px]" />}
               error={
@@ -300,6 +334,7 @@ export default function ReaderPage() {
                     key={index}
                     pageNumber={index + 1}
                     width={width}
+                    aspectRatio={aspectRatio}
                     annotations={annotations}
                     activeAnnotationId={activeAnnotationId}
                     onSelect={setSelection}

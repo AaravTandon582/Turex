@@ -199,7 +199,13 @@ export default function LibraryPage() {
           <>
             <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {items.map((paper) => (
-                <li key={paper.id} className="relative">
+                // `min-w-0` because a grid item defaults to `min-width: auto`, which means it
+                // refuses to shrink below its content's intrinsic width — so one card with a
+                // long venue line pushes the whole page sideways instead of being clipped by
+                // the truncation that is already there. It surfaced when papers imported from
+                // arXiv brought real journal references with them; the demo library's short
+                // ones had been hiding it.
+                <li key={paper.id} className="relative min-w-0">
                   <PaperCard
                     paper={paper}
                     progressLabel={paper.ingestion?.label}

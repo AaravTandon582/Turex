@@ -27,6 +27,7 @@ from atlas.api.deps import (
     reset_rate_limits,
 )
 from atlas.core.config import Environment, Settings, get_settings
+from atlas.db.base import Base
 from atlas.db.session import dispose_engine, init_engine, session_scope
 from atlas.main import create_app
 from atlas.retrieval.search import RetrievalService
@@ -101,11 +102,22 @@ def clean_rate_limits() -> None:
 
 @pytest.fixture(autouse=True)
 async def clean_tables(app: object, settings: Settings) -> AsyncIterator[None]:
-    """Leave the database empty after every test so tests cannot depend on each other."""
+    """Leave the database empty after every test so tests cannot depend on each other.
+
+    Every table is named, derived from the metadata, rather than truncating `users` and
+    trusting the cascade. Most tables do reach users through a foreign key — papers, chunks,
+    jobs, collections, tags — but not all of them do: the catalog holds public metadata shared
+    by every account and `rate_limit_counters` is keyed by a hash. Those survived a cascade
+    from `users` and leaked into the next test, which showed up as a search finding a thousand
+    papers a test had never inserted.
+
+    Deriving the list means the next table someone adds is cleaned without anyone having to
+    remember this file exists.
+    """
     yield
+    tables = ", ".join(sorted(table.name for table in Base.metadata.sorted_tables))
     async with session_scope() as session:
-        # Papers, sections, chunks, jobs, collections, and tags all cascade from users.
-        await session.execute(text("TRUNCATE users RESTART IDENTITY CASCADE"))
+        await session.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
 
 
 @pytest.fixture

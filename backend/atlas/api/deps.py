@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from atlas.ai.registry import ProviderRegistry, get_registry
+from atlas.catalog.service import CatalogService
 from atlas.core.config import Settings, get_settings
 from atlas.core.errors import UnauthenticatedError
 from atlas.core.logging import bind_request_context
@@ -110,6 +111,13 @@ def get_paper_service(db: DbDep, store: DocumentStoreDep, settings: SettingsDep)
 
 
 PaperServiceDep = Annotated[PaperService, Depends(get_paper_service)]
+
+
+def get_catalog_service(db: DbDep) -> CatalogService:
+    return CatalogService(db)
+
+
+CatalogServiceDep = Annotated[CatalogService, Depends(get_catalog_service)]
 
 
 def get_collection_service(db: DbDep) -> CollectionService:
