@@ -290,7 +290,7 @@ async def build_project(api: httpx.AsyncClient, papers: dict[str, str], seeded: 
         created = _expect(response, "create a hypothesis")
         seeded.hypotheses += 1
 
-        for short, query, stance in entry["evidence"]:  # type: ignore[misc]
+        for short, query, stance in entry["evidence"]:
             passage = await find_passage(api, query, papers[short])
             attached = await api.post(
                 f"/hypotheses/{created['id']}/evidence",

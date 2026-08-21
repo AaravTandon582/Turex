@@ -70,8 +70,8 @@ export default function DiscoverPage() {
     [query, category ?? "", sort, offset],
   );
 
-  const handleImported = useCallback((arxivId: string, paperId: string) => {
-    setJustImported((current) => ({ ...current, [arxivId]: paperId }));
+  const handleImported = useCallback((externalId: string, paperId: string) => {
+    setJustImported((current) => ({ ...current, [externalId]: paperId }));
   }, []);
 
   const page = results.data;
@@ -214,7 +214,7 @@ export default function DiscoverPage() {
                 key={paper.id}
                 paper={paper}
                 onImported={handleImported}
-                libraryPaperId={justImported[paper.arxiv_id]}
+                libraryPaperId={justImported[paper.external_id]}
               />
             ))}
           </div>

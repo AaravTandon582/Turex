@@ -4,7 +4,10 @@ import type { PaperDetail } from "@/lib/papers";
 /** A paper Atlas knows about, which may or may not be in this reader's library. */
 export interface CatalogPaper {
   id: string;
-  arxiv_id: string;
+  /** Which index this came from: arXiv preprints, or OpenAlex's cross-field corpus. */
+  source: "arxiv" | "openalex";
+  /** Its id within that source — an arXiv id, or an OpenAlex work id. */
+  external_id: string;
   doi: string | null;
   title: string;
   abstract: string | null;
@@ -15,8 +18,14 @@ export interface CatalogPaper {
   comments: string | null;
   published_on: string | null;
   updated_on: string | null;
-  abs_url: string;
-  pdf_url: string;
+  landing_url: string | null;
+  /**
+   * Where the free file is, when there is one.
+   *
+   * Null means Atlas cannot fetch this paper — an OpenAlex work that is not open access. The
+   * card offers to open the publisher's page rather than an import that would fail.
+   */
+  pdf_url: string | null;
   /** Whether this reader has already imported it, so the card offers "Open" not "Import". */
   in_library: boolean;
 }

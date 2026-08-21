@@ -85,5 +85,17 @@ export function describe(caught: unknown): string {
   // The API writes `message` for a person, so it is always safe to display and usually better
   // than anything generic invented here.
   if (caught instanceof ApiError) return caught.message;
-  return "Atlas couldn't load that. Check your connection and try again.";
+
+  // A genuine transport failure. `fetch` rejects with a TypeError and no detail — deliberately,
+  // so a page cannot probe the network — so this is the one case where a guess is all there is.
+  if (caught instanceof TypeError && /fetch|network|load failed/i.test(caught.message)) {
+    return "Atlas couldn't reach the server. Check your connection and try again.";
+  }
+
+  // Anything else is a real failure with a real message, and saying "check your connection"
+  // over the top of it sends people to look at their wifi. That happened: a Python runtime
+  // that failed to start reported itself as a network problem and gave nothing to act on.
+  if (caught instanceof Error && caught.message.trim()) return caught.message;
+
+  return "Atlas couldn't complete that. Try again.";
 }

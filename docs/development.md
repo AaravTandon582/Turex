@@ -107,6 +107,10 @@ obeyed), and 3.4KB of database each.
 
 Check `df -h` before the last one.
 
+```bash
+python -m scripts.harvest_arxiv --all      # every archive in turn, ~2.6M papers
+```
+
 **Stopping is safe at any point.** Every page is committed as it lands, and the resumption
 token is written to `backend/.harvest-token`:
 
@@ -116,6 +120,28 @@ python -m scripts.harvest_arxiv --resume "$(cat .harvest-token)"
 
 Re-harvesting a range that overlaps an earlier run corrects the existing rows rather than
 duplicating them, so resuming is safe even when a token rewinds.
+
+### Papers arXiv does not have
+
+arXiv is preprints, and overwhelmingly physics, mathematics and computer science — no
+medicine, no chemistry, no humanities. OpenAlex indexes over a hundred million works across
+every field, free and without a key:
+
+```bash
+python -m scripts.harvest_openalex \
+  --filter "has_abstract:true,type:article,primary_topic.field.id:fields/27" \
+  --max-records 50000 --mailto you@example.com
+```
+
+A hundred million rows would be about 300GB, so this takes **slices** — a field, a date range,
+a topic — and which slices is your decision. Useful filters are listed in the script's `--help`.
+
+Give `--mailto`: OpenAlex puts named clients in a faster queue, and free services stay free
+partly because heavy users say who they are.
+
+One difference worth knowing: an arXiv id always resolves to a free PDF, an OpenAlex work only
+when it is open access. Entries without one show *No free full text* rather than offering an
+import that would fail.
 
 The run refreshes the table's statistics as it goes. That is load-bearing rather than tidiness
 — see [`decisions.md`](decisions.md) D13 — so a harvest interrupted by Ctrl-C or a dropped

@@ -6,6 +6,7 @@ that silently drops the table.
 """
 
 from atlas.db.base import Base
+from atlas.models.analysis import Analysis, AnalysisCell, CellKind, CellStatus
 from atlas.models.annotation import Annotation, HighlightColour
 from atlas.models.catalog import CatalogPaper
 from atlas.models.conversation import (
@@ -56,12 +57,16 @@ from atlas.models.workspace import (
 
 __all__ = [
     "EMBEDDING_DIMENSIONS",
+    "Analysis",
+    "AnalysisCell",
     "Annotation",
     "AssistantMode",
     "Base",
     "CardKind",
     "CardReview",
     "CatalogPaper",
+    "CellKind",
+    "CellStatus",
     "Collection",
     "CollectionPaper",
     "Conversation",

@@ -16,7 +16,7 @@ const POLL_MS = 2_000;
 interface CatalogCardProps {
   paper: CatalogPaper;
   /** Told the library id once the paper is readable, so paging back keeps the Read link. */
-  onImported: (arxivId: string, paperId: string) => void;
+  onImported: (externalId: string, paperId: string) => void;
   /** Set when this paper was imported earlier in the visit. */
   libraryPaperId?: string;
 }
@@ -61,7 +61,7 @@ export function CatalogCard({ paper, onImported, libraryPaperId }: CatalogCardPr
         const current = await papers.get(paperId);
         if (!active) return;
         setImported(current);
-        if (!isProcessing(current)) notify.current(paper.arxiv_id, current.id);
+        if (!isProcessing(current)) notify.current(paper.external_id, current.id);
       } catch (caught) {
         if (!active) return;
         // Stop polling and say so. A silent retry loop against a server that is down looks
@@ -75,7 +75,7 @@ export function CatalogCard({ paper, onImported, libraryPaperId }: CatalogCardPr
       active = false;
       clearInterval(timer);
     };
-  }, [pending, paperId, paper.arxiv_id]);
+  }, [pending, paperId, paper.external_id]);
 
   async function handleImport() {
     setStarting(true);
@@ -84,7 +84,7 @@ export function CatalogCard({ paper, onImported, libraryPaperId }: CatalogCardPr
       const added = await catalog.import(paper.id);
       setImported(added);
       // Already ingested — the same file was in the library under another name.
-      if (!isProcessing(added)) onImported(paper.arxiv_id, added.id);
+      if (!isProcessing(added)) onImported(paper.external_id, added.id);
     } catch (caught) {
       // Shown on the card rather than swallowed. An import that quietly does nothing is the
       // failure mode that makes a person click the button four more times.
@@ -109,7 +109,7 @@ export function CatalogCard({ paper, onImported, libraryPaperId }: CatalogCardPr
             <Badge key={category}>{category}</Badge>
           ))}
         {year ? <span>{year}</span> : null}
-        <span className="font-mono">{paper.arxiv_id}</span>
+        <span className="font-mono">{paper.external_id}</span>
       </div>
 
       <h3 className="mt-2 text-base leading-snug font-medium text-ink">
@@ -150,7 +150,7 @@ export function CatalogCard({ paper, onImported, libraryPaperId }: CatalogCardPr
               In your library
             </Link>
           </Button>
-        ) : (
+        ) : paper.pdf_url ? (
           <Button size="sm" onClick={handleImport} disabled={starting}>
             {starting ? (
               <Loader2 aria-hidden className="size-4 animate-spin" />
@@ -159,14 +159,21 @@ export function CatalogCard({ paper, onImported, libraryPaperId }: CatalogCardPr
             )}
             {starting ? "Adding…" : "Add to library"}
           </Button>
+        ) : (
+          // No free file to fetch. Offering an import that will fail is worse than saying so:
+          // a paywalled paper is a fact about the paper, not a fault to be discovered after
+          // waiting for a download.
+          <span className="text-xs text-ink-muted">No free full text</span>
         )}
 
-        <Button asChild variant="ghost" size="sm">
-          <a href={paper.abs_url} target="_blank" rel="noreferrer noopener">
-            <ExternalLink aria-hidden className="size-4" />
-            arXiv
-          </a>
-        </Button>
+        {paper.landing_url && (
+          <Button asChild variant="ghost" size="sm">
+            <a href={paper.landing_url} target="_blank" rel="noreferrer noopener">
+              <ExternalLink aria-hidden className="size-4" />
+              {paper.source === "arxiv" ? "arXiv" : "Publisher"}
+            </a>
+          </Button>
+        )}
       </div>
 
       {failed ? (

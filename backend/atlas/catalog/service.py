@@ -15,9 +15,9 @@ from datetime import date
 from sqlalchemy import Select, and_, desc, func, literal, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from atlas.core.errors import NotFoundError
+from atlas.core.errors import NotFoundError, ValidationError
 from atlas.core.logging import get_logger
-from atlas.models.catalog import CatalogPaper
+from atlas.models.catalog import CatalogPaper, CatalogSource
 from atlas.models.paper import Paper, PaperSource
 from atlas.models.user import User
 from atlas.services.paper_service import PaperService, UploadResult
@@ -120,7 +120,7 @@ class CatalogService:
         )
         counter = self._filtered(counter, category=category, year_from=year_from, year_to=year_to)
 
-        newest = (CatalogPaper.published_on.desc().nulls_last(), CatalogPaper.arxiv_id.desc())
+        newest = (CatalogPaper.published_on.desc().nulls_last(), CatalogPaper.external_id.desc())
         if sort == "newest" or rank is None:
             # With no query there is nothing to rank by, so recency is the only sensible
             # order — and it is what someone browsing a field expects to see first.
@@ -167,7 +167,7 @@ class CatalogService:
         for every row it renders, and asking per row is the N+1 that makes a search results
         page slow in exactly the way `tests/test_query_counts.py` exists to catch.
         """
-        wanted = [paper.arxiv_id for paper in catalog_papers]
+        wanted = [paper.external_id for paper in catalog_papers]
         if not wanted:
             return set()
         rows = await self._db.execute(
@@ -198,16 +198,28 @@ class CatalogService:
         """
         entry = await self.get(catalog_id)
 
-        result = await papers.add_from_identifier(owner=owner, reference=entry.arxiv_id)
+        if not entry.reference:
+            # No free file to fetch. Saying so beats letting the fetcher fail with something
+            # about an empty URL — an OpenAlex work that is not open access simply has nowhere
+            # for Atlas to get the PDF from, and that is a fact about the paper, not a fault.
+            raise ValidationError(
+                "There's no free full text for this paper. Open it at the publisher and "
+                "upload the PDF if you have access."
+            )
+
+        result = await papers.add_from_identifier(owner=owner, reference=entry.reference)
 
         if not result.already_existed:
             paper = result.paper
             paper.title = entry.title[:1000]
             paper.authors = entry.authors
             paper.abstract = entry.abstract
-            paper.arxiv_id = entry.arxiv_id[:64]
-            paper.source = PaperSource.arxiv
-            paper.source_url = entry.abs_url
+            if entry.source is CatalogSource.arxiv:
+                paper.arxiv_id = entry.external_id[:64]
+                paper.source = PaperSource.arxiv
+            else:
+                paper.source = PaperSource.url
+            paper.source_url = entry.landing_url
             if entry.doi:
                 paper.doi = entry.doi[:255]
             if entry.published_on:
@@ -219,7 +231,8 @@ class CatalogService:
         logger.info(
             "imported a paper from the catalog",
             extra={
-                "arxiv_id": entry.arxiv_id,
+                "source": entry.source.value,
+                "external_id": entry.external_id,
                 "paper_id": str(result.paper.id),
                 "already_existed": result.already_existed,
             },

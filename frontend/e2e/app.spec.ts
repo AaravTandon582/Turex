@@ -16,6 +16,7 @@ const PAGES = [
   "/discover",
   "/search",
   "/projects",
+  "/workstation",
   "/notebook",
   "/graph",
   "/study",

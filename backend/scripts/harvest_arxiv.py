@@ -34,8 +34,10 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from atlas.catalog.harvest import (
+    ARXIV_SETS,
     MINIMUM_DELAY_SECONDS,
     ArxivHarvester,
+    DiskFullError,
     HarvestProgress,
     analyze_catalog,
     count_catalog,
@@ -46,6 +48,27 @@ from atlas.core.config import get_settings
 from atlas.db.session import dispose_engine, get_session_factory, init_engine
 
 TOKEN_FILE = Path(".harvest-token")
+
+DONE_FILE = Path(".harvest-done")
+"""Archives already harvested to completion, one per line.
+
+`--all` is a sequence of eight long runs, and losing the ninth hour to a dropped connection
+should not mean re-fetching the first eight. Written only when an archive's feed actually
+ends, so an archive interrupted part-way is retried in full next time rather than being
+recorded as finished — the alternative silently leaves a permanent hole in the catalog.
+"""
+
+
+def completed_sets() -> set[str]:
+    if not DONE_FILE.exists():
+        return set()
+    return {line.strip() for line in DONE_FILE.read_text().splitlines() if line.strip()}
+
+
+def mark_complete(set_spec: str) -> None:
+    with DONE_FILE.open("a") as handle:
+        handle.write(f"{set_spec}\n")
+
 
 USER_AGENT = "Atlas/1.0 (research workspace; +https://github.com/atlas)"
 """arXiv asks automated clients to identify themselves. A request without this is the kind
@@ -75,6 +98,11 @@ def _arguments() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--set", dest="set_spec", help="an arXiv archive, e.g. cs or q-bio")
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="every archive in turn — the whole of arXiv (~2.6M papers, ~8GB, ~11 hours)",
+    )
     parser.add_argument("--since", type=_parse_date, help="only papers updated on or after this")
     parser.add_argument("--until", type=_parse_date, help="only papers updated on or before this")
     parser.add_argument(
@@ -83,6 +111,11 @@ def _arguments() -> argparse.ArgumentParser:
         help="stop after roughly this many papers (the last page is not cut short)",
     )
     parser.add_argument("--resume", help="a resumption token from an earlier run")
+    parser.add_argument(
+        "--restart",
+        action="store_true",
+        help="with --all, start over rather than skipping archives already completed",
+    )
     parser.add_argument(
         "--delay",
         type=float,
@@ -124,6 +157,13 @@ async def main() -> int:
     init_engine(get_settings())
     sessions = get_session_factory()
 
+    if args.all and (args.set_spec or args.resume):
+        print(
+            "--all covers every archive, so it cannot be combined with --set or --resume.",
+            file=sys.stderr,
+        )
+        return 2
+
     if args.resume and (args.set_spec or args.since or args.until):
         # OAI-PMH forbids it and arXiv answers `badArgument`. Saying so here is friendlier
         # than letting the first request fail three seconds later with a protocol error.
@@ -151,13 +191,58 @@ async def _run(
     sessions: async_sessionmaker[AsyncSession],
     stopping: asyncio.Event,
 ) -> int:
+    """One archive, or every archive in turn."""
+    if not args.all:
+        return await _harvest_one(args, sessions, stopping, set_spec=args.set_spec)
+
+    if args.restart:
+        DONE_FILE.unlink(missing_ok=True)
+
+    done = completed_sets()
+    remaining = [name for name in ARXIV_SETS if name not in done]
+
+    if done:
+        print(f"already complete: {', '.join(sorted(done))}")
+    if not remaining:
+        print("every archive is already harvested. Use --restart to do them again.")
+        return 0
+    print(f"harvesting {len(remaining)} archives: {', '.join(remaining)}\n")
+
+    for name in remaining:
+        print(f"── {name} " + "─" * 56)
+        # Each archive is its own run with its own token, so a failure in one does not
+        # discard the others and a resume knows which feed it is resuming.
+        TOKEN_FILE.unlink(missing_ok=True)
+        code = await _harvest_one(args, sessions, stopping, set_spec=name)
+
+        if code == 0 and not (TOKEN_FILE.exists() and TOKEN_FILE.read_text().strip()):
+            mark_complete(name)
+        elif stopping.is_set():
+            print("\nstopped. Re-run with --all to continue from the next archive.")
+            return 0
+        else:
+            # Recorded as unfinished, so the next --all retries this archive in full rather
+            # than leaving a permanent hole nobody notices.
+            print(f"\n{name} did not finish; it will be retried by the next --all run.")
+
+    print("\nevery archive harvested.")
+    return 0
+
+
+async def _harvest_one(
+    args: argparse.Namespace,
+    sessions: async_sessionmaker[AsyncSession],
+    stopping: asyncio.Event,
+    *,
+    set_spec: str | None,
+) -> int:
     async with sessions() as db:
         before = await count_catalog(db)
         print(f"catalog holds {before:,} papers")
         if args.resume:
             print("resuming from a saved token")
         else:
-            scope = args.set_spec or "all of arXiv"
+            scope = set_spec or "all of arXiv"
             window = ""
             if args.since or args.until:
                 window = f", {args.since or 'the beginning'} to {args.until or 'now'}"
@@ -176,7 +261,10 @@ async def _run(
                 raise KeyboardInterrupt
 
         async with httpx.AsyncClient(
-            timeout=httpx.Timeout(120.0),
+            # Generous, because a throttled connection delivering a 3MB page slowly is not a
+            # failure — it is the service asking for patience, and treating it as an error is
+            # how a long harvest dies two hours in with everything working.
+            timeout=httpx.Timeout(300.0, connect=30.0),
             follow_redirects=True,
             headers={"User-Agent": USER_AGENT},
         ) as client:
@@ -185,7 +273,7 @@ async def _run(
                 progress = await harvest(
                     db,
                     harvester,
-                    set_spec=args.set_spec,
+                    set_spec=set_spec,
                     since=args.since,
                     until=args.until,
                     resume_from=args.resume,
@@ -195,6 +283,13 @@ async def _run(
             except KeyboardInterrupt:
                 print("\n\nstopped — everything harvested so far is saved")
                 await analyze_catalog(db)
+            except DiskFullError as exc:
+                print(f"\n\n{exc}", file=sys.stderr)
+                print(
+                    f'Free some space, then resume with: --resume "$(cat {TOKEN_FILE})"',
+                    file=sys.stderr,
+                )
+                return 1
             except HarvestError as exc:
                 # Before reporting, so a run cut short by a dropped connection still leaves
                 # the planner able to use the index over everything it did manage to fetch.

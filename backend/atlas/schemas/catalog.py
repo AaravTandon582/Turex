@@ -19,7 +19,9 @@ class CatalogPaperRead(AtlasModel):
     """
 
     id: uuid.UUID
-    arxiv_id: str
+    source: str
+    external_id: str
+    """This paper's id within its source — an arXiv id, or an OpenAlex work id."""
     doi: str | None = None
     title: str
     abstract: str | None = None
@@ -30,8 +32,12 @@ class CatalogPaperRead(AtlasModel):
     comments: str | None = None
     published_on: date | None = None
     updated_on: date | None = None
-    abs_url: str
-    pdf_url: str
+    landing_url: str | None = None
+    """Where a human should open it: an arXiv abstract page, or a DOI resolver."""
+
+    pdf_url: str | None = None
+    """Where the free file is, when there is one. Null means Atlas cannot fetch it, and the
+    card offers to open the publisher's page instead of an import that would fail."""
 
     in_library: bool = False
     library_paper_id: uuid.UUID | None = None

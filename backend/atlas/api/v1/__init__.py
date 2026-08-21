@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from atlas.api.v1 import (
+    analysis,
     annotations,
     assistant,
     auth,
@@ -20,6 +21,7 @@ api_router.include_router(health.router)
 api_router.include_router(auth.router)
 api_router.include_router(papers.router)
 api_router.include_router(catalog.router)
+api_router.include_router(analysis.router)
 api_router.include_router(collections.router)
 api_router.include_router(assistant.router)
 api_router.include_router(annotations.router)

@@ -122,17 +122,48 @@ configured one *cannot answer at all* — no credit, not entitled, not carried, 
 response. Never for a rate limit or an outage: those are about the service rather than the
 model, so a second request to it fails the same way. Which model answered is logged.
 
+### Analyses
+
+A project's computational half: a notebook of cells, each holding code and the output it last
+produced.
+
+**Nothing here is executed by the server.** Code runs in the reader's browser, in Python
+compiled to WebAssembly, and only the resulting text is sent back to be stored — which is why
+`run` takes a *result* rather than a request to execute something. There is no execution
+endpoint, and adding one would be adding remote code execution to a research tool.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET`, `POST` | `/analyses` | `?project_id=` filters. Creating adds one starter cell. |
+| `GET`, `PATCH`, `DELETE` | `/analyses/{id}` | |
+| `POST` | `/analyses/{id}/cells` | `after` inserts below a cell rather than appending. |
+| `PUT` | `/analyses/{id}/cells/{cell_id}` | Saves source. **Marks the cell stale** if it had run. |
+| `POST` | `/analyses/{id}/cells/{cell_id}/run` | Records what the browser got. Stores; never executes. |
+| `POST` | `/analyses/{id}/cells/{cell_id}/move` | `offset` of -1 or 1. |
+| `DELETE` | `/analyses/{id}/cells/{cell_id}` | An analysis keeps at least one cell. |
+
+Saving source marks a cell **stale** because its stored output no longer corresponds to its
+code. A number sitting under code that has since changed looks checked and is not, which is
+how a wrong figure reaches a write-up.
+
 ### Catalog
 
 Papers Atlas knows about, as opposed to papers it has read. See
 [`architecture.md`](architecture.md) for why these are two tables rather than one.
+
+Two sources. **arXiv** is preprints, strongest in physics, mathematics and computer science.
+**OpenAlex** indexes over a hundred million works across every field including the ones arXiv
+has none of — medicine, chemistry, the humanities. An entry carries `source` and `external_id`
+rather than an arXiv id, and `pdf_url` is **nullable**: an arXiv id always resolves to a free
+file, an OpenAlex work only when it is open access. A null there means the paper cannot be
+imported, and the UI says so instead of offering a download that would fail.
 
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/catalog/search` | Ranked full-text search over titles and abstracts. |
 | `GET` | `/catalog/stats` | How many papers, over what years, in which fields. |
 | `GET` | `/catalog/{id}` | One entry, including whether this reader already has it. |
-| `POST` | `/catalog/{id}/import` | Downloads the PDF and ingests it. 202 queued, 200 already held. |
+| `POST` | `/catalog/{id}/import` | Downloads the PDF and ingests it. 202 queued, 200 already held. 422 when there is no free file. |
 
 **Query parameters on `GET /catalog/search`:** `q`, `category`, `year_from`, `year_to`,
 `sort` (`relevance` · `newest`), `limit`, `offset`.

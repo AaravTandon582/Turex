@@ -31,7 +31,8 @@ router = APIRouter(prefix="/catalog", tags=["catalog"])
 def _read(entry: CatalogPaper, *, in_library: bool = False) -> CatalogPaperRead:
     return CatalogPaperRead(
         id=entry.id,
-        arxiv_id=entry.arxiv_id,
+        source=entry.source.value,
+        external_id=entry.external_id,
         doi=entry.doi,
         title=entry.title,
         abstract=entry.abstract,
@@ -50,7 +51,7 @@ def _read(entry: CatalogPaper, *, in_library: bool = False) -> CatalogPaperRead:
         comments=entry.comments,
         published_on=entry.published_on,
         updated_on=entry.updated_on,
-        abs_url=entry.abs_url,
+        landing_url=entry.landing_url,
         pdf_url=entry.pdf_url,
         in_library=in_library,
     )
@@ -97,7 +98,7 @@ async def search_catalog(
     owned = await service.imported_ids(user.id, found.items)
 
     return CatalogPage(
-        items=[_read(entry, in_library=entry.arxiv_id in owned) for entry in found.items],
+        items=[_read(entry, in_library=entry.external_id in owned) for entry in found.items],
         total=found.total,
         total_is_exact=found.total_is_exact,
         limit=found.limit,
@@ -127,7 +128,7 @@ async def read_catalog_paper(
 ) -> CatalogPaperRead:
     entry = await service.get(catalog_id)
     owned = await service.imported_ids(user.id, [entry])
-    return _read(entry, in_library=entry.arxiv_id in owned)
+    return _read(entry, in_library=entry.external_id in owned)
 
 
 @router.post(

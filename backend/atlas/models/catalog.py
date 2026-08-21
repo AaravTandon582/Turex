@@ -29,14 +29,32 @@ the isolation boundary belongs.
 
 from __future__ import annotations
 
+import enum
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Date, DateTime, Index, String, Text, func
+from sqlalchemy import Date, DateTime, Enum, Index, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from atlas.db.base import Base, UUIDPrimaryKeyMixin
+
+
+class CatalogSource(enum.StrEnum):
+    """Where a catalog entry came from.
+
+    arXiv is preprints, and strongest in physics, mathematics and computer science. OpenAlex
+    indexes over a hundred million works across every field including the ones arXiv has none
+    of — medicine, chemistry, the humanities — which is why one source was never going to be
+    enough for "find me any paper".
+
+    The distinction is kept because it changes what an entry can promise. An arXiv id always
+    resolves to a free PDF; an OpenAlex work resolves to one only when it is open access, and
+    the import path has to know the difference rather than discover it as a failure.
+    """
+
+    arxiv = "arxiv"
+    openalex = "openalex"
 
 
 class CatalogPaper(UUIDPrimaryKeyMixin, Base):
@@ -62,6 +80,7 @@ class CatalogPaper(UUIDPrimaryKeyMixin, Base):
             "ix_catalog_papers_primary_category_published_on", "primary_category", "published_on"
         ),
         Index("ix_catalog_papers_published_on", "published_on"),
+        UniqueConstraint("source", "external_id", name="uq_catalog_papers_source_external_id"),
         # Filtering by category uses JSONB containment (`categories @> '["cs.LG"]'`) rather
         # than a match on `primary_category`, so a paper cross-listed into cs.LG is found when
         # someone browses cs.LG — which is what a reader means by the category. `jsonb_path_ops`
@@ -75,13 +94,22 @@ class CatalogPaper(UUIDPrimaryKeyMixin, Base):
         ),
     )
 
-    arxiv_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
-    """Bare and version-less — `2103.14030`, not `2103.14030v2`.
+    source: Mapped[CatalogSource] = mapped_column(
+        Enum(CatalogSource, name="catalog_source", native_enum=False, length=32),
+        nullable=False,
+        server_default=CatalogSource.arxiv.value,
+    )
 
-    Unique because it is the natural key: a harvest run that overlaps a previous one must
-    update the existing row rather than insert a second copy of the same paper. arXiv's
-    incremental feed re-sends any paper whose metadata changed, so overlap is the normal case,
-    not an edge one.
+    external_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    """This paper's id *within its source*, and unique together with it.
+
+    For arXiv, bare and version-less — `2103.14030`, not `2103.14030v2` — because the catalog
+    holds one row per paper rather than per version, and the version-less PDF URL always
+    resolves to the newest. For OpenAlex, the bare work id, `W2741809807`.
+
+    Unique per source because it is the natural key: a harvest that overlaps a previous one
+    must correct the existing row rather than insert a second copy. Both feeds re-send a paper
+    whose metadata changed, so overlap is the normal case rather than an edge one.
     """
 
     doi: Mapped[str | None] = mapped_column(String(255), index=True)
@@ -134,15 +162,26 @@ class CatalogPaper(UUIDPrimaryKeyMixin, Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    @property
-    def pdf_url(self) -> str:
-        """Where the file is, if the reader chooses to import it.
+    pdf_url: Mapped[str | None] = mapped_column(Text)
+    """Where the file is, when there is a free one.
 
-        Derived rather than stored: it is a pure function of the id, and a stored copy is one
-        more thing that can disagree with it.
+    Stored rather than derived. For arXiv it is a pure function of the id and a derived value
+    was right; for OpenAlex it is whatever open-access location the source found, and there
+    may be none at all. Null means Atlas cannot fetch this paper — the Discover card says so
+    rather than offering an import that will fail.
+    """
+
+    landing_url: Mapped[str | None] = mapped_column(Text)
+    """The page a human should open: an arXiv abstract page, or a DOI resolver."""
+
+    @property
+    def reference(self) -> str:
+        """What to hand the importer.
+
+        An arXiv id is understood directly by `parse_identifier`, which is what makes an
+        import go down exactly the same path as the "add by reference" box. Anything else
+        arrives as a URL, which that same parser also understands.
         """
-        return f"https://arxiv.org/pdf/{self.arxiv_id}"
-
-    @property
-    def abs_url(self) -> str:
-        return f"https://arxiv.org/abs/{self.arxiv_id}"
+        if self.source is CatalogSource.arxiv:
+            return self.external_id
+        return self.pdf_url or self.landing_url or ""

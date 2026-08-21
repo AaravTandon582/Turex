@@ -222,7 +222,7 @@ class TestStoring:
 
         await store_records(db, [CatalogRecord(arxiv_id="1", title="Retrieval augmentation")])
         found = await CatalogService(db).search(query="retrieval")
-        assert [paper.arxiv_id for paper in found.items] == ["1"]
+        assert [paper.external_id for paper in found.items] == ["1"]
 
 
 class TestSearch:
@@ -258,7 +258,7 @@ class TestSearch:
     async def test_a_title_match_outranks_a_passing_mention(self, db: AsyncSession) -> None:
         """The whole point of weighting the title above the abstract."""
         found = await CatalogService(db).search(query="attention")
-        assert found.items[0].arxiv_id == "a"
+        assert found.items[0].external_id == "a"
 
     async def test_a_query_matching_nothing_returns_nothing(self, db: AsyncSession) -> None:
         found = await CatalogService(db).search(query="thermodynamics")
@@ -290,21 +290,21 @@ class TestSearch:
     async def test_a_category_filter_finds_cross_listed_papers(self, db: AsyncSession) -> None:
         """A paper cross-listed into cs.LG belongs there as far as a reader is concerned."""
         found = await CatalogService(db).search(category="cs.LG")
-        assert {paper.arxiv_id for paper in found.items} == {"a", "c"}
+        assert {paper.external_id for paper in found.items} == {"a", "c"}
 
     async def test_year_bounds_are_inclusive_at_both_ends(self, db: AsyncSession) -> None:
         """Sent as dates, not ISO strings: asyncpg binds by Python type, and PostgreSQL has no
         `date >= character varying` operator."""
         found = await CatalogService(db).search(year_from=2015, year_to=2017)
-        assert {paper.arxiv_id for paper in found.items} == {"a", "b"}
+        assert {paper.external_id for paper in found.items} == {"a", "b"}
 
     async def test_no_query_browses_the_newest_first(self, db: AsyncSession) -> None:
         found = await CatalogService(db).search()
-        assert [paper.arxiv_id for paper in found.items] == ["c", "a", "b"]
+        assert [paper.external_id for paper in found.items] == ["c", "a", "b"]
 
     async def test_newest_sort_overrides_relevance(self, db: AsyncSession) -> None:
         found = await CatalogService(db).search(query="attention", sort="newest")
-        assert [paper.arxiv_id for paper in found.items] == ["c", "a"]
+        assert [paper.external_id for paper in found.items] == ["c", "a"]
 
     async def test_paging_does_not_repeat_or_skip_a_paper(self, db: AsyncSession) -> None:
         """Without a total order, equal-ranked rows swap between pages — which shows one paper
@@ -313,8 +313,8 @@ class TestSearch:
         first = await service.search(limit=2, offset=0)
         second = await service.search(limit=2, offset=2)
 
-        seen = [paper.arxiv_id for paper in first.items] + [
-            paper.arxiv_id for paper in second.items
+        seen = [paper.external_id for paper in first.items] + [
+            paper.external_id for paper in second.items
         ]
         assert sorted(seen) == ["a", "b", "c"]
 
@@ -377,8 +377,10 @@ class TestRoutes:
 
         [paper] = body["items"]
         assert paper["title"] == "Attention Is All You Need"
-        assert paper["abs_url"] == "https://arxiv.org/abs/2017.0001"
+        assert paper["landing_url"] == "https://arxiv.org/abs/2017.0001"
         assert paper["pdf_url"] == "https://arxiv.org/pdf/2017.0001"
+        assert paper["source"] == "arxiv"
+        assert paper["external_id"] == "2017.0001"
         assert paper["in_library"] is False
 
     async def test_an_unknown_catalog_paper_is_a_404_not_a_500(
@@ -426,10 +428,10 @@ class TestRoutes:
         assert theirs.json()["in_library"] is False
 
 
-def _by_id(arxiv_id: str):  # type: ignore[no-untyped-def]
+def _by_id(external_id: str):  # type: ignore[no-untyped-def]
     from sqlalchemy import select
 
-    return select(CatalogPaper).where(CatalogPaper.arxiv_id == arxiv_id)
+    return select(CatalogPaper).where(CatalogPaper.external_id == external_id)
 
 
 class TestFetching:

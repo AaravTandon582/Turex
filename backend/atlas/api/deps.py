@@ -28,6 +28,7 @@ from atlas.security.rate_limit import (
     Limit,
     RateLimiter,
 )
+from atlas.services.analysis_service import AnalysisService
 from atlas.services.annotation_service import AnnotationService
 from atlas.services.assistant_service import AssistantService
 from atlas.services.auth_service import AuthService, ClientInfo
@@ -111,6 +112,13 @@ def get_paper_service(db: DbDep, store: DocumentStoreDep, settings: SettingsDep)
 
 
 PaperServiceDep = Annotated[PaperService, Depends(get_paper_service)]
+
+
+def get_analysis_service(db: DbDep) -> AnalysisService:
+    return AnalysisService(db)
+
+
+AnalysisServiceDep = Annotated[AnalysisService, Depends(get_analysis_service)]
 
 
 def get_catalog_service(db: DbDep) -> CatalogService:

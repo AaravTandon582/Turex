@@ -42,3 +42,7 @@ next-env.d.ts
 e2e/.session.json
 test-results/
 playwright-report/
+
+# The Python runtime, copied from node_modules by `npm run build`. 12MB of vendor binary that
+# `npm ci` already reproduces exactly, so it is built rather than committed.
+public/pyodide/

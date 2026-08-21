@@ -21,6 +21,7 @@ range corrects the existing rows instead of failing on a unique violation or dup
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -32,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from atlas.catalog.records import CatalogRecord, HarvestError, RecordPage, parse_page
 from atlas.core.logging import get_logger
-from atlas.models.catalog import CatalogPaper
+from atlas.models.catalog import CatalogPaper, CatalogSource
 
 logger = get_logger(__name__)
 
@@ -52,6 +53,52 @@ MAX_RESPONSE_BYTES = 64 * 1024 * 1024
 """A page is normally under 4MB. This is a bound on memory, not a limit anyone should reach."""
 
 TRANSIENT_STATUSES = frozenset({500, 502, 503, 504})
+
+ARXIV_SETS: tuple[str, ...] = (
+    "cs",
+    "math",
+    "physics",
+    "q-bio",
+    "q-fin",
+    "stat",
+    "eess",
+    "econ",
+)
+"""Every top-level archive arXiv publishes, read from its own `ListSets` response.
+
+Harvesting these in turn covers the whole corpus, and covers it *resumably* — a run with no
+set at all is one indivisible feed of 2.6 million records, so a token that expires two thirds
+of the way through has nowhere to restart from except the beginning. Per-set runs bound the
+loss to whichever archive was in flight.
+
+Ordered smallest-interest-last is deliberate: computer science first means the catalog is
+useful within the first twenty minutes rather than only when the whole thing finishes.
+"""
+
+MINIMUM_FREE_BYTES = 2 * 1024 * 1024 * 1024
+"""Stop harvesting when the disk has less than this free.
+
+Two gigabytes is not a lot of headroom, but the alternative to *some* threshold is filling the
+disk, at which point PostgreSQL stops accepting writes and so does everything else on the
+machine. A harvest is the one thing here that grows without bound, so it is the one thing that
+should notice. It stops cleanly and leaves a resumption token, which makes it recoverable
+rather than a wedge.
+"""
+
+
+def free_bytes(path: str = ".") -> int:
+    """Free space on the filesystem holding `path`.
+
+    The database's filesystem is what actually matters and may differ from this one. Checking
+    where the process runs is the approximation available without asking PostgreSQL where it
+    keeps its data directory, and on every deployment Atlas has it is the same disk.
+    """
+    stats = os.statvfs(path)
+    return stats.f_bavail * stats.f_frsize
+
+
+class DiskFullError(RuntimeError):
+    """The harvest stopped because there is no room left, not because the feed ended."""
 
 
 @dataclass(slots=True)
@@ -76,7 +123,7 @@ class ArxivHarvester:
         *,
         endpoint: str = OAI_ENDPOINT,
         min_delay: float = MINIMUM_DELAY_SECONDS,
-        max_attempts: int = 6,
+        max_attempts: int = 12,
     ) -> None:
         self._client = client
         self._endpoint = endpoint
@@ -85,6 +132,12 @@ class ArxivHarvester:
 
     async def _get(self, params: dict[str, str]) -> bytes:
         """One request, retrying only what is worth retrying.
+
+        Twelve attempts rather than a handful. Backing off from three seconds, six attempts is
+        about a minute and a half of patience — fine for a short run and not nearly enough for
+        one that lasts eleven hours, where arXiv throttling a heavy client is a normal event
+        rather than an outage. Measured: a full harvest died on a `ReadTimeout` after ninety
+        seconds of trying, having already fetched 390,000 records successfully.
 
         A `503` here is flow control rather than an outage, so it waits for the interval the
         header names and does not count against a shorter budget. A `4xx` is a bad request —
@@ -206,7 +259,13 @@ def _retry_after(response: httpx.Response) -> float | None:
 
 def _row(record: CatalogRecord) -> dict[str, object]:
     return {
-        "arxiv_id": record.arxiv_id,
+        "source": CatalogSource.arxiv,
+        "external_id": record.arxiv_id,
+        # Stored rather than derived. For arXiv these are a pure function of the id, but the
+        # catalog also holds sources where they are not, and a column that is sometimes
+        # derived and sometimes stored is a column nobody can reason about.
+        "pdf_url": f"https://arxiv.org/pdf/{record.arxiv_id}",
+        "landing_url": f"https://arxiv.org/abs/{record.arxiv_id}",
         "doi": record.doi[:255] if record.doi else None,
         "title": record.title,
         "abstract": record.abstract,
@@ -245,18 +304,27 @@ async def store_records(db: AsyncSession, records: Sequence[CatalogRecord]) -> t
     ids = list(unique)
 
     existing = set(
-        (await db.execute(select(CatalogPaper.arxiv_id).where(CatalogPaper.arxiv_id.in_(ids))))
+        (
+            await db.execute(
+                select(CatalogPaper.external_id).where(
+                    CatalogPaper.source == CatalogSource.arxiv,
+                    CatalogPaper.external_id.in_(ids),
+                )
+            )
+        )
         .scalars()
         .all()
     )
 
     statement = insert(CatalogPaper).values(list(unique.values()))
     statement = statement.on_conflict_do_update(
-        index_elements=[CatalogPaper.arxiv_id],
+        index_elements=[CatalogPaper.source, CatalogPaper.external_id],
         set_={
             column: statement.excluded[column]
             for column in (
                 "doi",
+                "pdf_url",
+                "landing_url",
                 "title",
                 "abstract",
                 "authors",
@@ -346,6 +414,16 @@ async def harvest(
 
         if progress.pages % ANALYZE_EVERY_PAGES == 0:
             await analyze_catalog(db)
+
+        # Checked per page rather than per record: a page is about 4MB of rows, so the disk
+        # cannot cross the threshold and fill within one, and a `statvfs` per record would be
+        # a syscall per paper for no benefit.
+        if free_bytes() < MINIMUM_FREE_BYTES:
+            await analyze_catalog(db)
+            raise DiskFullError(
+                f"stopping with {free_bytes() / 1_000_000_000:.1f}GB free — "
+                f"below the {MINIMUM_FREE_BYTES / 1_000_000_000:.0f}GB floor"
+            )
 
         if max_records is not None and progress.records >= max_records:
             logger.info(
