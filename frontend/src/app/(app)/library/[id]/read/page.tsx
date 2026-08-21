@@ -153,6 +153,35 @@ export default function ReaderPage() {
     }
   }
 
+  /**
+   * Say why the PDF did not load, rather than always blaming the file.
+   *
+   * `react-pdf` reports every failure the same way, so "Atlas couldn't render this PDF" was
+   * shown when the session had expired and when the paper had been deleted — both of which
+   * send the reader looking for a problem with their document that does not exist. The request
+   * is repeated here to find out which it was, which costs one request on a path that has
+   * already failed.
+   */
+  async function handlePdfError(cause: unknown) {
+    try {
+      const response = await fetch(papers.fileUrl(id), { credentials: "include" });
+      if (response.status === 401) {
+        setError("Your session ended. Sign in again to keep reading.");
+        return;
+      }
+      if (response.status === 404) {
+        setError("This paper is no longer in your library.");
+        return;
+      }
+    } catch {
+      setError("Atlas can't reach the server. Check your connection.");
+      return;
+    }
+
+    console.error("PDF failed to render", cause);
+    setError("Atlas couldn't render this PDF. It may be corrupted or password-protected.");
+  }
+
   /** Route an equation from the Maths panel to the assistant, as a selection would. */
   function askAboutEquation(equation: string) {
     const { prompt, mode } = ACTIONS.equation;
@@ -257,10 +286,12 @@ export default function ReaderPage() {
               file={fileUrl}
               options={PDF_OPTIONS}
               onLoadSuccess={({ numPages }) => setPageCount(numPages)}
-              onLoadError={() => setError("Atlas couldn't render this PDF.")}
+              onLoadError={(cause) => void handlePdfError(cause)}
               loading={<Skeleton className="h-[900px] w-[720px]" />}
               error={
-                <p className="p-8 text-sm text-ink-muted">Atlas couldn&rsquo;t render this PDF.</p>
+                <p className="p-8 text-sm text-ink-muted">
+                  {error ?? "Atlas couldn't render this PDF."}
+                </p>
               }
             >
               <div className="space-y-8">
