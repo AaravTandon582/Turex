@@ -67,6 +67,7 @@ class CategoryCountRead(AtlasModel):
 
 class CatalogStatsRead(AtlasModel):
     total: int
+    by_source: dict[str, int] = Field(default_factory=dict)
     with_abstract: int
     earliest_year: int | None = None
     latest_year: int | None = None

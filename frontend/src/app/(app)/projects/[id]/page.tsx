@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PageContainer } from "@/components/layout/page-container";
+import { AnalysisPanel } from "@/components/workspace/analysis-panel";
 import { ExperimentPanel } from "@/components/workspace/experiment-panel";
 import { HypothesisPanel } from "@/components/workspace/hypothesis-panel";
 import { Button } from "@/components/ui/button";
@@ -24,11 +25,12 @@ import {
   type Task,
 } from "@/lib/workspace";
 
-type Tab = "hypotheses" | "experiments" | "papers" | "notes" | "tasks";
+type Tab = "hypotheses" | "experiments" | "analyses" | "papers" | "notes" | "tasks";
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "hypotheses", label: "Hypotheses" },
   { value: "experiments", label: "Experiments" },
+  { value: "analyses", label: "Analysis" },
   { value: "papers", label: "Papers" },
   { value: "notes", label: "Notes" },
   { value: "tasks", label: "Tasks" },
@@ -120,6 +122,7 @@ export default function ProjectPage() {
       <div className="mt-5">
         {tab === "hypotheses" && <HypothesisPanel projectId={id} />}
         {tab === "experiments" && <ExperimentPanel projectId={id} hypotheses={hypotheses} />}
+        {tab === "analyses" && <AnalysisPanel projectId={id} />}
         {tab === "papers" && <PapersPanel projectId={id} onChanged={reload} />}
         {tab === "notes" && <NotesPanel projectId={id} />}
         {tab === "tasks" && <TasksPanel projectId={id} onChanged={reload} />}

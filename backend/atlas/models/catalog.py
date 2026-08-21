@@ -33,7 +33,17 @@ import enum
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Date, DateTime, Enum, Index, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    Date,
+    DateTime,
+    Enum,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -79,7 +89,15 @@ class CatalogPaper(UUIDPrimaryKeyMixin, Base):
         Index(
             "ix_catalog_papers_primary_category_published_on", "primary_category", "published_on"
         ),
-        Index("ix_catalog_papers_published_on", "published_on"),
+        # Spelled the way the browse query spells its ordering. A default btree is
+        # `ASC NULLS LAST`, and walking it backwards gives `DESC NULLS FIRST` — a different
+        # order, so PostgreSQL sorted every match instead of walking the index. At 866,000
+        # rows that was six seconds to return twenty. See migration 0017.
+        Index(
+            "ix_catalog_papers_browse",
+            text("published_on DESC NULLS LAST"),
+            text("external_id DESC"),
+        ),
         UniqueConstraint("source", "external_id", name="uq_catalog_papers_source_external_id"),
         # Filtering by category uses JSONB containment (`categories @> '["cs.LG"]'`) rather
         # than a match on `primary_category`, so a paper cross-listed into cs.LG is found when

@@ -80,6 +80,21 @@ def _provider(script: list[Any], fallbacks: tuple[str, ...] = ()) -> tuple[Any, 
     return provider, completions
 
 
+def _multi_key(script: list[Any], keys: int = 2, fallbacks: tuple[str, ...] = ()):  # type: ignore[no-untyped-def]
+    """A provider with several keys, all sharing one script so the order of attempts is
+    visible as a single sequence."""
+    provider = OpenAIChatProvider(
+        api_key="key-0",
+        model="primary/model",
+        fallback_models=fallbacks,
+        extra_api_keys=tuple(f"key-{index}" for index in range(1, keys)),
+    )
+    completions = _Completions(script)
+    for client in provider._clients:
+        client.chat.completions = completions  # type: ignore[assignment]
+    return provider, completions
+
+
 class TestTheMessageNamesTheRealProblem:
     def test_an_empty_balance_says_so_and_says_retrying_will_not_help(self) -> None:
         """The failure that started this: reported as unreachable for an entire session."""
@@ -138,8 +153,8 @@ class TestTheFallbackChain:
         assert completions.models == ["primary/model", "spare/model"]
 
     async def test_a_rate_limit_does_not_trigger_a_fallback(self) -> None:
-        """Rate limiting is about the service, not the model, so another model on the same
-        service fails the same way — and a second request is the opposite of backing off."""
+        """A rate limit is the account being throttled, not the model. Another model is another
+        request against the same limit — the opposite of backing off."""
         provider, completions = _provider([_status_error(429)], fallbacks=("spare/model",))
 
         # `str(exc)` is the internal detail; `.message` is what the reader is shown. Asserting
@@ -147,14 +162,28 @@ class TestTheFallbackChain:
         with pytest.raises(ProviderUnavailableError) as raised:
             await provider.complete(REQUEST)
         assert "rate limited" in raised.value.message
-        assert completions.models == ["primary/model"]
+        assert completions.models == ["primary/model"], "no retry, no fallback: just wait"
 
-    async def test_an_outage_does_not_trigger_a_fallback(self) -> None:
-        provider, completions = _provider([_status_error(503)], fallbacks=("spare/model",))
+    async def test_a_transient_failure_is_actually_retried(self) -> None:
+        """Classifying a failure as retryable and then not retrying it is worse than not
+        classifying it — the caller is told to try again while the code that could have tried
+        gave up. Every request after the first died on "Connection error" that way."""
+        provider, completions = _provider(
+            [_status_error(503), _status_error(503), _reply("recovered")]
+        )
+        assert (await provider.complete(REQUEST)).text == "recovered"
+        assert completions.models == ["primary/model"] * 3
 
-        with pytest.raises(ProviderUnavailableError):
-            await provider.complete(REQUEST)
-        assert completions.models == ["primary/model"]
+    async def test_a_model_that_keeps_dropping_falls_through_to_the_next(self) -> None:
+        """A connection that keeps failing may be *that model's* upstream rather than the
+        service. One flaky primary model otherwise fails every request while working
+        fallbacks sit unused, which is exactly what happened."""
+        provider, completions = _provider(
+            [_status_error(503), _status_error(503), _status_error(503), _reply("from the spare")],
+            fallbacks=("spare/model",),
+        )
+        assert (await provider.complete(REQUEST)).text == "from the spare"
+        assert completions.models == ["primary/model"] * 3 + ["spare/model"]
 
     async def test_the_last_candidate_reports_rather_than_looping(self) -> None:
         provider, completions = _provider(
@@ -190,3 +219,55 @@ class TestStreaming:
         provider, _ = _provider([_status_error(402, "Insufficient credits")])
         [error] = [c for c in await self._collect(provider) if c.kind is ChunkKind.error]
         assert "credit" in error.text.lower()
+
+
+class TestKeyRotation:
+    """Keys and models rotate independently, because they fail for different reasons."""
+
+    async def test_a_rate_limited_key_moves_to_the_next_key(self) -> None:
+        """A rate limit counts per account, so every model on that key is throttled too."""
+        provider, completions = _multi_key(
+            [_status_error(429), _reply("from the second key")], fallbacks=("spare/model",)
+        )
+        result = await provider.complete(REQUEST)
+
+        assert result.text == "from the second key"
+        # The spare *model* is never tried on the first key: it would be another request
+        # against the same limit.
+        assert completions.models == ["primary/model", "primary/model"]
+
+    async def test_an_empty_balance_tries_the_free_models_before_another_key(self) -> None:
+        """The arrangement that keeps a spent key useful: paid models stop, free ones do not."""
+        provider, completions = _multi_key(
+            [_status_error(402, "Insufficient credits"), _reply("from a free model")],
+            fallbacks=("free/model",),
+        )
+        result = await provider.complete(REQUEST)
+
+        assert result.text == "from a free model"
+        assert completions.models == ["primary/model", "free/model"], "same key, next model"
+
+    async def test_every_key_exhausted_reports_rather_than_looping(self) -> None:
+        provider, completions = _multi_key([_status_error(429)] * 4, keys=2)
+
+        with pytest.raises(ProviderUnavailableError) as raised:
+            await provider.complete(REQUEST)
+        assert "rate limited" in raised.value.message
+        assert completions.models == ["primary/model", "primary/model"]
+
+    async def test_one_key_behaves_exactly_as_before(self) -> None:
+        """Adding the dimension must not change the single-key path, which is every existing
+        deployment."""
+        provider, completions = _multi_key(
+            [_status_error(402), _reply("answered")], keys=1, fallbacks=("spare/model",)
+        )
+        assert (await provider.complete(REQUEST)).text == "answered"
+        assert completions.models == ["primary/model", "spare/model"]
+
+    def test_duplicate_keys_are_not_tried_twice(self) -> None:
+        """`ATLAS_OPENAI_API_KEYS` repeating the primary key is an easy mistake and would
+        otherwise double every failure path for no benefit."""
+        provider = OpenAIChatProvider(
+            api_key="same", model="m", extra_api_keys=("same", "different")
+        )
+        assert len(provider._clients) == 2

@@ -220,28 +220,42 @@ the same library produced 30 concepts and 78 edges immediately.
 
 ## The catalog, at scale
 
-192,400 papers harvested from arXiv's OAI-PMH feed onto a development machine, 650MB of
-database. Times are warm, three runs, while a harvest was still running against the same
-database:
+885,097 papers — 657,534 from arXiv and 227,563 from OpenAlex — on a development machine.
+Times are warm, three runs each, through the API rather than against the database:
 
 | Query | Time |
 |---|---|
-| `transformer attention` (390 matches) | 14ms |
-| `neural network` (~9,000 matches) | 170ms |
-| `learning` (40,670 matches — the widest word in the corpus) | 210–340ms |
-| browse newest, no query | 100ms |
-| browse a category | 122ms |
-| query + category + year bound | 46–60ms |
-| `GET /catalog/stats` | 134ms |
+| `transformer attention` (390 matches) | 45ms |
+| `learning` (203,846 matches — the widest word in the corpus) | 320ms |
+| browse `cs.LG` (147,406 papers) | 20ms |
+| browse newest, no query | 12ms |
+| `GET /catalog/stats` | 14ms |
 
-**What measuring this found.** The same queries took 0.8–1.8 seconds before the table's
-statistics were refreshed — PostgreSQL was mis-estimating how many rows a common word matches
-and abandoning the GIN index for a sequential scan. Reading the query plan showed a `Seq Scan`
-where a `Bitmap Index Scan` belonged. The harvester now runs `ANALYZE` every fifty pages and
-at the end of every run, including runs that fail; see [`decisions.md`](decisions.md) D13.
+**Three separate problems, found by measuring at each size rather than once.**
 
-Nothing here needed the index to be redesigned, and nothing needed ranking quality to be
-traded away — which was the first thing considered, and would have been the wrong fix.
+*Stale statistics.* At 192,400 rows, common-word searches took 0.8–1.8 seconds because
+PostgreSQL was mis-estimating how many rows a word matches and abandoning the GIN index for a
+sequential scan. The harvester now runs `ANALYZE` every fifty pages and at the end of every
+run, including runs that fail — 1,776ms to 170ms on the same index. See
+[`decisions.md`](decisions.md) D13.
+
+*An index that did not match its query.* Browsing a large category took 6.5 seconds at 885,000
+rows: an index on `published_on` existed and could not be used, because the ordering is
+`DESC NULLS LAST` and a default btree walked backwards gives `DESC NULLS FIRST`. Spelling the
+index the way the query spells the ordering took it to 3.4ms. Migration 0017.
+
+*Ranking with no index behind it.* `ts_rank_cd` has to be computed for every match and the
+whole set sorted, which is fine until a common word matches a fifth of a large catalog —
+`learning` at 885,000 rows took **18 seconds**. Ranking is now bounded to a pool of 3,000
+candidates. Below that many matches nothing changes at all, since the bound is a `LIMIT` on
+the inner query and a search matching two thousand papers never reaches it. Above it, the
+twenty shown are the best of three thousand relevant papers rather than the best of two
+hundred thousand — a real trade, made because the alternative was a ranking nobody waits to
+see. See [`decisions.md`](decisions.md) D13.
+
+*The header's summary* counts every row and expands every paper's category list, which is five
+seconds of scanning for a sentence. It is cached for five minutes, per process, because none of
+it changes meaningfully in that time.
 
 **The result counter is bounded.** A `count(*)` over a text search is proportional to how many
 rows *match*, not how many are returned. Counting all 40,670 matches for `learning` costs more

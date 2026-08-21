@@ -1,6 +1,7 @@
 "use client";
 
-import { Code2, FlaskConical, Plus, RotateCcw, Trash2, Type } from "lucide-react";
+import { Code2, FlaskConical, FolderOpen, Plus, RotateCcw, Trash2, Type } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { Cell } from "@/components/workstation/cell";
@@ -197,6 +198,15 @@ export default function WorkstationPage() {
                   <Type aria-hidden className="size-4" />
                   Text
                 </Button>
+                {detail.project_id && (
+                  <Button asChild size="sm" variant="ghost">
+                    <Link href={`/projects/${detail.project_id}`}>
+                      <FolderOpen aria-hidden className="size-4" />
+                      Project
+                    </Link>
+                  </Button>
+                )}
+
                 <Button
                   size="sm"
                   variant="ghost"

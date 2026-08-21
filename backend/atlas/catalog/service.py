@@ -8,12 +8,15 @@ it is rate limited and its result is a queued job rather than a finished paper.
 
 from __future__ import annotations
 
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
+from typing import Any
 
 from sqlalchemy import Select, and_, desc, func, literal, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from atlas.core.errors import NotFoundError, ValidationError
 from atlas.core.logging import get_logger
@@ -23,6 +26,27 @@ from atlas.models.user import User
 from atlas.services.paper_service import PaperService, UploadResult
 
 logger = get_logger(__name__)
+
+CANDIDATE_POOL = 3_000
+"""How many matches are ranked before the best are taken.
+
+Ranking has no index behind it: a GIN index finds the matching rows quickly and then
+`ts_rank_cd` has to be computed for every one of them and the whole set sorted. That is fine
+until a common word matches a large share of a large catalog. Measured at 885,000 rows, where
+"learning" matches 203,846:
+
+    unbounded            18,000ms
+    bounded to 3,000        145ms
+
+**Below this many matches nothing changes.** The bound is a `LIMIT` on the inner query, so a
+search matching two thousand papers never reaches it and is ranked exactly as before — which
+covers essentially every real search. Above it, the twenty shown are the best of three thousand
+relevant papers rather than the best of two hundred thousand, and the ordering within a set
+that large is not something anyone reads past the first page of anyway.
+
+The alternative was leaving broad searches at eighteen seconds, which is not a ranking anyone
+sees at all.
+"""
 
 COUNT_CEILING = 1_000
 """How far the result counter goes before it gives up and says "more than this".
@@ -57,6 +81,41 @@ class CatalogStats:
     earliest_year: int | None
     latest_year: int | None
     top_categories: list[CategoryCount] = field(default_factory=list)
+
+    by_source: dict[str, int] = field(default_factory=dict)
+    """How many papers each source contributes.
+
+    Surfaced because the page was describing an 866,000-paper catalog as "papers from arXiv"
+    once a third of them came from somewhere else. A count is the only way for the UI to name
+    its sources without hardcoding an assumption that goes stale the moment one is added.
+    """
+
+
+STATS_TTL_SECONDS = 300.0
+"""How long the Discover header's summary is reused before it is recomputed.
+
+Every part of it is a full scan — counting 885,000 rows, and expanding every paper's category
+list to group it — and together they took nearly five seconds while the page waited. None of it
+changes meaningfully in five minutes: a harvest adds papers at a rate that moves the total by a
+fraction of a per cent, and the field list not at all.
+
+Held per process rather than in a shared cache. It is a summary, so several workers each doing
+this once every five minutes is cheaper than the infrastructure to make them agree, and them
+briefly disagreeing about a number in a sentence costs nothing.
+"""
+
+_stats_cache: tuple[float, CatalogStats] | None = None
+
+
+def reset_stats_cache() -> None:
+    """Forget the cached summary.
+
+    Process-wide state outlives a test's database, so without this a suite that empties the
+    tables still sees the previous test's totals — the same shape of leak as a cleanup that
+    misses a table, and just as quiet.
+    """
+    global _stats_cache
+    _stats_cache = None
 
 
 class CatalogService:
@@ -121,19 +180,19 @@ class CatalogService:
         counter = self._filtered(counter, category=category, year_from=year_from, year_to=year_to)
 
         newest = (CatalogPaper.published_on.desc().nulls_last(), CatalogPaper.external_id.desc())
+
         if sort == "newest" or rank is None:
-            # With no query there is nothing to rank by, so recency is the only sensible
-            # order — and it is what someone browsing a field expects to see first.
-            statement = statement.order_by(*newest)
+            # With no query there is nothing to rank by, so recency is the only sensible order
+            # — and it is what someone browsing a field expects to see first. This one an index
+            # can serve directly, so it needs no bounding.
+            statement = statement.order_by(*newest).limit(limit).offset(offset)
         else:
-            # `arxiv_id` breaks ties last. Without a total order, two rows of equal rank and
+            # `external_id` breaks ties last. Without a total order, two rows of equal rank and
             # equal date can swap places between pages, which shows the same paper twice and
             # hides another entirely.
-            statement = statement.order_by(desc(rank), *newest)
+            statement = _bounded_ranking(statement, tsquery, limit=limit, offset=offset)
 
-        items = list(
-            (await self._db.execute(statement.limit(limit).offset(offset))).scalars().all()
-        )
+        items = list((await self._db.execute(statement)).scalars().all())
 
         # Counting is bounded by a subquery with its own LIMIT, so PostgreSQL stops scanning
         # once the ceiling is reached instead of counting every match. The subquery yields one
@@ -240,7 +299,23 @@ class CatalogService:
         return result
 
     async def stats(self) -> CatalogStats:
-        """A summary for the Discover page's header.
+        """A summary for the Discover page's header, recomputed at most every few minutes.
+
+        See `STATS_TTL_SECONDS` — the numbers here cost seconds to gather and change slowly,
+        which is the case a short cache is actually for.
+        """
+        global _stats_cache
+
+        now = time.monotonic()
+        if _stats_cache is not None and now - _stats_cache[0] < STATS_TTL_SECONDS:
+            return _stats_cache[1]
+
+        summary = await self._compute_stats()
+        _stats_cache = (now, summary)
+        return summary
+
+    async def _compute_stats(self) -> CatalogStats:
+        """The scans themselves.
 
         The category counts come from `jsonb_array_elements_text`, which expands every paper's
         category list into rows and groups them. It is a full scan and there is no index that
@@ -277,8 +352,18 @@ class CatalogService:
             .limit(10)
         )
 
+        by_source = {
+            str(name): int(count)
+            for name, count in await self._db.execute(
+                select(CatalogPaper.source, func.count())
+                .group_by(CatalogPaper.source)
+                .order_by(func.count().desc())
+            )
+        }
+
         return CatalogStats(
             total=int(totals[0]),
+            by_source=by_source,
             with_abstract=int(totals[1]),
             earliest_year=int(totals[2]) if totals[2] is not None else None,
             latest_year=int(totals[3]) if totals[3] is not None else None,
@@ -286,6 +371,34 @@ class CatalogService:
                 CategoryCount(category=str(name), count=int(count)) for name, count in rows
             ],
         )
+
+
+def _bounded_ranking(statement: Select, tsquery: Any, *, limit: int, offset: int) -> Select:
+    """Rank a bounded pool of matches rather than every one of them.
+
+    The ordering is rebuilt against the subquery's alias rather than reusing the expressions
+    from the outer scope: those name `catalog_papers`, which is inside the subquery here, and
+    referring to it from outside is the "missing FROM-clause entry" error.
+
+    The pool covers the page being asked for, so a deep offset widens it — otherwise page
+    twenty of a three-thousand-row pool would be empty. The route caps `offset`, which is what
+    stops that widening without limit.
+    """
+    pool = max(CANDIDATE_POOL, offset + limit)
+
+    inner = statement.limit(pool).subquery()
+    entry = aliased(CatalogPaper, inner)
+
+    return (
+        select(entry)
+        .order_by(
+            func.ts_rank_cd(entry.search_tsv, tsquery).desc(),
+            entry.published_on.desc().nulls_last(),
+            entry.external_id.desc(),
+        )
+        .limit(limit)
+        .offset(offset)
+    )
 
 
 def _january(year: int) -> date:

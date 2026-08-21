@@ -47,6 +47,8 @@ export interface CatalogPage {
 
 export interface CatalogStats {
   total: number;
+  /** How many papers each source contributes, so the page can name them accurately. */
+  by_source: Record<string, number>;
   with_abstract: number;
   earliest_year: number | null;
   latest_year: number | null;
@@ -97,6 +99,27 @@ export function formatAuthors(authors: { name: string }[], visible = 3): string 
     return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
   }
   return `${names.slice(0, visible).join(", ")} and ${names.length - visible} others`;
+}
+
+const SOURCE_NAMES: Record<string, string> = { arxiv: "arXiv", openalex: "OpenAlex" };
+
+/**
+ * "arXiv and OpenAlex", from what the catalog actually holds.
+ *
+ * Written from the counts rather than hardcoded. The page said "papers from arXiv" for a
+ * catalog that was a third OpenAlex by then, which is a small lie of exactly the kind this
+ * product cannot afford — and a hardcoded list goes stale again the next time a source is
+ * added.
+ */
+export function describeSources(stats: Pick<CatalogStats, "by_source">): string {
+  const names = Object.entries(stats.by_source ?? {})
+    .filter(([, count]) => count > 0)
+    .sort(([, a], [, b]) => b - a)
+    .map(([key]) => SOURCE_NAMES[key] ?? key);
+
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /** `1,000+` when the count stopped at its ceiling, so the number is never overstated. */

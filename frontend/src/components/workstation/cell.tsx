@@ -115,7 +115,7 @@ export function Cell({
             type="button"
             onClick={() => onMove(-1)}
             aria-label={`Move cell ${index + 1} up`}
-            className="rounded-sm p-1 text-ink-subtle hover:bg-surface-hover hover:text-ink"
+            className="rounded-sm p-1.5 text-ink-subtle hover:bg-surface-hover hover:text-ink"
           >
             <ChevronUp aria-hidden className="size-3.5" />
           </button>
@@ -123,7 +123,7 @@ export function Cell({
             type="button"
             onClick={() => onMove(1)}
             aria-label={`Move cell ${index + 1} down`}
-            className="rounded-sm p-1 text-ink-subtle hover:bg-surface-hover hover:text-ink"
+            className="rounded-sm p-1.5 text-ink-subtle hover:bg-surface-hover hover:text-ink"
           >
             <ChevronDown aria-hidden className="size-3.5" />
           </button>
@@ -132,7 +132,7 @@ export function Cell({
             onClick={onDelete}
             disabled={!canDelete}
             aria-label={`Delete cell ${index + 1}`}
-            className="rounded-sm p-1 text-ink-subtle hover:bg-surface-hover hover:text-danger disabled:opacity-30"
+            className="rounded-sm p-1.5 text-ink-subtle hover:bg-surface-hover hover:text-danger disabled:opacity-30"
           >
             <Trash2 aria-hidden className="size-3.5" />
           </button>

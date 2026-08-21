@@ -112,6 +112,7 @@ async def catalog_stats(user: CurrentUser, service: CatalogServiceDep) -> Catalo
     summary = await service.stats()
     return CatalogStatsRead(
         total=summary.total,
+        by_source=summary.by_source,
         with_abstract=summary.with_abstract,
         earliest_year=summary.earliest_year,
         latest_year=summary.latest_year,

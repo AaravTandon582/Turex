@@ -8,7 +8,7 @@ import { PageContainer } from "@/components/layout/page-container";
 import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/ui/async-boundary";
 import { Card, EmptyState, PageHeader, Skeleton } from "@/components/ui/primitives";
-import { catalog, formatTotal, type CatalogQuery } from "@/lib/catalog";
+import { catalog, describeSources, formatTotal, type CatalogQuery } from "@/lib/catalog";
 import { cn } from "@/lib/cn";
 import { useAsync } from "@/lib/use-async";
 
@@ -84,7 +84,9 @@ export default function DiscoverPage() {
         title="Discover"
         description={
           stats.data
-            ? `Search ${stats.data.total.toLocaleString()} papers from arXiv${
+            ? `Search ${stats.data.total.toLocaleString()} papers from ${describeSources(
+                stats.data,
+              )}${
                 stats.data.earliest_year && stats.data.latest_year
                   ? `, ${stats.data.earliest_year}–${stats.data.latest_year}`
                   : ""

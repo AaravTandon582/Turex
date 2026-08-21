@@ -26,6 +26,7 @@ from atlas.api.deps import (
     get_retrieval_service,
     reset_rate_limits,
 )
+from atlas.catalog.service import reset_stats_cache
 from atlas.core.config import Environment, Settings, get_settings
 from atlas.db.base import Base
 from atlas.db.session import dispose_engine, init_engine, session_scope
@@ -87,6 +88,12 @@ async def app(settings: Settings) -> AsyncIterator[object]:
     init_engine(settings)
     yield application
     await dispose_engine()
+
+
+@pytest.fixture(autouse=True)
+def clean_caches() -> None:
+    """Process-wide caches outlive the database, so they are cleared with it."""
+    reset_stats_cache()
 
 
 @pytest.fixture(autouse=True)

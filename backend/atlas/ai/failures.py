@@ -45,6 +45,19 @@ class Failure:
     one failure an operator can fix directly, and the one most likely to be mistaken for a bug.
     """
 
+    account_wide: bool = False
+    """True when the failure is about the *account*, not the model.
+
+    A rate limit is the whole key being throttled, so trying a different model is another
+    request against the same limit — the opposite of backing off. Everything else, including a
+    dropped connection that keeps dropping, is worth trying another model for: it may be that
+    model's upstream rather than the service.
+
+    This distinction was originally drawn as "retryable", which conflated two different
+    questions and got the answer wrong for connection errors — one flaky model then failed
+    every request while three working fallbacks sat unused.
+    """
+
 
 def classify(status: int | None, detail: str = "") -> Failure:
     """Turn an upstream status into something worth showing someone.
@@ -93,6 +106,7 @@ def classify(status: int | None, detail: str = "") -> Failure:
         return Failure(
             "Atlas is being rate limited by the AI service. Try again in a minute.",
             retryable=True,
+            account_wide=True,
         )
 
     return Failure("Atlas couldn't reach the AI service. Try again in a moment.", retryable=True)

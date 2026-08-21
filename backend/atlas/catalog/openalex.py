@@ -62,6 +62,7 @@ SELECT_FIELDS = ",".join(
         "authorships",
         "primary_location",
         "open_access",
+        "best_oa_location",
         "abstract_inverted_index",
         "topics",
         "type",
@@ -125,6 +126,29 @@ def _bare_id(url: str | None) -> str | None:
     return url.rstrip("/").rpartition("/")[2] or None
 
 
+_NEVER_A_FILE = ("doi.org/", "dx.doi.org/", "handle.net/", "hdl.handle.net/")
+"""URL shapes that are resolvers by definition, whatever field they arrive in.
+
+OpenAlex's `pdf_url` is *usually* a direct file and occasionally a DOI link, which is a
+redirect to a publisher's landing page and never bytes. Dropping those is not a guess about a
+publisher's URL scheme — it is what a DOI is.
+
+It does not catch everything: a publisher's own landing page can look exactly like its PDF
+URL, and some hosts answer 403 to anything without a browser. The real guarantee is downstream,
+where the import validates the bytes and refuses anything that is not a PDF; this only stops
+the card offering a button for links that cannot possibly work.
+"""
+
+
+def _direct_file(url: str | None) -> str | None:
+    if not url:
+        return None
+    lowered = url.lower()
+    if any(marker in lowered for marker in _NEVER_A_FILE):
+        return None
+    return url
+
+
 def _parse_date(raw: str | None) -> date | None:
     if not raw:
         return None
@@ -148,6 +172,7 @@ def parse_work(work: dict[str, Any]) -> OpenAlexRecord | None:
     location = work.get("primary_location") or {}
     source = location.get("source") or {}
     access = work.get("open_access") or {}
+    best = work.get("best_oa_location") or {}
 
     doi = work.get("doi")
     if isinstance(doi, str):
@@ -173,10 +198,23 @@ def parse_work(work: dict[str, Any]) -> OpenAlexRecord | None:
         doi=doi if isinstance(doi, str) else None,
         journal_ref=(source.get("display_name") or None),
         published_on=_parse_date(work.get("publication_date")),
-        # Only when the work is open access. Otherwise there is no file Atlas can fetch, which
-        # is a fact about the paper rather than a failure to be discovered at import time.
-        pdf_url=access.get("oa_url") or None,
-        landing_url=location.get("landing_page_url") or (f"https://doi.org/{doi}" if doi else None),
+        # `best_oa_location.pdf_url` rather than `open_access.oa_url`.
+        #
+        # They look interchangeable and are not: `oa_url` is "the best available URL", which is
+        # frequently a landing page, while `pdf_url` is present only when OpenAlex knows of a
+        # direct file. Using the former meant the card offered "Add to library" on papers that
+        # could not be imported, and the download came back with a web page — measured at two
+        # in six on a sample of open-access works.
+        #
+        # A null here is not a loss. It is the difference between a button that works and a
+        # button that apologises, and the card says "No free full text" instead.
+        pdf_url=_direct_file(best.get("pdf_url")),
+        landing_url=(
+            best.get("landing_page_url")
+            or location.get("landing_page_url")
+            or access.get("oa_url")
+            or (f"https://doi.org/{doi}" if doi else None)
+        ),
     )
 
 
@@ -212,9 +250,20 @@ class OpenAlexHarvester:
 
             if response.status_code in TRANSIENT_STATUSES or response.status_code == 429:
                 if attempt == self._max_attempts:
-                    raise HarvestError(f"OpenAlex stayed unavailable (HTTP {response.status_code})")
-                logger.info("openalex asked us to wait", extra={"status": response.status_code})
-                await asyncio.sleep(delay)
+                    raise HarvestError(
+                        f"OpenAlex stayed unavailable after {attempt} attempts "
+                        f"(HTTP {response.status_code}). Its daily limit resets on the hour; "
+                        f"resume then."
+                    )
+                # A rate limit is the service saying how long to wait, so the header wins over
+                # any schedule invented here. Without it a harvest either gives up too early
+                # or hammers a limit that has already told it the answer.
+                wait = _retry_after(response) or delay
+                logger.info(
+                    "openalex asked us to wait",
+                    extra={"status": response.status_code, "seconds": wait},
+                )
+                await asyncio.sleep(wait)
                 delay = min(delay * 2, MAXIMUM_BACKOFF_SECONDS)
                 continue
 
@@ -276,6 +325,18 @@ class OpenAlexHarvester:
                 return
             cursor = next_cursor
             await asyncio.sleep(self._min_delay)
+
+
+def _retry_after(response: httpx.Response) -> float | None:
+    """The `Retry-After` header, when it is a number of seconds worth waiting."""
+    raw = response.headers.get("retry-after")
+    if not raw:
+        return None
+    try:
+        seconds = float(raw.strip())
+    except ValueError:
+        return None
+    return max(0.0, min(seconds, MAXIMUM_BACKOFF_SECONDS))
 
 
 def _row(record: OpenAlexRecord) -> dict[str, object]:

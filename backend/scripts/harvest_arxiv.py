@@ -208,6 +208,9 @@ async def _run(
         return 0
     print(f"harvesting {len(remaining)} archives: {', '.join(remaining)}\n")
 
+    finished: list[str] = []
+    failed: list[str] = []
+
     for name in remaining:
         print(f"── {name} " + "─" * 56)
         # Each archive is its own run with its own token, so a failure in one does not
@@ -217,13 +220,24 @@ async def _run(
 
         if code == 0 and not (TOKEN_FILE.exists() and TOKEN_FILE.read_text().strip()):
             mark_complete(name)
+            finished.append(name)
         elif stopping.is_set():
             print("\nstopped. Re-run with --all to continue from the next archive.")
             return 0
         else:
             # Recorded as unfinished, so the next --all retries this archive in full rather
             # than leaving a permanent hole nobody notices.
+            failed.append(name)
             print(f"\n{name} did not finish; it will be retried by the next --all run.")
+
+    # Reported by what actually happened rather than by having reached the end of the loop.
+    # Printing "every archive harvested" after three of them failed is the kind of status line
+    # that makes someone believe they have the whole corpus when they have a third of it.
+    if failed:
+        print(f"\n{len(finished)} archives complete: {', '.join(finished) or 'none'}")
+        print(f"{len(failed)} did not finish: {', '.join(failed)}")
+        print("Re-run with --all to retry those; the complete ones are skipped.")
+        return 1
 
     print("\nevery archive harvested.")
     return 0

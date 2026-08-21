@@ -69,6 +69,7 @@ class ProviderRegistry:
                     model=settings.openai_model,
                     base_url=settings.openai_base_url,
                     fallback_models=settings.openai_fallback_models,
+                    extra_api_keys=settings.openai_api_keys,
                 )
             case unknown:
                 raise NotConfiguredError(detail=f"unknown chat provider {unknown!r}")

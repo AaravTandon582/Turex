@@ -76,6 +76,20 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o"
     openai_embedding_model: str = "text-embedding-3-small"
 
+    openai_api_keys: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    """Additional API keys, tried in order after `openai_api_key`.
+
+    Keys and models fail for different reasons and rotate independently. A model failure is
+    answered by another *model* on the same key; an account failure — revoked, or rate limited
+    — makes every model on that key fail the same way, so it is answered by another *key*.
+
+    An empty balance is deliberately not treated as an account failure: it stops the models
+    that cost money and leaves the free ones on the same key working, which is what keeps a
+    spent key useful. So more keys are worth having for **rate limits**, not for credit.
+
+    Comma-separated: `ATLAS_OPENAI_API_KEYS=sk-a,sk-b`.
+    """
+
     openai_fallback_models: Annotated[list[str], NoDecode] = Field(default_factory=list)
     """Models to try when the configured one cannot answer at all.
 
@@ -155,7 +169,9 @@ class Settings(BaseSettings):
             raise ValueError("database_url must use the postgresql+asyncpg:// scheme")
         return value
 
-    @field_validator("cors_origins", "openai_fallback_models", mode="before")
+    @field_validator(
+        "cors_origins", "openai_fallback_models", "openai_api_keys", mode="before"
+    )
     @classmethod
     def _split_list(cls, value: object) -> object:
         """Accept a comma-separated string.

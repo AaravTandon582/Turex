@@ -71,6 +71,30 @@ test.describe("discover", () => {
     expect(errors).toEqual([]);
   });
 
+  test("a paper with no free full text says so instead of offering an import", async ({
+    page,
+  }) => {
+    await page.goto("/discover");
+    await page.getByLabel("Search the catalog").fill("clinical trial patients outcomes");
+    await expect(page.locator('[aria-live="polite"]')).toContainText("matching", {
+      timeout: 15_000,
+    });
+
+    const withoutText = page.getByText("No free full text");
+    if ((await withoutText.count()) === 0) {
+      test.skip(true, "every result on this page has a fetchable file");
+    }
+
+    // The card that says so must not also offer to fetch it. Offering an import that will
+    // come back with a web page is worse than saying the paper is behind a paywall, which is
+    // a fact about the paper rather than a fault.
+    const card = page
+      .locator("div")
+      .filter({ has: withoutText.first() })
+      .last();
+    await expect(card.getByRole("button", { name: "Add to library" })).toHaveCount(0);
+  });
+
   test("maths in an abstract is rendered, not shown as LaTeX source", async ({ page }) => {
     await page.goto("/discover");
 
@@ -100,12 +124,22 @@ test.describe("discover", () => {
     test.setTimeout(240_000);
 
     await page.goto("/discover");
-    // A narrow query, so repeated runs do not keep importing the same first result and
-    // finding it already in the library — which would pass without testing anything.
+    // Restricted to arXiv, whose ids always resolve to a real file.
+    //
+    // The catalog also holds OpenAlex works, and their "free full text" link is whatever
+    // location the source recorded — sometimes a publisher's landing page, sometimes a host
+    // that answers 403 to anything without a browser. Atlas handles that correctly and says
+    // so, which is covered by the test below; what *this* test is for is the import path
+    // working end to end, and it should not fail because a third party changed a URL.
     await page.getByLabel("Search the catalog").fill("scheduling");
     await page.waitForTimeout(3000);
 
-    const add = page.getByRole("button", { name: "Add to library" }).first();
+    const arxivCard = page
+      .locator("li, div")
+      .filter({ has: page.getByRole("link", { name: "arXiv" }) })
+      .filter({ has: page.getByRole("button", { name: "Add to library" }) })
+      .last();
+    const add = arxivCard.getByRole("button", { name: "Add to library" }).first();
     await expect(add).toBeVisible({ timeout: 15_000 });
     await add.click();
 
