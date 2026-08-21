@@ -106,7 +106,11 @@ export default function DiscoverPage() {
               onChange={(event) => setSearchInput(event.target.value)}
               placeholder="Search titles and abstracts…"
               aria-label="Search the catalog"
-              className="h-10 w-full rounded-md border border-border bg-surface pr-9 pl-9 text-sm text-ink placeholder:text-ink-muted focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+              // WebKit draws its own clear button inside a search input, which sat right
+              // beside ours and gave the box two X's. Hiding it keeps the one that matches
+              // the rest of the app, and `type="search"` is still worth having for the
+              // on-screen keyboard and the semantics it carries.
+              className="h-10 w-full rounded-md border border-border bg-surface pr-9 pl-9 text-sm text-ink placeholder:text-ink-muted focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none [&::-webkit-search-cancel-button]:appearance-none"
             />
             {searchInput ? (
               <button
