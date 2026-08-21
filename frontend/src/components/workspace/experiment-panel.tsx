@@ -223,7 +223,7 @@ function ExperimentCard({
               Prediction and outcome
             </p>
             <p className="mt-1 text-[12px] text-ink-subtle">
-              Write the expected result before running. Atlas keeps both, so a surprise stays
+              Write the expected result before running. Turex keeps both, so a surprise stays
               visible as a surprise.
             </p>
             <div className="mt-2.5 space-y-3">

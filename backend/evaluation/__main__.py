@@ -14,15 +14,15 @@ import sys
 
 from sqlalchemy import delete
 
-from atlas.ai.registry import get_registry
-from atlas.core.config import get_settings
-from atlas.db.session import dispose_engine, init_engine, session_scope
-from atlas.models.user import User
-from atlas.retrieval.search import RetrievalService
 from evaluation.runner import ingest_corpus, run
 from evaluation.thresholds import MINIMUM_MRR, MINIMUM_RECALL_AT_3
+from turex.ai.registry import get_registry
+from turex.core.config import get_settings
+from turex.db.session import dispose_engine, init_engine, session_scope
+from turex.models.user import User
+from turex.retrieval.search import RetrievalService
 
-BENCHMARK_EMAIL = "benchmark@atlas.local"
+BENCHMARK_EMAIL = "benchmark@turex.local"
 """A throwaway account. Deleted before and after every run, so a crashed run cannot poison
 the next one."""
 

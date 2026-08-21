@@ -16,14 +16,14 @@ from dataclasses import dataclass
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from atlas.ai.base import EmbeddingProvider
-from atlas.ingestion.chunking import chunk_document
-from atlas.ingestion.pdf import parse_pdf
-from atlas.models.paper import Paper, PaperChunk, PaperSection, ProcessingStatus
-from atlas.models.user import User
-from atlas.retrieval.search import RetrievalService
 from evaluation.corpus import CORPUS, QUERIES, Document, assert_markers_are_unique
 from evaluation.metrics import Scores, score
+from turex.ai.base import EmbeddingProvider
+from turex.ingestion.chunking import chunk_document
+from turex.ingestion.pdf import parse_pdf
+from turex.models.paper import Paper, PaperChunk, PaperSection, ProcessingStatus
+from turex.models.user import User
+from turex.retrieval.search import RetrievalService
 
 RESULTS_PER_QUERY = 5
 """How deep the benchmark looks. Beyond five, a result is not one a reader would read."""
@@ -57,7 +57,7 @@ async def ingest_corpus(
     benchmark measures retrieval, and waiting on a worker would make it slow and flaky without
     exercising anything retrieval depends on.
     """
-    from tests.support.pdf_builder import build_pdf  # test-only helper; not shipped in `atlas`
+    from tests.support.pdf_builder import build_pdf  # test-only helper; not shipped in `turex`
 
     total = 0
     for document in corpus:

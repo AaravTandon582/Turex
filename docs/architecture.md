@@ -1,6 +1,6 @@
 # Architecture
 
-This describes how Atlas is put together and why. It covers what exists today and names the
+This describes how Turex is put together and why. It covers what exists today and names the
 seams that later milestones plug into. It does not describe unbuilt features as though they
 work — see [`../PROGRESS.md`](../PROGRESS.md) for what has shipped.
 
@@ -36,7 +36,7 @@ work — see [`../PROGRESS.md`](../PROGRESS.md) for what has shipped.
 ```
 
 Two processes, one database. There is no message broker, no separate vector store, and no
-cache tier — each of those would be a second thing to run and to keep consistent, and Atlas
+cache tier — each of those would be a second thing to run and to keep consistent, and Turex
 does not yet have a problem that needs one. The places where they would slot in are noted
 below.
 
@@ -139,7 +139,7 @@ when it arrives.
 
 The alternative — proxying API routes through Next so cookies become first-party — would enable
 server-side session reads at the cost of a second hop on every request and duplicated route
-definitions. If Atlas is later deployed behind a single domain, this becomes worth revisiting.
+definitions. If Turex is later deployed behind a single domain, this becomes worth revisiting.
 
 ### API client
 
@@ -165,9 +165,9 @@ in dark mode never flashes white.
 
 ## Two kinds of paper
 
-Atlas stores a paper two ways, and the distinction runs through the whole system.
+Turex stores a paper two ways, and the distinction runs through the whole system.
 
-A **catalog paper** (`catalog_papers`) is one Atlas knows exists: title, authors, abstract,
+A **catalog paper** (`catalog_papers`) is one Turex knows exists: title, authors, abstract,
 categories, dates. About 3.4KB, harvested in bulk from arXiv's OAI-PMH feed by
 `scripts/harvest_arxiv.py`, shared by every account, searched with PostgreSQL full text.
 Hundreds of thousands fit comfortably.
@@ -211,6 +211,6 @@ is a swap rather than surgery. Citations reference persisted chunk ids, which is
 citations, flashcards, and quiz questions all follow the same rule: the model is given numbered
 passages and refers to them by number, and the server turns that number into a foreign key plus
 a snapshot of the passage text. A reference to a number the model was never given is discarded
-rather than stored. This is the single mechanism behind Atlas's central claim, and it lives in
+rather than stored. This is the single mechanism behind Turex's central claim, and it lives in
 three places — `services/assistant_service.py`, `services/study_service.py`, and the models
 that hold the snapshots.

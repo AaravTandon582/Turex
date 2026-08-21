@@ -1,14 +1,14 @@
-# Atlas
+# Turex
 
 **Research, connected.** An intelligent workspace for reading scientific literature,
 connecting what you learn, and turning it into questions you can actually test.
 
-Atlas is built around the loop researchers actually work in:
+Turex is built around the loop researchers actually work in:
 
 > **Read → Understand → Connect → Question → Hypothesise → Test → Learn**
 
 It is not a chat wrapper. The assistant reasons over *your* library, every claim resolves to a
-real passage in a real document, and Atlas says so when it does not know.
+real passage in a real document, and Turex says so when it does not know.
 
 ---
 
@@ -32,7 +32,7 @@ is built today.
 | Demo account and walkthrough | ✅ Working |
 
 Everything answering a model needs `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` set; without one,
-those endpoints say so rather than failing obscurely, and the rest of Atlas keeps working.
+those endpoints say so rather than failing obscurely, and the rest of Turex keeps working.
 Nothing is mocked to look complete when it is not.
 
 ---
@@ -54,12 +54,12 @@ their limits are in [`docs/security.md`](docs/security.md).
 
 ---
 
-## Running Atlas locally
+## Running Turex locally
 
 The quickest way is `docker compose up --build`, which brings up the database, runs the
 migrations, and serves both halves. Full setup, including running it without containers and
 troubleshooting, is in [`docs/development.md`](docs/development.md).
-To see Atlas with a library already in it, run `python scripts/seed_demo.py` and follow
+To see Turex with a library already in it, run `python scripts/seed_demo.py` and follow
 [`docs/demo.md`](docs/demo.md).
 The short version:
 
@@ -72,7 +72,7 @@ The short version:
 ```bash
 # macOS
 brew install postgresql@17 pgvector && brew services start postgresql@17
-createdb atlas && createdb atlas_test
+createdb turex && createdb turex_test
 ```
 
 ### Backend
@@ -82,7 +82,7 @@ cd backend
 python3 -m venv .venv && ./.venv/bin/pip install -e ".[dev]"
 cp .env.example .env          # then set SECRET_KEY
 ./.venv/bin/alembic upgrade head
-./.venv/bin/uvicorn atlas.main:create_app --factory --reload
+./.venv/bin/uvicorn turex.main:create_app --factory --reload
 ```
 
 The API runs on <http://localhost:8000>, with interactive docs at `/docs` outside production.
@@ -101,7 +101,7 @@ The app runs on <http://localhost:3000>.
 ### Tests
 
 ```bash
-cd backend && ./.venv/bin/pytest        # requires the atlas_test database
+cd backend && ./.venv/bin/pytest        # requires the turex_test database
 cd frontend && npm run build            # type-checks as part of the build
 ```
 
@@ -112,7 +112,7 @@ cd frontend && npm run build            # type-checks as part of the build
 Every setting is an environment variable; nothing reads credentials from source. See
 `backend/.env.example` and `frontend/.env.example` for the full list.
 
-Atlas runs without any AI provider keys — features that need a model report themselves as
+Turex runs without any AI provider keys — features that need a model report themselves as
 unavailable rather than failing at the point of use.
 
 ---
@@ -121,7 +121,7 @@ unavailable rather than failing at the point of use.
 
 ```
 backend/
-  atlas/
+  turex/
     api/          HTTP layer: routing, dependencies, cookies, error translation
     core/         Config, logging, errors, security primitives
     db/           Engine, session lifecycle, model conventions

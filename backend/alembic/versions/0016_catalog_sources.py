@@ -2,7 +2,7 @@
 
 The catalog was arXiv-shaped: `arxiv_id` was the key, and both URLs were derived from it. arXiv
 has no medicine, no chemistry, and no humanities, so one source was never going to answer "find
-me any paper" — see `atlas/models/catalog.py`.
+me any paper" — see `turex/models/catalog.py`.
 
 `arxiv_id` becomes `external_id`, unique *per source* rather than globally, and the two URLs
 become stored columns because only arXiv's are a pure function of the id.

@@ -1,6 +1,6 @@
 """Adding a paper by link, DOI, or arXiv id — and refusing to be used as a proxy.
 
-Fetching a URL a caller supplied is the most dangerous thing Atlas does. The server has a
+Fetching a URL a caller supplied is the most dangerous thing Turex does. The server has a
 network position the caller does not: cloud metadata endpoints, admin services on localhost,
 databases on a private subnet. Every one of those is reachable from the application server and
 from nowhere else, which is exactly what makes SSRF worth an attacker's time.
@@ -14,9 +14,9 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
-from atlas.core.errors import ValidationError
-from atlas.ingestion.fetching import _is_public, assert_safe_url
-from atlas.ingestion.identifiers import IdentifierKind, parse_identifier
+from turex.core.errors import ValidationError
+from turex.ingestion.fetching import _is_public, assert_safe_url
+from turex.ingestion.identifiers import IdentifierKind, parse_identifier
 
 
 class TestIdentifierParsing:

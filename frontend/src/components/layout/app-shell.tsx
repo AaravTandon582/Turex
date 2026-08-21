@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useSession } from "@/components/auth/session-provider";
-import { AtlasMark } from "@/components/brand/atlas-mark";
+import { TurexMark } from "@/components/brand/turex-mark";
 import { Sidebar, SidebarContent } from "@/components/layout/sidebar";
 import { useNavShortcuts } from "@/components/layout/use-nav-shortcuts";
 import { Skeleton } from "@/components/ui/primitives";
@@ -104,8 +104,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <Menu className="size-5" aria-hidden />
           </button>
-          <AtlasMark className="size-5" />
-          <span className="text-sm font-semibold text-ink">Atlas</span>
+          <TurexMark className="size-5" />
+          <span className="text-sm font-semibold text-ink">Turex</span>
         </header>
 
         <main id="main" className="min-w-0 flex-1">

@@ -16,12 +16,12 @@ import re
 import pytest
 from httpx import AsyncClient
 
-from atlas.core.config import Settings
-from atlas.core.logging import redact
 from tests.support.pdf_builder import build_pdf
+from turex.core.config import Settings
+from turex.core.logging import redact
 
 REPOSITORY = pathlib.Path(__file__).resolve().parents[2]
-BACKEND_SOURCE = REPOSITORY / "backend" / "atlas"
+BACKEND_SOURCE = REPOSITORY / "backend" / "turex"
 FRONTEND_SOURCE = REPOSITORY / "frontend" / "src"
 
 
@@ -146,7 +146,7 @@ class TestSensitiveDataNeverLeaves:
         await client.post(
             f"{api}/auth/register",
             json={
-                "email": "known@atlas.dev",
+                "email": "known@turex.dev",
                 "full_name": "Known Person",
                 "password": "a-sufficiently-long-password",
             },
@@ -155,11 +155,11 @@ class TestSensitiveDataNeverLeaves:
 
         wrong_password = await client.post(
             f"{api}/auth/login",
-            json={"email": "known@atlas.dev", "password": "the-wrong-password-entirely"},
+            json={"email": "known@turex.dev", "password": "the-wrong-password-entirely"},
         )
         unknown_email = await client.post(
             f"{api}/auth/login",
-            json={"email": "nobody@atlas.dev", "password": "the-wrong-password-entirely"},
+            json={"email": "nobody@turex.dev", "password": "the-wrong-password-entirely"},
         )
 
         assert wrong_password.status_code == unknown_email.status_code
@@ -243,7 +243,7 @@ class TestUploadedDocumentsCannotExecute:
     async def test_a_pdf_carrying_javascript_is_stored_as_inert_bytes(
         self, registered_client: AsyncClient, api: str, run_worker
     ) -> None:
-        # A real PDF whose text happens to contain an OpenAction/JavaScript payload. Atlas
+        # A real PDF whose text happens to contain an OpenAction/JavaScript payload. Turex
         # extracts text and never evaluates document actions, so this must ingest as ordinary
         # prose rather than doing anything.
         hostile = build_pdf(

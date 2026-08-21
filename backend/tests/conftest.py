@@ -1,7 +1,7 @@
 """Shared test fixtures.
 
-Tests run against a real PostgreSQL database (`atlas_test` by default) rather than SQLite,
-because Atlas depends on Postgres-specific behaviour — pgvector, `gen_random_uuid()`, JSONB.
+Tests run against a real PostgreSQL database (`turex_test` by default) rather than SQLite,
+because Turex depends on Postgres-specific behaviour — pgvector, `gen_random_uuid()`, JSONB.
 A suite that passes on SQLite would not tell us the application works.
 """
 
@@ -19,30 +19,30 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alembic import command
-from atlas.ai.registry import reset_registry
-from atlas.api.deps import (
+from tests.support.scripted_provider import ScriptedChatProvider
+from turex.ai.registry import reset_registry
+from turex.api.deps import (
     get_assistant_service,
     get_db,
     get_retrieval_service,
     reset_rate_limits,
 )
-from atlas.catalog.service import reset_stats_cache
-from atlas.core.config import Environment, Settings, get_settings
-from atlas.db.base import Base
-from atlas.db.session import dispose_engine, init_engine, session_scope
-from atlas.main import create_app
-from atlas.retrieval.search import RetrievalService
-from atlas.services.assistant_service import AssistantService
-from atlas.storage.local import LocalDocumentStore
-from atlas.workers.runner import IngestionWorker
-from tests.support.scripted_provider import ScriptedChatProvider
+from turex.catalog.service import reset_stats_cache
+from turex.core.config import Environment, Settings, get_settings
+from turex.db.base import Base
+from turex.db.session import dispose_engine, init_engine, session_scope
+from turex.main import create_app
+from turex.retrieval.search import RetrievalService
+from turex.services.assistant_service import AssistantService
+from turex.storage.local import LocalDocumentStore
+from turex.workers.runner import IngestionWorker
 
-TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "postgresql+asyncpg://localhost/atlas_test")
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "postgresql+asyncpg://localhost/turex_test")
 
 
 @pytest.fixture(scope="session")
 def storage_root(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    return tmp_path_factory.mktemp("atlas-storage")
+    return tmp_path_factory.mktemp("turex-storage")
 
 
 @pytest.fixture(scope="session")

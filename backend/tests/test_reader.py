@@ -10,9 +10,9 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
-from atlas.models.paper import Paper
-from atlas.services.citations import CitationStyle, format_all, to_apa, to_bibtex, to_mla
 from tests.support.pdf_builder import build_paper_pdf
+from turex.models.paper import Paper
+from turex.services.citations import CitationStyle, format_all, to_apa, to_bibtex, to_mla
 
 
 def make_paper(**overrides: object) -> Paper:

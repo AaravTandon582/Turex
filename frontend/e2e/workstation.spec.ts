@@ -69,7 +69,7 @@ test.describe("the workstation", () => {
 
     // The frames belonging to the runner are trimmed, so the traceback is about the reader's
     // own code — the only part they can act on.
-    await expect(page.locator("body")).not.toContainText("__atlas_run");
+    await expect(page.locator("body")).not.toContainText("__turex_run");
   });
 
   test("editing a cell that has run marks it stale", async ({ page }) => {

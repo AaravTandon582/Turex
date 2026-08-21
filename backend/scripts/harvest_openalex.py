@@ -14,7 +14,7 @@ than everything, and which slices is your decision. Useful filters:
     has_abstract:true                       skip records with nothing to search
     publication_year:>2015                  recent work only
     primary_topic.field.id:fields/27        medicine (see the OpenAlex fields list)
-    open_access.is_oa:true                  only papers Atlas can actually fetch
+    open_access.is_oa:true                  only papers Turex can actually fetch
     type:article                            exclude datasets, theses, and errata
 
 Combine them with commas. `--search` matches words in the title and abstract, and can be used
@@ -37,23 +37,23 @@ from pathlib import Path
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from atlas.catalog.harvest import MINIMUM_FREE_BYTES, analyze_catalog, count_catalog, free_bytes
-from atlas.catalog.openalex import OpenAlexHarvester, count_openalex, store_works
-from atlas.catalog.records import HarvestError
-from atlas.core.config import get_settings
-from atlas.db.session import dispose_engine, get_session_factory, init_engine
+from turex.catalog.harvest import MINIMUM_FREE_BYTES, analyze_catalog, count_catalog, free_bytes
+from turex.catalog.openalex import OpenAlexHarvester, count_openalex, store_works
+from turex.catalog.records import HarvestError
+from turex.core.config import get_settings
+from turex.db.session import dispose_engine, get_session_factory, init_engine
 
 CURSOR_FILE = Path(".openalex-cursor")
 """Where a stopped run resumes from. Same reasoning as the arXiv token: an hour of harvesting
 should survive a dropped connection."""
 
-USER_AGENT = "Atlas/1.0 (research workspace)"
+USER_AGENT = "Turex/1.0 (research workspace)"
 
 
 def _arguments() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="harvest_openalex",
-        description="Fill the Atlas catalog from OpenAlex.",
+        description="Fill the Turex catalog from OpenAlex.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )

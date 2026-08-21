@@ -37,7 +37,7 @@ export default function LoginPage() {
 
   return (
     <>
-      <h1 className="text-xl font-semibold tracking-[-0.01em] text-ink">Sign in to Atlas</h1>
+      <h1 className="text-xl font-semibold tracking-[-0.01em] text-ink">Sign in to Turex</h1>
       <p className="mt-1.5 text-sm text-ink-muted">Pick up where your research left off.</p>
 
       <form onSubmit={handleSubmit} className="mt-7 space-y-4" noValidate>
@@ -71,7 +71,7 @@ export default function LoginPage() {
       </form>
 
       <p className="mt-6 text-center text-[13px] text-ink-muted">
-        New to Atlas?{" "}
+        New to Turex?{" "}
         <Link href="/register" className="font-medium text-accent hover:underline">
           Create an account
         </Link>

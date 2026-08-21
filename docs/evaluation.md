@@ -1,6 +1,6 @@
 # Evaluation
 
-Atlas claims that retrieval finds the right passage and that every citation resolves to real
+Turex claims that retrieval finds the right passage and that every citation resolves to real
 text. This is how those claims are measured rather than asserted.
 
 ---
@@ -131,7 +131,7 @@ The third is the reason citations carry a text snapshot at all.
 
 ## Model misbehaviour
 
-A model that lies must not be able to make Atlas lie. The suite scripts specific failures that
+A model that lies must not be able to make Turex lie. The suite scripts specific failures that
 real models produce and asserts nothing ungrounded reaches the database:
 
 | Scripted behaviour | Required outcome |
@@ -271,7 +271,7 @@ the truth.
   driven end to end against a real model, so the claim that it is exercised only by a script
   is no longer true. What is still missing is a *scored* generation benchmark: nothing
   measures whether an answer is good, only that it is grounded, that its citations resolve,
-  and that a model which misbehaves cannot make Atlas misbehave.
+  and that a model which misbehaves cannot make Turex misbehave.
 - **Semantic search over the catalog.** Catalog search is lexical, so it cannot connect a
   description to a paper that uses different words for the same idea. This is a stated
   limitation rather than an untested one — see [`decisions.md`](decisions.md) D13.

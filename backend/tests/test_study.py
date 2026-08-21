@@ -1,6 +1,6 @@
 """Study mode tests.
 
-The thing worth testing here is not that a model can write a flashcard — it is that Atlas
+The thing worth testing here is not that a model can write a flashcard — it is that Turex
 refuses to store one that is not attached to a real passage of the user's paper. The scripted
 model is therefore driven deliberately off the rails: it cites passage numbers it was never
 shown, wraps its reply in Markdown, returns truncated JSON, and returns prose instead of JSON.
@@ -19,13 +19,13 @@ from fastapi import Depends
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from atlas.ai.base import ChatChunk, ChatProvider, ChatRequest, ChatResult
-from atlas.ai.structured import parse_items
-from atlas.api.deps import get_db, get_study_service
-from atlas.models.study import ReviewRating
-from atlas.services.study_service import GeneratedCard, StudyService
-from atlas.study.scheduling import MINIMUM_EASE, STARTING_EASE, next_schedule
 from tests.test_retrieval import TRANSFORMERS_PDF, upload_and_index
+from turex.ai.base import ChatChunk, ChatProvider, ChatRequest, ChatResult
+from turex.ai.structured import parse_items
+from turex.api.deps import get_db, get_study_service
+from turex.models.study import ReviewRating
+from turex.services.study_service import GeneratedCard, StudyService
+from turex.study.scheduling import MINIMUM_EASE, STARTING_EASE, next_schedule
 
 
 class ScriptedGenerator(ChatProvider):
@@ -187,7 +187,7 @@ class TestStructuredParsing:
         Every entry was dropped, `parse_items` returned nothing, and the caller stored an
         empty quiz and reported success. Losing every entry is a failure, not a result.
         """
-        from atlas.core.errors import ProviderUnavailableError
+        from turex.core.errors import ProviderUnavailableError
 
         without_source = [{k: v for k, v in a_card().items() if k != "source"} for _ in range(3)]
         with pytest.raises(ProviderUnavailableError):
@@ -199,14 +199,14 @@ class TestStructuredParsing:
         assert len(parse_items(mixed, GeneratedCard)) == 1
 
     def test_a_truncated_response_is_a_failure_not_an_empty_deck(self) -> None:
-        from atlas.core.errors import ProviderUnavailableError
+        from turex.core.errors import ProviderUnavailableError
 
         truncated = cards_json(a_card())[:-40]
         with pytest.raises(ProviderUnavailableError):
             parse_items(truncated, GeneratedCard)
 
     def test_prose_with_no_json_is_a_failure(self) -> None:
-        from atlas.core.errors import ProviderUnavailableError
+        from turex.core.errors import ProviderUnavailableError
 
         with pytest.raises(ProviderUnavailableError):
             parse_items("I'd be happy to help with that!", GeneratedCard)
@@ -285,7 +285,7 @@ class TestFlashcardGeneration:
         await client.post(
             f"{api}/auth/register",
             json={
-                "email": "other@atlas.dev",
+                "email": "other@turex.dev",
                 "full_name": "Other Reader",
                 "password": "a-sufficiently-long-password",
             },
@@ -353,7 +353,7 @@ class TestReview:
         await client.post(
             f"{api}/auth/register",
             json={
-                "email": "intruder@atlas.dev",
+                "email": "intruder@turex.dev",
                 "full_name": "Intruder",
                 "password": "a-sufficiently-long-password",
             },

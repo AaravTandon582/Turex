@@ -60,7 +60,7 @@ class TestSecurityDocMatchesTheCode:
     """Numbers in the security document are the ones a reader will quote back."""
 
     def test_the_documented_rate_limits_are_the_configured_ones(self) -> None:
-        from atlas.security import policy
+        from turex.security import policy
 
         text = (DOCS / "security.md").read_text()
         for limit, label in [
@@ -74,11 +74,11 @@ class TestSecurityDocMatchesTheCode:
             )
 
     def test_the_documented_grace_window_is_the_configured_one(self) -> None:
-        from atlas.core.config import Settings
+        from turex.core.config import Settings
 
         window = Settings(
             _env_file=None,
-            database_url="postgresql+asyncpg://localhost/atlas_test",
+            database_url="postgresql+asyncpg://localhost/turex_test",
             secret_key="a-test-secret-key-that-is-long-enough",
         ).refresh_grace_seconds
         assert f"{window}-second grace" in (DOCS / "security.md").read_text()

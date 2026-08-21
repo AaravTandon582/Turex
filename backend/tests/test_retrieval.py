@@ -1,6 +1,6 @@
 """Retrieval tests.
 
-The claim Atlas makes is that answers are grounded in real passages from the user's own
+The claim Turex makes is that answers are grounded in real passages from the user's own
 library. These tests hold the parts of that claim that can be checked mechanically: search
 finds relevant passages, it never crosses account boundaries, and every result carries a
 locator that resolves.
@@ -17,11 +17,11 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from atlas.ai.local_embedder import HashingEmbeddingProvider
-from atlas.models.paper import PaperChunk
-from atlas.retrieval.context import build_context, compose_user_turn, markers_used
-from atlas.retrieval.search import RRF_K, RetrievedChunk, fuse
 from tests.support.pdf_builder import build_pdf
+from turex.ai.local_embedder import HashingEmbeddingProvider
+from turex.models.paper import PaperChunk
+from turex.retrieval.context import build_context, compose_user_turn, markers_used
+from turex.retrieval.search import RRF_K, RetrievedChunk, fuse
 
 # Two documents with clearly different vocabulary, so a lexical embedder can separate them.
 TRANSFORMERS_PDF = build_pdf(
@@ -214,7 +214,7 @@ class TestMarkerParsing:
 
     def test_discards_a_marker_with_no_source_behind_it(self) -> None:
         """The model occasionally writes [9] when five sources were supplied. Rendering that
-        as a citation is exactly the fabrication Atlas exists to prevent."""
+        as a citation is exactly the fabrication Turex exists to prevent."""
         assert markers_used("According to [9].", available=5) == set()
 
     def test_ignores_bracketed_text_that_is_not_a_citation(self) -> None:

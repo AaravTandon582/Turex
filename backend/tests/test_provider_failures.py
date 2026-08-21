@@ -1,8 +1,8 @@
-"""What Atlas says and does when a model call fails.
+"""What Turex says and does when a model call fails.
 
-Every upstream failure used to arrive as one sentence — *"Atlas couldn't reach the AI
+Every upstream failure used to arrive as one sentence — *"Turex couldn't reach the AI
 service. Try again in a moment."* — which is true of a dropped connection and false of
-everything else. A key whose credits had run out answered `402` on every request, Atlas
+everything else. A key whose credits had run out answered `402` on every request, Turex
 reported a reachability problem, and a working feature looked like broken code.
 
 So these check two things the classifier and the fallback chain exist for: that the message
@@ -19,10 +19,10 @@ import httpx
 import openai
 import pytest
 
-from atlas.ai.base import ChatMessage, ChatRequest, ChunkKind, Role
-from atlas.ai.failures import classify
-from atlas.ai.openai_provider import OpenAIChatProvider
-from atlas.core.errors import ProviderUnavailableError
+from turex.ai.base import ChatMessage, ChatRequest, ChunkKind, Role
+from turex.ai.failures import classify
+from turex.ai.openai_provider import OpenAIChatProvider
+from turex.core.errors import ProviderUnavailableError
 
 REQUEST = ChatRequest(
     system="be brief",
@@ -265,7 +265,7 @@ class TestKeyRotation:
         assert completions.models == ["primary/model", "spare/model"]
 
     def test_duplicate_keys_are_not_tried_twice(self) -> None:
-        """`ATLAS_OPENAI_API_KEYS` repeating the primary key is an easy mistake and would
+        """`TUREX_OPENAI_API_KEYS` repeating the primary key is an easy mistake and would
         otherwise double every failure path for no benefit."""
         provider = OpenAIChatProvider(
             api_key="same", model="m", extra_api_keys=("same", "different")

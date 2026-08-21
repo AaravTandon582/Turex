@@ -12,8 +12,8 @@
 # macOS
 brew install postgresql@17 pgvector
 brew services start postgresql@17
-createdb atlas
-createdb atlas_test
+createdb turex
+createdb turex_test
 ```
 
 `pgvector` is enabled by the first migration, so no manual `CREATE EXTENSION` is needed —
@@ -33,12 +33,12 @@ cp .env.example .env
 python3 -c "import secrets; print('SECRET_KEY=' + secrets.token_urlsafe(48))"
 
 ./.venv/bin/alembic upgrade head
-./.venv/bin/uvicorn atlas.main:create_app --factory --reload
+./.venv/bin/uvicorn turex.main:create_app --factory --reload
 ```
 
 API on <http://localhost:8000>. Interactive docs at `/docs` (disabled in production).
 
-Note the `--factory` flag: `atlas.main` deliberately exposes `create_app()` rather than a
+Note the `--factory` flag: `turex.main` deliberately exposes `create_app()` rather than a
 module-level `app`, so importing the module has no side effects and tests can build an
 application with their own settings.
 
@@ -50,7 +50,7 @@ application with their own settings.
 ./.venv/bin/pytest -x -q        # stop at first failure
 ```
 
-Tests run against `atlas_test`, which is migrated down to base and back up once per session.
+Tests run against `turex_test`, which is migrated down to base and back up once per session.
 Each test truncates the tables it touched, so tests cannot depend on each other's data.
 
 Point the suite elsewhere with `TEST_DATABASE_URL`.
@@ -60,7 +60,7 @@ Point the suite elsewhere with `TEST_DATABASE_URL`.
 ```bash
 ./.venv/bin/ruff check . --fix
 ./.venv/bin/ruff format .
-./.venv/bin/mypy atlas
+./.venv/bin/mypy turex
 ```
 
 All three must be clean before a commit.
@@ -81,7 +81,7 @@ everything — extensions, index method changes, and data backfills have to be w
 Verify `downgrade()` actually reverses `upgrade()`; the test suite runs a full
 `downgrade base` → `upgrade head` cycle, so a broken downgrade fails the suite.
 
-Every model must be imported in `atlas/models/__init__.py`. Autogenerate compares against
+Every model must be imported in `turex/models/__init__.py`. Autogenerate compares against
 `Base.metadata`, and a model nothing imports is invisible to it — the symptom is a migration
 that silently drops the table.
 
@@ -170,6 +170,19 @@ npm run build       # type-checks and prerenders; catches server/client boundary
 appear during server rendering — a client hook in a server component, a component that throws
 without a browser — surface there and not in `dev`.
 
+### Running it fast
+
+`npm run dev` recompiles routes on demand and, because React's strict mode double-invokes
+effects in development, fires every request twice. That is the right trade while writing code
+and the wrong one while using the app:
+
+```bash
+npm run serve        # build once, then serve it
+```
+
+Measured on the same machine, clicking through the sidebar: **48–67ms** per page in a
+production build, against several hundred in development, with no duplicated requests.
+
 ---
 
 ## Conventions
@@ -203,13 +216,13 @@ says what changed; the body says why, when why is not obvious.
 ## Troubleshooting
 
 **`relation "users" does not exist` in tests** — the test database has not been migrated.
-Confirm `atlas_test` exists; the session fixture migrates it automatically.
+Confirm `turex_test` exists; the session fixture migrates it automatically.
 
 **`database_url must use the postgresql+asyncpg:// scheme`** — the DSN is missing the async
-driver. Atlas is async end to end and will not run on `psycopg2`.
+driver. Turex is async end to end and will not run on `psycopg2`.
 
 **Autogenerate produces an empty migration** — the model is not imported in
-`atlas/models/__init__.py`.
+`turex/models/__init__.py`.
 
 **Frontend requests fail with a CORS error** — `CORS_ORIGINS` in `backend/.env` must exactly
 match the frontend origin, scheme and port included. A wildcard is not valid here: cookie
@@ -231,7 +244,7 @@ They need more setup than the unit suite, so they are run deliberately rather th
 
 ```bash
 # three things must be up
-uvicorn atlas.main:create_app --factory     # the API
+uvicorn turex.main:create_app --factory     # the API
 python scripts/seed_demo.py                 # the demo account these tests sign in as
 npm run dev                                 # the web app
 
@@ -274,7 +287,7 @@ A few decisions worth knowing:
   files someone else supplied is exactly the code to be careful about.
 
 **Not a production deployment.** It serves plain HTTP and has no TLS, no backups, and no
-process supervision beyond Docker's own. It exists so that running Atlas is one command, and so
+process supervision beyond Docker's own. It exists so that running Turex is one command, and so
 what runs elsewhere is what runs here.
 
 **Unverified locally.** Docker is not installed on the machine this was written on, so the

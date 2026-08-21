@@ -41,7 +41,7 @@ Internal diagnostics are never serialised into a response — not even in debug 
 | `not_found` | 404 | Missing — **or** owned by someone else |
 | `conflict` | 409 | Already exists |
 | `payload_too_large` | 413 | Upload exceeds the limit |
-| `unsupported_media_type` | 415 | Not a file Atlas can read |
+| `unsupported_media_type` | 415 | Not a file Turex can read |
 | `processing_failed` | 422 | The document could not be processed |
 | `internal_error` | 500 | A bug; details are in the logs under the request id |
 
@@ -105,7 +105,7 @@ log line produced while handling the request, which is how a reported failure ge
 
 ### When the AI service fails
 
-A model call can fail in ways that need different responses, and Atlas reports them as
+A model call can fail in ways that need different responses, and Turex reports them as
 different messages rather than one. `503 provider_unavailable` carries the specific one:
 
 | Upstream | What the message says | Retrying helps? |
@@ -117,7 +117,7 @@ different messages rather than one. `503 provider_unavailable` carries the speci
 | 429 | rate limited, try again in a minute | yes |
 | 5xx, network | genuinely unreachable | yes |
 
-`ATLAS_OPENAI_FALLBACK_MODELS` takes a comma-separated list of models to try when the
+`TUREX_OPENAI_FALLBACK_MODELS` takes a comma-separated list of models to try when the
 configured one *cannot answer at all* — no credit, not entitled, not carried, or an empty
 response. Never for a rate limit or an outage: those are about the service rather than the
 model, so a second request to it fails the same way. Which model answered is logged.
@@ -148,7 +148,7 @@ how a wrong figure reaches a write-up.
 
 ### Catalog
 
-Papers Atlas knows about, as opposed to papers it has read. See
+Papers Turex knows about, as opposed to papers it has read. See
 [`architecture.md`](architecture.md) for why these are two tables rather than one.
 
 Two sources. **arXiv** is preprints, strongest in physics, mathematics and computer science.
@@ -350,6 +350,6 @@ Poll while any paper is `pending` or `processing`, and stop when none are.
 attacker-controlled. A file that does not begin with `%PDF-` is rejected with 415 whatever it
 claims to be.
 
-**A failed paper explains itself.** `failure_reason` is written for the user ("Atlas couldn't
+**A failed paper explains itself.** `failure_reason` is written for the user ("Turex couldn't
 find any text in that PDF. Scanned documents need OCR first."), and documents that would fail
 identically on a retry are not retried.

@@ -11,7 +11,7 @@ COPY pyproject.toml ./
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir .
 
-COPY atlas ./atlas
+COPY turex ./turex
 RUN pip install --no-cache-dir --no-deps .
 
 
@@ -19,13 +19,13 @@ FROM python:3.13-slim AS runtime
 
 # Runs as a user with no privileges. A container process that does not need root should not
 # have it, and PDF parsing on uploaded files is exactly the kind of code to be careful about.
-RUN useradd --create-home --uid 10001 atlas
+RUN useradd --create-home --uid 10001 turex
 WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
-COPY --chown=atlas:atlas atlas ./atlas
-COPY --chown=atlas:atlas alembic ./alembic
-COPY --chown=atlas:atlas alembic.ini ./
+COPY --chown=turex:turex turex ./turex
+COPY --chown=turex:turex alembic ./alembic
+COPY --chown=turex:turex alembic.ini ./
 
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
@@ -34,10 +34,10 @@ ENV PATH="/opt/venv/bin:$PATH" \
 
 # Uploaded PDFs live on a volume, not in the image: a container is disposable and a library
 # is not.
-RUN mkdir -p /data/storage && chown -R atlas:atlas /data
+RUN mkdir -p /data/storage && chown -R turex:turex /data
 VOLUME ["/data"]
 
-USER atlas
+USER turex
 EXPOSE 8000
 
 # The readiness endpoint checks the database, so an unhealthy container is one that cannot
@@ -45,4 +45,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/ready', timeout=4).status == 200 else 1)"
 
-CMD ["uvicorn", "atlas.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "turex.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

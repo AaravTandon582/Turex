@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "e2e": "playwright test",
-    "pyodide": "mkdir -p public/pyodide && cp node_modules/pyodide/pyodide.asm.wasm node_modules/pyodide/pyodide.asm.mjs node_modules/pyodide/python_stdlib.zip node_modules/pyodide/pyodide-lock.json node_modules/pyodide/pyodide.mjs public/pyodide/"
+    "pyodide": "mkdir -p public/pyodide && cp node_modules/pyodide/pyodide.asm.wasm node_modules/pyodide/pyodide.asm.mjs node_modules/pyodide/python_stdlib.zip node_modules/pyodide/pyodide-lock.json node_modules/pyodide/pyodide.mjs public/pyodide/",
+    "serve": "npm run build && next start"
   },
   "dependencies": {
     "@codemirror/lang-python": "^6.2.1",

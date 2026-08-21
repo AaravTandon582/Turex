@@ -29,7 +29,7 @@ export interface AsyncResult<T> {
  * The four are *loading*, *failed*, *empty*, and *loaded*, and the reason this exists is that
  * the first three are easy to conflate. Before it, a page whose request failed rendered its
  * empty state — so a server that was down told the reader "you have no projects yet". That is
- * a lie the product cannot afford, given everything else about Atlas rests on not saying
+ * a lie the product cannot afford, given everything else about Turex rests on not saying
  * things that are not true.
  *
  * `loading` and `error` are tracked here. *Empty* stays with the caller, because only the
@@ -89,7 +89,7 @@ export function describe(caught: unknown): string {
   // A genuine transport failure. `fetch` rejects with a TypeError and no detail — deliberately,
   // so a page cannot probe the network — so this is the one case where a guess is all there is.
   if (caught instanceof TypeError && /fetch|network|load failed/i.test(caught.message)) {
-    return "Atlas couldn't reach the server. Check your connection and try again.";
+    return "Turex couldn't reach the server. Check your connection and try again.";
   }
 
   // Anything else is a real failure with a real message, and saying "check your connection"
@@ -97,5 +97,5 @@ export function describe(caught: unknown): string {
   // that failed to start reported itself as a network problem and gave nothing to act on.
   if (caught instanceof Error && caught.message.trim()) return caught.message;
 
-  return "Atlas couldn't complete that. Try again.";
+  return "Turex couldn't complete that. Try again.";
 }

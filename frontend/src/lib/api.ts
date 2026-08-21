@@ -1,5 +1,5 @@
 /**
- * Typed client for the Atlas API.
+ * Typed client for the Turex API.
  *
  * Two things this centralises:
  *
@@ -58,7 +58,7 @@ export class ApiError extends Error {
   }
 }
 
-const GENERIC_MESSAGE = "Atlas couldn't complete that request. Try again.";
+const GENERIC_MESSAGE = "Turex couldn't complete that request. Try again.";
 
 interface ErrorEnvelope {
   error?: {
@@ -132,7 +132,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   } catch {
     throw new ApiError(
       "network_error",
-      "Atlas can't reach the server. Check your connection.",
+      "Turex can't reach the server. Check your connection.",
       0,
     );
   }

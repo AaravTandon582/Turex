@@ -98,7 +98,7 @@ export function PaperCard({ paper, progressLabel, progressPercent, onChanged }: 
         {failed && (
           <div className="mt-2.5 flex items-start gap-2 text-[13px] text-danger">
             <AlertCircle className="mt-px size-3.5 shrink-0" aria-hidden />
-            <span>{paper.failure_reason ?? "Atlas couldn't read this paper."}</span>
+            <span>{paper.failure_reason ?? "Turex couldn't read this paper."}</span>
           </div>
         )}
       </div>

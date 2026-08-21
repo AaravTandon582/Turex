@@ -1,7 +1,7 @@
 """catalog papers
 
-A wide, shallow index of papers Atlas knows about but has not read — see
-`atlas/models/catalog.py` for why this is separate from `papers` rather than a flag on it.
+A wide, shallow index of papers Turex knows about but has not read — see
+`turex/models/catalog.py` for why this is separate from `papers` rather than a flag on it.
 
 The search vector is maintained by a trigger rather than a generated column: PostgreSQL only
 allows immutable expressions in a generated column, and `setweight(to_tsvector(...))` over two

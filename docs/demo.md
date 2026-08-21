@@ -1,8 +1,8 @@
 # Demo
 
-A five-minute walkthrough of Atlas, and how to set it up.
+A five-minute walkthrough of Turex, and how to set it up.
 
-The whole demo rests on one claim — **Atlas does not make things up** — so the script below is
+The whole demo rests on one claim — **Turex does not make things up** — so the script below is
 built to let someone test that claim rather than watch it be asserted. Two of the five steps
 invite the audience to try to catch it lying.
 
@@ -14,14 +14,14 @@ With PostgreSQL running and the API started:
 
 ```bash
 cd backend
-uvicorn atlas.main:create_app --factory        # in one terminal
+uvicorn turex.main:create_app --factory        # in one terminal
 python scripts/seed_demo.py                    # in another
 ```
 
 Then start the frontend with `npm run dev` and sign in as:
 
 ```
-demo@atlas.dev / atlas-demo-account-2026
+demo@turex.dev / turex-demo-account-2026
 ```
 
 The seed downloads five arXiv papers on first run and caches them under `backend/var/`, so
@@ -117,7 +117,7 @@ Open the **project**. Walk down it:
   intent."*
 
 > "This is the part I care about most. A tool that only collects support for what you already
-> believe is a tool for being confidently wrong. Atlas tracks what your library argues
+> believe is a tool for being confidently wrong. Turex tracks what your library argues
 > *against* too, and every piece of evidence is a passage you can go and read."
 
 ### 5. Connections and study (60 seconds)
@@ -157,8 +157,8 @@ failing obscurely.
 **"Is it just a wrapper around ChatGPT?"**
 The model is one component and is replaceable — the provider sits behind an interface and can
 point at Anthropic, OpenAI, or any OpenAI-compatible service by changing a setting. The parts
-that make Atlas useful — ingestion, hybrid search over your own library, the citation
-mechanism, the project structure — are Atlas's own and would still be there with a different
+that make Turex useful — ingestion, hybrid search over your own library, the citation
+mechanism, the project structure — are Turex's own and would still be there with a different
 model behind them.
 
 **"What is it worst at?"**
@@ -170,11 +170,11 @@ section that admits nothing reads as one that measured nothing.
 ## Known limitations, stated plainly
 
 - **Retrieval is only as good as the library.** If the answer is not in a paper you have added,
-  Atlas will tell you so — which is correct, and still not an answer.
+  Turex will tell you so — which is correct, and still not an answer.
 - **Search quality depends on the embedding model.** With the offline embedder the benchmark
   scores recall@3 of 88% and MRR 0.646; one benchmark query fails outright because a
   bag-of-words embedder cannot match a paraphrase. See [`evaluation.md`](evaluation.md).
-- **Retrieval moves a failure rather than removing it.** If a paper is wrong, Atlas will cite it
+- **Retrieval moves a failure rather than removing it.** If a paper is wrong, Turex will cite it
   accurately — and a wrong claim carrying a citation is more persuasive, not less. This is
   written up as an open thread in the demo notebook, because it is a real limitation and not a
   bug to be fixed.

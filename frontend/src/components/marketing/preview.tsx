@@ -3,11 +3,11 @@ import { FileText, Quote } from "lucide-react";
 import { Badge } from "@/components/ui/primitives";
 
 /**
- * A static composition of Atlas's real interface elements.
+ * A static composition of Turex's real interface elements.
  *
  * Built from the product's own tokens and components rather than a screenshot, so it cannot
  * drift out of date and never depicts a capability that does not exist. Everything shown here
- * is behaviour Atlas actually implements: retrieval with resolvable citations.
+ * is behaviour Turex actually implements: retrieval with resolvable citations.
  */
 export function AssistantPreview() {
   return (

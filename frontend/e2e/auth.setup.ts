@@ -9,7 +9,7 @@ import { expect, test as setup } from "@playwright/test";
  * anyway: they are testing pages, not the login form, which has its own tests.
  */
 
-const DEMO = { email: "demo@atlas.dev", password: "atlas-demo-account-2026" };
+const DEMO = { email: "demo@turex.dev", password: "turex-demo-account-2026" };
 export const SESSION = "e2e/.session.json";
 
 setup("authenticate", async ({ page }) => {

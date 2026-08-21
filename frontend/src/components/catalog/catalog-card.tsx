@@ -38,7 +38,7 @@ export function CatalogCard({ paper, onImported, libraryPaperId }: CatalogCardPr
    *
    * The import returns as soon as the file is stored and ingestion is *queued*, which is
    * seconds before the paper can actually be opened — the reader needs sections and chunks,
-   * and shows "Atlas is still reading this paper" until it has them. Offering a Read link at
+   * and shows "Turex is still reading this paper" until it has them. Offering a Read link at
    * 202 therefore sent people to a page that told them to come back later, which is a worse
    * experience than the honest wait, and the reason this polls rather than linking straight
    * away. It is the same thing the library list does for an upload, for the same reason.
@@ -178,7 +178,7 @@ export function CatalogCard({ paper, onImported, libraryPaperId }: CatalogCardPr
 
       {failed ? (
         <p role="alert" className="mt-2 text-sm text-danger">
-          {imported?.failure_reason ?? "Atlas couldn't read that paper."}
+          {imported?.failure_reason ?? "Turex couldn't read that paper."}
         </p>
       ) : null}
 

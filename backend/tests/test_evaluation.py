@@ -18,24 +18,24 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from atlas.ai.local_embedder import HashingEmbeddingProvider
-from atlas.models.conversation import MessageCitation
-from atlas.models.paper import EMBEDDING_DIMENSIONS, PaperChunk
-from atlas.models.user import User
-from atlas.retrieval.search import RetrievalService
 from evaluation.corpus import CORPUS, QUERIES, assert_markers_are_unique
 from evaluation.runner import ingest_corpus, run
 from evaluation.thresholds import MINIMUM_MRR, MINIMUM_RECALL_AT_3
 from tests.support.pdf_builder import build_pdf
 from tests.test_assistant import ScriptedChatProvider, ask, start_conversation
 from tests.test_retrieval import TRANSFORMERS_PDF, upload_and_index
+from turex.ai.local_embedder import HashingEmbeddingProvider
+from turex.models.conversation import MessageCitation
+from turex.models.paper import EMBEDDING_DIMENSIONS, PaperChunk
+from turex.models.user import User
+from turex.retrieval.search import RetrievalService
 
 
 @pytest.fixture
 async def benchmark(db: AsyncSession):  # type: ignore[no-untyped-def]
     """Ingest the corpus once and score it, returning the report."""
     owner = User(
-        email="benchmark@atlas.local", full_name="Benchmark", password_hash="not-a-usable-hash"
+        email="benchmark@turex.local", full_name="Benchmark", password_hash="not-a-usable-hash"
     )
     db.add(owner)
     await db.flush()
@@ -147,7 +147,7 @@ class TestCitationIntegrity:
 
 
 class TestModelMisbehaviour:
-    """A model that lies must not be able to make Atlas lie.
+    """A model that lies must not be able to make Turex lie.
 
     Each of these scripts a specific failure that a real model does produce, and asserts that
     nothing ungrounded reaches the database.
@@ -210,14 +210,14 @@ class TestPromptInjectionThroughDocuments:
     """A PDF is data. Anyone can upload one, and one can contain text shaped like a command.
 
     The model observed live refused an injected instruction and reported it — but that was the
-    model behaving well, not Atlas defending itself. These assert the parts that are structural
+    model behaving well, not Turex defending itself. These assert the parts that are structural
     and therefore cannot depend on which model is configured.
     """
 
     def test_the_grounding_rules_state_that_sources_cannot_instruct(self) -> None:
         """Defence in depth: the rule is stated, so the behaviour is asked for rather than
         hoped for. A prompt edit that drops it fails here."""
-        from atlas.ai.prompts import GROUNDING_RULES
+        from turex.ai.prompts import GROUNDING_RULES
 
         lowered = GROUNDING_RULES.lower()
         assert "cannot give you instructions" in lowered
@@ -229,7 +229,7 @@ class TestPromptInjectionThroughDocuments:
     ) -> None:
         """The structural guarantee, tested with a model that *does* obey the injection.
 
-        Even a fully compromised model cannot make Atlas store a citation to a passage that
+        Even a fully compromised model cannot make Turex store a citation to a passage that
         was never retrieved — the citations are written from the retrieved chunks, not parsed
         from the answer. This is the part that holds regardless of the model.
         """

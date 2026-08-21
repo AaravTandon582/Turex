@@ -197,7 +197,7 @@ export function Cell({
               />
             ) : (
               <p className="px-3 py-2 text-[12px] text-ink-muted">
-                A figure was stored in a format Atlas doesn&rsquo;t recognise.
+                A figure was stored in a format Turex doesn&rsquo;t recognise.
               </p>
             )
           )}

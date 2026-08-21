@@ -6,7 +6,7 @@ written by hand covers the routes its author remembered.
 
 So these walk the application's own route table. A new endpoint is included the moment it is
 registered, and an unauthenticated one fails here unless it is named in `PUBLIC_ROUTES` with a
-reason. That list is the entire public surface of Atlas, in one place, reviewable in a diff.
+reason. That list is the entire public surface of Turex, in one place, reviewable in a diff.
 """
 
 from __future__ import annotations
@@ -102,7 +102,7 @@ class TestEveryRouteIsGuarded:
     async def test_a_forged_access_cookie_is_rejected(
         self, client: AsyncClient, api: str, cookie: str
     ) -> None:
-        client.cookies.set("atlas_access", cookie)
+        client.cookies.set("turex_access", cookie)
         response = await client.get(f"{api}/papers")
         assert response.status_code == 401
 

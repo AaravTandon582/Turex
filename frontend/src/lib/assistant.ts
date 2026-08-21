@@ -143,14 +143,14 @@ export function ask(
       });
     } catch {
       if (!controller.signal.aborted) {
-        handlers.onError("Atlas can't reach the server. Check your connection.");
+        handlers.onError("Turex can't reach the server. Check your connection.");
       }
       return;
     }
 
     if (!response.ok || !response.body) {
       // A failure before the stream opened still arrives as a normal error envelope.
-      let message = "Atlas couldn't answer that. Try again.";
+      let message = "Turex couldn't answer that. Try again.";
       try {
         const body = (await response.json()) as { error?: { message?: string } };
         message = body.error?.message ?? message;
@@ -221,7 +221,7 @@ function dispatchFrame(frame: string, handlers: AskHandlers): void {
       break;
     case "error":
       handlers.onError(
-        (payload.message as string) ?? "Atlas couldn't finish that answer. Try again.",
+        (payload.message as string) ?? "Turex couldn't finish that answer. Try again.",
       );
       break;
   }

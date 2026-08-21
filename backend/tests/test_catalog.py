@@ -17,7 +17,7 @@ import pytest
 from httpx import AsyncClient, MockTransport, ReadError, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from atlas.catalog.harvest import (
+from turex.catalog.harvest import (
     MAX_RESPONSE_BYTES,
     MAXIMUM_BACKOFF_SECONDS,
     ArxivHarvester,
@@ -26,14 +26,14 @@ from atlas.catalog.harvest import (
     harvest,
     store_records,
 )
-from atlas.catalog.records import (
+from turex.catalog.records import (
     CatalogRecord,
     HarvestError,
     normalise_arxiv_id,
     parse_page,
 )
-from atlas.catalog.service import COUNT_CEILING, CatalogService
-from atlas.models.catalog import CatalogPaper
+from turex.catalog.service import COUNT_CEILING, CatalogService
+from turex.models.catalog import CatalogPaper
 
 
 def _envelope(body: str) -> str:

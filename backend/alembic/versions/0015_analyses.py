@@ -2,7 +2,7 @@
 
 The computational half of a project: a notebook of cells, each holding code and the output it
 last produced. Nothing here is executed by the server — the code runs in the reader's browser,
-in Python compiled to WebAssembly, and only text comes back. See `atlas/models/analysis.py`.
+in Python compiled to WebAssembly, and only text comes back. See `turex/models/analysis.py`.
 
 Revision ID: e970b8971889
 Revises: 0014

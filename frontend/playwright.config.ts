@@ -18,7 +18,7 @@ export default defineConfig({
   expect: { timeout: 20_000 },
   reporter: [["list"]],
   use: {
-    baseURL: process.env.ATLAS_WEB_URL ?? "http://localhost:3000",
+    baseURL: process.env.TUREX_WEB_URL ?? "http://localhost:3000",
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
   },

@@ -121,7 +121,7 @@ export default function ReaderPage() {
         setError(
           caught instanceof ApiError && caught.code === "not_found"
             ? "That paper isn't in your library."
-            : "Atlas couldn't open that paper.",
+            : "Turex couldn't open that paper.",
         );
       }
     })();
@@ -168,7 +168,7 @@ export default function ReaderPage() {
   /**
    * Say why the PDF did not load, rather than always blaming the file.
    *
-   * `react-pdf` reports every failure the same way, so "Atlas couldn't render this PDF" was
+   * `react-pdf` reports every failure the same way, so "Turex couldn't render this PDF" was
    * shown when the session had expired and when the paper had been deleted — both of which
    * send the reader looking for a problem with their document that does not exist. The request
    * is repeated here to find out which it was, which costs one request on a path that has
@@ -186,12 +186,12 @@ export default function ReaderPage() {
         return;
       }
     } catch {
-      setError("Atlas can't reach the server. Check your connection.");
+      setError("Turex can't reach the server. Check your connection.");
       return;
     }
 
     console.error("PDF failed to render", cause);
-    setError("Atlas couldn't render this PDF. It may be corrupted or password-protected.");
+    setError("Turex couldn't render this PDF. It may be corrupted or password-protected.");
   }
 
   /**
@@ -253,7 +253,7 @@ export default function ReaderPage() {
       <div className="p-8">
         <BackLink paperId={id} />
         <p className="mt-6 text-sm text-ink-muted">
-          Atlas is still reading this paper. It will be available here once processing
+          Turex is still reading this paper. It will be available here once processing
           finishes.
         </p>
         <Button asChild variant="secondary" size="sm" className="mt-4">
@@ -324,7 +324,7 @@ export default function ReaderPage() {
               loading={<Skeleton className="h-[900px] w-[720px]" />}
               error={
                 <p className="p-8 text-sm text-ink-muted">
-                  {error ?? "Atlas couldn't render this PDF."}
+                  {error ?? "Turex couldn't render this PDF."}
                 </p>
               }
             >

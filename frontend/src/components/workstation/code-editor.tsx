@@ -15,7 +15,7 @@ import { cn } from "@/lib/cn";
 /**
  * Syntax colours drawn from the app's own tokens rather than a packaged theme.
  *
- * Every editor theme worth using brings its own palette, and dropping one into Atlas would put
+ * Every editor theme worth using brings its own palette, and dropping one into Turex would put
  * a second colour scheme on the page — and one that ignores whether the reader chose light or
  * dark. These are CSS variables, so they follow the app.
  */

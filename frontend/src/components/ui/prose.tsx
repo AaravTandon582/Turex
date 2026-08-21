@@ -11,9 +11,9 @@ import { cn } from "@/lib/cn";
 import "katex/dist/katex.min.css";
 
 /**
- * Text with Markdown and maths rendered, wherever Atlas shows prose.
+ * Text with Markdown and maths rendered, wherever Turex shows prose.
  *
- * Every surface in Atlas carries text written by someone other than the UI — a research note,
+ * Every surface in Turex carries text written by someone other than the UI — a research note,
  * a model's answer, a quiz question, an arXiv abstract — and all of it contains LaTeX. Papers
  * are where maths lives, so `$O(n\log n)$` and `\alpha` turn up in abstracts, in questions
  * about equations, and in any explanation of a result. Only the notebook rendered it. Everywhere

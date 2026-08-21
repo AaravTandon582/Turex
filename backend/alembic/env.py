@@ -15,8 +15,8 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
-from atlas.core.config import get_settings
-from atlas.models import Base
+from turex.core.config import get_settings
+from turex.models import Base
 
 config = context.config
 

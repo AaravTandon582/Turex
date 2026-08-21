@@ -15,15 +15,15 @@ RUN npm run build
 
 FROM node:22-slim AS runtime
 
-RUN useradd --create-home --uid 10001 atlas
+RUN useradd --create-home --uid 10001 turex
 WORKDIR /app
 
 # Next's standalone output carries only the files the server actually needs.
-COPY --from=builder --chown=atlas:atlas /build/.next/standalone ./
-COPY --from=builder --chown=atlas:atlas /build/.next/static ./.next/static
-COPY --from=builder --chown=atlas:atlas /build/public ./public
+COPY --from=builder --chown=turex:turex /build/.next/standalone ./
+COPY --from=builder --chown=turex:turex /build/.next/static ./.next/static
+COPY --from=builder --chown=turex:turex /build/public ./public
 
-USER atlas
+USER turex
 EXPOSE 3000
 ENV PORT=3000 HOSTNAME=0.0.0.0
 

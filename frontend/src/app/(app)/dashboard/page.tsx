@@ -241,7 +241,7 @@ export default function DashboardPage() {
               href="/library"
               icon={<Library />}
               title="Add your first paper"
-              description="Upload a PDF. Atlas reads and indexes it."
+              description="Upload a PDF. Turex reads and indexes it."
             />
             <NextStep
               href="/assistant"

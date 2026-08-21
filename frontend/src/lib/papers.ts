@@ -173,7 +173,7 @@ export const papers = {
         reject(
           new ApiError(
             (envelope?.error?.code as ApiError["code"]) ?? "internal_error",
-            envelope?.error?.message ?? "Atlas couldn't upload that file. Try again.",
+            envelope?.error?.message ?? "Turex couldn't upload that file. Try again.",
             request.status,
           ),
         );

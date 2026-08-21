@@ -1,7 +1,7 @@
 import { ArrowRight, Highlighter, Network, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
-import { AtlasMark } from "@/components/brand/atlas-mark";
+import { TurexMark } from "@/components/brand/turex-mark";
 import { AssistantPreview, HypothesisPreview } from "@/components/marketing/preview";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
  * The landing page has one job: make the premise legible in under a minute.
  *
  * No hero gradient, no stock imagery. The product's actual interface carries the argument,
- * and the copy stays specific about what Atlas does — and what it refuses to do.
+ * and the copy stays specific about what Turex does — and what it refuses to do.
  */
 
 const LOOP = [
@@ -49,8 +49,8 @@ function SiteHeader() {
           href="/"
           className="inline-flex items-center gap-2.5 rounded-md text-[15px] font-semibold tracking-[-0.01em] text-ink"
         >
-          <AtlasMark className="size-6" />
-          Atlas
+          <TurexMark className="size-6" />
+          Turex
         </Link>
         <div className="flex items-center gap-2">
           <ThemeToggle className="hidden sm:inline-flex" />
@@ -115,7 +115,7 @@ function ResearchLoop() {
       </h2>
       <div className="rounded-xl border border-border bg-surface-sunken px-5 py-6 sm:px-8">
         <p className="text-[13px] text-ink-muted">
-          Most tools stop at the first step. Atlas is built around the whole loop.
+          Most tools stop at the first step. Turex is built around the whole loop.
         </p>
         <ol className="mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-2">
           {LOOP.map((stage, index) => (
@@ -143,7 +143,7 @@ const CAPABILITIES = [
   {
     icon: Network,
     title: "See what your library already knows",
-    body: "Semantic search finds passages by meaning, not keyword. Atlas surfaces the paper that contradicts the one you just read, and the concept two of your sources share without citing each other.",
+    body: "Semantic search finds passages by meaning, not keyword. Turex surfaces the paper that contradicts the one you just read, and the concept two of your sources share without citing each other.",
   },
   {
     icon: ShieldCheck,
@@ -199,9 +199,9 @@ function Honesty() {
           A research tool has to be honest to be useful
         </h2>
         <p className="measure mt-3 text-sm leading-relaxed text-ink-muted">
-          A fabricated citation is worse than no answer, so Atlas is built not to produce one.
+          A fabricated citation is worse than no answer, so Turex is built not to produce one.
           Answers are assembled from passages actually retrieved from your documents, and every
-          claim links back to the page it came from. Atlas separates what a source states from
+          claim links back to the page it came from. Turex separates what a source states from
           what it infers, marks its own ideas as ideas, and says plainly when your library does
           not contain the answer.
         </p>
@@ -247,8 +247,8 @@ function SiteFooter() {
     <footer className="border-t border-border">
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-8 sm:flex-row sm:px-8">
         <div className="flex items-center gap-2 text-[13px] text-ink-subtle">
-          <AtlasMark className="size-4" />
-          Atlas — an intelligent research workspace
+          <TurexMark className="size-4" />
+          Turex — an intelligent research workspace
         </div>
         <ThemeToggle />
       </div>

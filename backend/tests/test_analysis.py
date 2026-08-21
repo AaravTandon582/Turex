@@ -17,9 +17,9 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from atlas.models.analysis import CellKind, CellStatus
-from atlas.models.user import User
-from atlas.services.analysis_service import (
+from turex.models.analysis import CellKind, CellStatus
+from turex.models.user import User
+from turex.services.analysis_service import (
     MAX_OUTPUT_CHARS,
     AnalysisService,
     CellResult,
@@ -34,7 +34,7 @@ async def service(db: AsyncSession) -> AnalysisService:
 @pytest.fixture
 async def owner(db: AsyncSession) -> User:
     user = User(
-        email="analyst@atlas.dev",
+        email="analyst@turex.dev",
         full_name="Analyst",
         password_hash="not-a-real-hash",
     )
@@ -46,7 +46,7 @@ async def owner(db: AsyncSession) -> User:
 @pytest.fixture
 async def stranger(db: AsyncSession) -> User:
     user = User(
-        email="stranger@atlas.dev",
+        email="stranger@turex.dev",
         full_name="Stranger",
         password_hash="not-a-real-hash",
     )
@@ -251,7 +251,7 @@ class TestOwnership:
         self, service: AnalysisService, owner: User, stranger: User, db: AsyncSession
     ) -> None:
         """A foreign key alone is enough to make your notebook appear in their workspace."""
-        from atlas.models.workspace import Project
+        from turex.models.workspace import Project
 
         theirs = Project(owner_id=stranger.id, name="Theirs", research_question="?")
         db.add(theirs)

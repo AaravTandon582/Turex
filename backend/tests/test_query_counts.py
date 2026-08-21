@@ -20,9 +20,9 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import event
 
-from atlas.db import session as session_module
 from tests.support.pdf_builder import build_pdf
 from tests.test_retrieval import upload_and_index
+from turex.db import session as session_module
 
 
 @contextmanager

@@ -1,7 +1,7 @@
 [project]
-name = "atlas-backend"
+name = "turex-backend"
 version = "0.1.0"
-description = "Atlas — intelligent research workspace. API and services."
+description = "Turex — intelligent research workspace. API and services."
 requires-python = ">=3.11"
 
 dependencies = [
@@ -37,7 +37,7 @@ requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["atlas*"]
+include = ["turex*"]
 
 [tool.ruff]
 line-length = 100
@@ -52,17 +52,17 @@ ignore = ["B008"]  # FastAPI's Depends() in defaults is idiomatic
 # The ingestion modules exist to normalise ambiguous Unicode — ligatures, typographic
 # quotes, exotic spaces, superscript markers. Flagging those literals as "ambiguous" is
 # exactly backwards there.
-"atlas/ingestion/*" = ["RUF001", "RUF002"]
-"atlas/models/paper.py" = ["RUF002"]
+"turex/ingestion/*" = ["RUF001", "RUF002"]
+"turex/models/paper.py" = ["RUF002"]
 # Citation locators use real typographic characters (en dash, section sign).
-"atlas/retrieval/*" = ["RUF001", "RUF002"]
+"turex/retrieval/*" = ["RUF001", "RUF002"]
 # Tests for Unicode normalisation must contain the characters being normalised.
 "tests/test_ingestion.py" = ["RUF001"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-filterwarnings = ["error::DeprecationWarning:atlas.*"]
+filterwarnings = ["error::DeprecationWarning:turex.*"]
 
 [tool.mypy]
 python_version = "3.11"

@@ -145,7 +145,7 @@ function SourceCard({ source, onClose }: { source: AnySource; onClose: () => voi
 /**
  * The passages retrieved for an answer, listed under it.
  *
- * Shown even for sources the answer did not end up citing — seeing what Atlas read but chose
+ * Shown even for sources the answer did not end up citing — seeing what Turex read but chose
  * not to use tells the reader something real about how the answer was formed.
  */
 export function SourceList({ sources }: { sources: AnySource[] }) {

@@ -120,7 +120,7 @@ export default function SearchPage() {
           <EmptyState
             icon={<Sparkles />}
             title="Search your library"
-            description="Atlas matches on meaning and on exact terms at once, so a paraphrase and a gene name both find what you meant."
+            description="Turex matches on meaning and on exact terms at once, so a paraphrase and a gene name both find what you meant."
           />
         ) : results.length === 0 ? (
           <EmptyState

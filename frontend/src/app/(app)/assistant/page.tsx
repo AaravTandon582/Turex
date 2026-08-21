@@ -62,7 +62,7 @@ export default function AssistantPage() {
         setLoadError(
           caught instanceof ApiError
             ? caught.message
-            : "Atlas couldn't load the assistant. Try again.",
+            : "Turex couldn't load the assistant. Try again.",
         );
       }
     })();
@@ -115,7 +115,7 @@ export default function AssistantPage() {
         error:
           caught instanceof ApiError
             ? caught.message
-            : "Atlas couldn't start that conversation.",
+            : "Turex couldn't start that conversation.",
       });
       return;
     }
@@ -311,7 +311,7 @@ function NotConfiguredNotice() {
   return (
     <div className="border-b border-border bg-warning-soft px-5 py-2.5 sm:px-8">
       <p className="text-[13px] text-ink">
-        No language model is configured on this Atlas instance, so the assistant can&rsquo;t
+        No language model is configured on this Turex instance, so the assistant can&rsquo;t
         answer yet. Semantic search over your library still works.{" "}
         <Link href="/library" className="font-medium text-accent hover:underline">
           Go to your library
@@ -329,7 +329,7 @@ function Welcome({ indexed }: { indexed: number }) {
       description={
         indexed > 0
           ? "Every answer is built from passages retrieved from your own papers, and every claim links back to the page it came from."
-          : "Add a paper to your library first. Atlas answers from what you have read, not from the open internet."
+          : "Add a paper to your library first. Turex answers from what you have read, not from the open internet."
       }
       className="mt-10"
     />
@@ -406,7 +406,7 @@ function DraftTurn({ draft }: { draft: Draft }) {
 /**
  * Shown between the question and the first token.
  *
- * Reports what Atlas is doing rather than spinning: once sources arrive the reader can see
+ * Reports what Turex is doing rather than spinning: once sources arrive the reader can see
  * how many passages the answer will be built from, before a word of it exists.
  */
 function RetrievingIndicator({ count }: { count: number }) {
@@ -509,7 +509,7 @@ function Composer({
             <LevelPicker value={level} onChange={onLevelChange} disabled={disabled || streaming} />
           </div>
           <p className="hidden text-[12px] text-ink-subtle sm:block">
-            Answers cite your papers. Atlas says so when it doesn&rsquo;t know.
+            Answers cite your papers. Turex says so when it doesn&rsquo;t know.
           </p>
         </div>
       </div>

@@ -192,7 +192,7 @@ export default function LibraryPage() {
             <EmptyState
               icon={<LibraryIcon />}
               title="Your library is empty"
-              description="Add a paper above. Atlas reads it, pulls out its structure and metadata, and indexes every passage so you can ask about it later."
+              description="Add a paper above. Turex reads it, pulls out its structure and metadata, and indexes every passage so you can ask about it later."
             />
           )
         ) : (

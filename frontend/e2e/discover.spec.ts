@@ -128,7 +128,7 @@ test.describe("discover", () => {
     //
     // The catalog also holds OpenAlex works, and their "free full text" link is whatever
     // location the source recorded — sometimes a publisher's landing page, sometimes a host
-    // that answers 403 to anything without a browser. Atlas handles that correctly and says
+    // that answers 403 to anything without a browser. Turex handles that correctly and says
     // so, which is covered by the test below; what *this* test is for is the import path
     // working end to end, and it should not fail because a third party changed a URL.
     await page.getByLabel("Search the catalog").fill("scheduling");

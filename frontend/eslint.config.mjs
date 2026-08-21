@@ -18,7 +18,7 @@ const eslintConfig = defineConfig([
       /**
        * Downgraded to a warning, not switched off.
        *
-       * Atlas is a client-rendered app over a separate cookie-authenticated API, so pages
+       * Turex is a client-rendered app over a separate cookie-authenticated API, so pages
        * load their data in a mount effect and set state when the response arrives. The rule's
        * analysis does not cross the `await`, so it reports every one of those as a synchronous
        * cascading render. The same happens for reading `localStorage` on mount, which cannot

@@ -104,7 +104,7 @@ two scores to be on a comparable scale, which they are not.
 Binding citations to chunk ids is the load-bearing decision for the product's central claim. A
 citation is not text the model produced; it is a foreign key. The server resolves it to a real
 paper, page, and passage, and a claim that cannot be resolved cannot be rendered as a citation.
-That makes "Atlas does not fabricate citations" a property of the data model rather than a
+That makes "Turex does not fabricate citations" a property of the data model rather than a
 property of a prompt.
 
 **Cost.** Two searches per query. Chunks must be immutable once cited, so re-ingesting a paper
@@ -127,16 +127,16 @@ same geometry as the real frame so nothing shifts.
 cookies first-party and enable server-side session reads, at the cost of an extra network hop
 on every request and route definitions maintained in two places.
 
-**Revisit when** Atlas is deployed behind a single domain, which removes the cost of the proxy
+**Revisit when** Turex is deployed behind a single domain, which removes the cost of the proxy
 approach.
 
 ---
 
 ## D7 — Real PostgreSQL in the test suite, not SQLite
 
-**Decided.** Tests run against a real `atlas_test` database, migrated from `base` each session.
+**Decided.** Tests run against a real `turex_test` database, migrated from `base` each session.
 
-**Why.** Atlas depends on Postgres-specific behaviour throughout: `pgvector` operators,
+**Why.** Turex depends on Postgres-specific behaviour throughout: `pgvector` operators,
 `gen_random_uuid()`, `JSONB`, `FOR UPDATE SKIP LOCKED`, full-text search. A suite passing on
 SQLite would be testing a different system than the one that ships, and would be silent on
 exactly the parts most likely to break.
@@ -150,7 +150,7 @@ exactly the parts most likely to break.
 **Decided.** Plex Sans for interface, Plex Serif for long-form reading, Plex Mono for code,
 metadata, and citation locators.
 
-**Why.** Atlas should read as a scientific instrument. Plex has genuine technical character and
+**Why.** Turex should read as a scientific instrument. Plex has genuine technical character and
 a matched serif and mono, so the three registers are visibly one family — which the standard
 neutral-sans choices cannot offer without mixing families. The serif is reserved for sustained
 reading, where it measurably helps, rather than used decoratively.
@@ -280,7 +280,7 @@ the argument for measuring at scale.
 
 **Cost.** Lexical search cannot connect *"models that make images from noise"* to *"denoising
 diffusion probabilistic models"*. That is a real limitation and the Discover page does not
-pretend otherwise; the semantic half of Atlas begins once a paper is in the library, where
+pretend otherwise; the semantic half of Turex begins once a paper is in the library, where
 there are chunks to embed.
 
 **Revisit when** the catalog is large enough that the result counter's 1,000 ceiling stops

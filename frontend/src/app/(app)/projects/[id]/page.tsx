@@ -57,7 +57,7 @@ export default function ProjectPage() {
       setError(
         caught instanceof ApiError && caught.code === "not_found"
           ? "That project doesn't exist."
-          : "Atlas couldn't load that project.",
+          : "Turex couldn't load that project.",
       );
     }
   }, [id]);

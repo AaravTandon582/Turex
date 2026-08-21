@@ -58,7 +58,7 @@ export function UploadDropzone({ onUploaded }: { onUploaded: () => void }) {
           error:
             caught instanceof ApiError
               ? caught.message
-              : "Atlas couldn't upload that file. Try again.",
+              : "Turex couldn't upload that file. Try again.",
         });
       }
     },
@@ -125,7 +125,7 @@ export function UploadDropzone({ onUploaded }: { onUploaded: () => void }) {
           </button>
         </p>
         <p className="mt-1 text-[13px] text-ink-subtle">
-          Atlas reads each paper in the background — you can keep working while it does.
+          Turex reads each paper in the background — you can keep working while it does.
         </p>
 
         <input
@@ -191,7 +191,7 @@ function UploadRow({ upload, onDismiss }: { upload: Upload; onDismiss: () => voi
           </div>
         )}
         {upload.state === "queued" && (
-          <p className="text-[12px] text-ink-subtle">Added — Atlas is reading it now</p>
+          <p className="text-[12px] text-ink-subtle">Added — Turex is reading it now</p>
         )}
         {upload.state === "failed" && <p className="text-[12px] text-danger">{upload.error}</p>}
       </div>

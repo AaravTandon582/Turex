@@ -1,7 +1,7 @@
 /**
  * Python, running in this browser tab.
  *
- * Atlas could describe an experiment but not do one, so every number a researcher computed
+ * Turex could describe an experiment but not do one, so every number a researcher computed
  * came from somewhere else and arrived as a sentence typed into a form. This closes that gap
  * without opening the one that usually comes with it.
  *
@@ -63,7 +63,7 @@ const RUNTIME_MODULE = "/pyodide/pyodide.mjs";
 const HARNESS = `
 import ast, base64, io, sys, traceback
 
-def __atlas_run(source, namespace):
+def __turex_run(source, namespace):
     stdout, stderr = io.StringIO(), io.StringIO()
     image = None
     error = None
@@ -192,8 +192,8 @@ export async function runCell(
   const started = performance.now();
   const pyodide = await loadRuntime(onProgress);
 
-  const namespace = pyodide.globals.get("__atlas_namespace") ?? pyodide.toPy({});
-  pyodide.globals.set("__atlas_namespace", namespace);
+  const namespace = pyodide.globals.get("__turex_namespace") ?? pyodide.toPy({});
+  pyodide.globals.set("__turex_namespace", namespace);
 
   // Imports a cell asks for are fetched before it runs, so `import pandas` works without the
   // reader having to know that a package has to be installed first.
@@ -205,7 +205,7 @@ export async function runCell(
     // one could be.
   }
 
-  const runner = pyodide.globals.get("__atlas_run");
+  const runner = pyodide.globals.get("__turex_run");
   const result = runner(source, namespace);
 
   try {
@@ -239,7 +239,7 @@ export async function runCell(
  */
 export function resetNamespace(): void {
   if (!runtime) return;
-  const existing = runtime.globals.get("__atlas_namespace");
+  const existing = runtime.globals.get("__turex_namespace");
   existing?.destroy?.();
-  runtime.globals.set("__atlas_namespace", runtime.toPy({}));
+  runtime.globals.set("__turex_namespace", runtime.toPy({}));
 }

@@ -30,8 +30,8 @@ import httpx
 API = "http://localhost:8000/api/v1"
 CACHE = pathlib.Path(__file__).resolve().parent.parent / "var" / "demo-papers"
 
-DEMO_EMAIL = "demo@atlas.dev"
-DEMO_PASSWORD = "atlas-demo-account-2026"
+DEMO_EMAIL = "demo@turex.dev"
+DEMO_PASSWORD = "turex-demo-account-2026"
 DEMO_NAME = "Demo Researcher"
 
 
@@ -87,7 +87,7 @@ async def fetch_pdf(client: httpx.AsyncClient, source: Source) -> bytes:
         f"https://arxiv.org/pdf/{source.arxiv_id}",
         follow_redirects=True,
         timeout=120.0,
-        headers={"User-Agent": "atlas-demo-seed/1.0 (research workspace; contact via repo)"},
+        headers={"User-Agent": "turex-demo-seed/1.0 (research workspace; contact via repo)"},
     )
     response.raise_for_status()
     if not response.content.startswith(b"%PDF-"):
@@ -140,7 +140,7 @@ async def sign_in(api: httpx.AsyncClient, *, reset: bool) -> None:
         raise SystemExit(
             f"{DEMO_EMAIL} already exists but the demo password does not work.\n"
             f"An older account is probably in the way. Remove it and run this again:\n"
-            f"  psql -d atlas -c \"delete from users where email='{DEMO_EMAIL}'\""
+            f"  psql -d turex -c \"delete from users where email='{DEMO_EMAIL}'\""
         )
     print(f"  signed in as {DEMO_EMAIL}")
 
@@ -334,7 +334,7 @@ async def add_notes_and_highlights(
                 "it came from — the weights do not remember. If it states a figure from a "
                 "retrieved passage, the passage is right there, and a wrong answer becomes a "
                 "*findable* wrong answer rather than a convincing one.\n\n"
-                "That is the whole reason Atlas stores the passage behind every citation."
+                "That is the whole reason Turex stores the passage behind every citation."
             ),
             "project_id": seeded.project_id,
         },
@@ -391,7 +391,7 @@ async def generate_study_material(
 
 
 async def main() -> int:
-    parser = argparse.ArgumentParser(description="Seed the Atlas demo account.")
+    parser = argparse.ArgumentParser(description="Seed the Turex demo account.")
     parser.add_argument("--reset", action="store_true", help="clear the demo library first")
     parser.add_argument(
         "--with-study", action="store_true", help="also generate flashcards (uses the model API)"
@@ -407,8 +407,8 @@ async def main() -> int:
         try:
             await api.get("/health")
         except httpx.ConnectError:
-            print("Atlas is not running. Start it first:")
-            print("  uvicorn atlas.main:create_app --factory")
+            print("Turex is not running. Start it first:")
+            print("  uvicorn turex.main:create_app --factory")
             return 1
 
         print("account")

@@ -1,6 +1,6 @@
 # AI architecture
 
-How Atlas talks to models, and what it does to make an answer trustworthy.
+How Turex talks to models, and what it does to make an answer trustworthy.
 
 The governing constraint: **a fabricated citation is worse than no answer.** A research tool
 that occasionally invents a source will be trusted, checked, and found to be wrong — and
@@ -11,7 +11,7 @@ structurally impossible rather than merely discouraged.
 
 ## Provider abstraction
 
-Two interfaces in `atlas/ai/base.py`, deliberately separate:
+Two interfaces in `turex/ai/base.py`, deliberately separate:
 
 | Interface | Implementations |
 |---|---|
@@ -21,10 +21,10 @@ Two interfaces in `atlas/ai/base.py`, deliberately separate:
 They are separate because the vendor sets differ: Anthropic offers no embedding model, so a
 single "AI provider" abstraction would need an exception on its first day.
 
-Nothing above `atlas/ai/` imports a vendor SDK. Providers are selected once from configuration
+Nothing above `turex/ai/` imports a vendor SDK. Providers are selected once from configuration
 by `ProviderRegistry`, and everything downstream depends only on the interfaces.
 
-**Atlas runs with no keys at all.** `chat_available` and `embeddings_available` are reported by
+**Turex runs with no keys at all.** `chat_available` and `embeddings_available` are reported by
 `GET /assistant/status`, and the UI explains that the feature needs configuration rather than
 presenting a chat box that fails on first use. Conversation history stays readable on an
 instance with no key — the provider is resolved lazily, per turn, so only the endpoint that
@@ -38,7 +38,7 @@ sublinear term frequency, L2-normalised. Real lexical signal, no learned semanti
 It exists so **retrieval is testable in CI**. With only a hosted embedding model, the retrieval
 pipeline could be exercised only by hand against a live account, which in practice means it
 never gets a regression test and ranking quietly degrades. It is not for production — it cannot
-match paraphrase — and Atlas logs a warning if it is selected outside tests.
+match paraphrase — and Turex logs a warning if it is selected outside tests.
 
 ### Anthropic specifics
 
@@ -79,7 +79,7 @@ wants an answer now; someone asking "what is wrong with this method" would rathe
 
 ## Grounding
 
-Every mode's prompt begins with the same rules (`GROUNDING_RULES` in `atlas/ai/prompts.py`):
+Every mode's prompt begins with the same rules (`GROUNDING_RULES` in `turex/ai/prompts.py`):
 cite the specific source for each claim, only the numbered sources exist, distinguish what a
 source states from what you inferred from what you are speculating, surface disagreement rather
 than averaging it away, and say plainly when the library does not contain the answer.

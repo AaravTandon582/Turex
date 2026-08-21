@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-from atlas.ai.base import ChatChunk, ChatProvider, ChatRequest, ChatResult, ChunkKind
+from turex.ai.base import ChatChunk, ChatProvider, ChatRequest, ChatResult, ChunkKind
 
 
 class ScriptedChatProvider(ChatProvider):

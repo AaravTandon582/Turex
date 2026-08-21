@@ -28,12 +28,12 @@ const plexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Atlas — Research, connected",
-    template: "%s · Atlas",
+    default: "Turex — Research, connected",
+    template: "%s · Turex",
   },
   description:
     "Understand papers. Connect ideas. Test hypotheses. Discover what to investigate next.",
-  applicationName: "Atlas",
+  applicationName: "Turex",
 };
 
 export const viewport: Viewport = {

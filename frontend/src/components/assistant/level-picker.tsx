@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 import type { ExplanationLevel } from "@/lib/assistant";
 
 const LEVELS: readonly { value: ExplanationLevel | null; label: string; title: string }[] = [
-  { value: null, label: "Default", title: "Let Atlas judge from your question" },
+  { value: null, label: "Default", title: "Let Turex judge from your question" },
   { value: "beginner", label: "Beginner", title: "Assume no vocabulary; define every term" },
   { value: "intermediate", label: "Intermediate", title: "Assume the field's basics" },
   { value: "advanced", label: "Advanced", title: "Assume the literature; go to the mechanism" },

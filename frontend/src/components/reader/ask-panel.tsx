@@ -56,7 +56,7 @@ export function AskPanel({
           setError(
             caught instanceof ApiError
               ? caught.message
-              : "Atlas couldn't start that conversation.",
+              : "Turex couldn't start that conversation.",
           );
         }
         return;
@@ -88,7 +88,7 @@ export function AskPanel({
 
   return (
     <section
-      aria-label="Atlas answer"
+      aria-label="Turex answer"
       className="animate-[var(--animate-rise)] border-t border-border bg-surface"
     >
       <div className="flex items-start justify-between gap-3 border-b border-border px-3 py-2">

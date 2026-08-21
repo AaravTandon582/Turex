@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { AtlasMark } from "@/components/brand/atlas-mark";
+import { TurexMark } from "@/components/brand/turex-mark";
 import { NAV_ITEMS } from "@/components/layout/navigation";
 import { UserMenu } from "@/components/layout/user-menu";
 import { cn } from "@/lib/cn";
@@ -14,8 +14,8 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-14 items-center gap-2.5 px-4">
-        <AtlasMark className="size-6" />
-        <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">Atlas</span>
+        <TurexMark className="size-6" />
+        <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">Turex</span>
       </div>
 
       <nav aria-label="Main" className="flex-1 space-y-0.5 px-2 py-2">

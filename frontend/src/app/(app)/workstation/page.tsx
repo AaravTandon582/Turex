@@ -11,13 +11,13 @@ import { LoadError } from "@/components/ui/async-boundary";
 import { Card, EmptyState, PageHeader, Skeleton } from "@/components/ui/primitives";
 import { analyses, type Analysis } from "@/lib/analyses";
 import { cn } from "@/lib/cn";
-import { isRuntimeReady, resetNamespace, runCell } from "@/lib/python-runtime";
+import { isRuntimeReady, loadRuntime, resetNamespace, runCell } from "@/lib/python-runtime";
 import { describe, useAsync } from "@/lib/use-async";
 
 /**
  * The workstation: where a project's analysis actually runs.
  *
- * Atlas could describe an experiment — variables, controls, expected result — but not do one,
+ * Turex could describe an experiment — variables, controls, expected result — but not do one,
  * so every number came from somewhere else and arrived as a sentence typed into a form. This
  * is the other half: Python, running here, with its output kept beside the code that produced
  * it and attached to the project it belongs to.
@@ -35,6 +35,23 @@ export default function WorkstationPage() {
   const [creating, setCreating] = useState(false);
 
   const list = useAsync(() => analyses.list(), []);
+
+  /**
+   * Start fetching the interpreter as soon as the page is open.
+   *
+   * It is 13MB of WebAssembly plus about sixty of science packages, and it used to start
+   * downloading when someone pressed Run — so the first run of a session waited for all of it
+   * with nothing to look at. Beginning here overlaps the download with reading and typing,
+   * which is most of a minute in practice, and the button is unchanged either way: it still
+   * loads on demand if this has not finished.
+   *
+   * Deliberately not awaited and deliberately silent. A failure here is not worth reporting —
+   * nobody has asked for anything yet — and pressing Run reports it properly.
+   */
+  useEffect(() => {
+    if (isRuntimeReady()) return;
+    void loadRuntime().catch(() => {});
+  }, []);
 
   // Open the most recent analysis on arrival, so the page has something in it.
   useEffect(() => {

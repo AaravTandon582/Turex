@@ -11,10 +11,10 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
-from atlas.security.guard import _phrase
-from atlas.security.policy import LOGIN_PER_ACCOUNT, REGISTRATION_PER_ADDRESS
-from atlas.security.rate_limit import InMemoryRateLimiter, Limit
 from tests.conftest import REGISTRATION
+from turex.security.guard import _phrase
+from turex.security.policy import LOGIN_PER_ACCOUNT, REGISTRATION_PER_ADDRESS
+from turex.security.rate_limit import InMemoryRateLimiter, Limit
 
 
 class Clock:
@@ -128,7 +128,7 @@ class TestMemoryIsBounded:
     ) -> None:
         """One key per client address, never removed, is a slow leak that only shows up in
         production. The sweep runs on request volume rather than on a timer."""
-        from atlas.security.rate_limit import PRUNE_EVERY
+        from turex.security.rate_limit import PRUNE_EVERY
 
         limit = Limit(requests=5, seconds=60)
         for index in range(PRUNE_EVERY // 2):
@@ -255,7 +255,7 @@ class TestRegistrationIsBounded:
                 await client.post(
                     f"{api}/auth/register",
                     json={
-                        "email": f"bulk-{index}@atlas.dev",
+                        "email": f"bulk-{index}@turex.dev",
                         "full_name": f"Bulk {index}",
                         "password": "a-sufficiently-long-password",
                     },
@@ -273,7 +273,7 @@ class TestExpensiveWorkIsBounded:
         self, registered_client: AsyncClient, api: str
     ) -> None:
         """Cheap per call, but the debounced UI issues one per pause in typing."""
-        from atlas.security.policy import SEARCH_PER_USER
+        from turex.security.policy import SEARCH_PER_USER
 
         codes = set()
         for index in range(SEARCH_PER_USER.requests + 2):
@@ -295,8 +295,8 @@ class TestTheSharedLimiter:
     """
 
     async def test_two_processes_share_one_allowance(self, db) -> None:  # type: ignore[no-untyped-def]
-        from atlas.db.session import get_session_factory
-        from atlas.security.database_limiter import DatabaseRateLimiter
+        from turex.db.session import get_session_factory
+        from turex.security.database_limiter import DatabaseRateLimiter
 
         first = DatabaseRateLimiter(get_session_factory())
         second = DatabaseRateLimiter(get_session_factory())
@@ -313,8 +313,8 @@ class TestTheSharedLimiter:
         assert allowed == limit.requests, f"{allowed} allowed against a limit of {limit.requests}"
 
     async def test_a_refusal_says_when_the_window_closes(self, db) -> None:  # type: ignore[no-untyped-def]
-        from atlas.db.session import get_session_factory
-        from atlas.security.database_limiter import DatabaseRateLimiter
+        from turex.db.session import get_session_factory
+        from turex.security.database_limiter import DatabaseRateLimiter
 
         limiter = DatabaseRateLimiter(get_session_factory())
         limit = Limit(requests=1, seconds=120)
@@ -328,8 +328,8 @@ class TestTheSharedLimiter:
 
     async def test_resetting_a_key_forgives_it(self, db) -> None:  # type: ignore[no-untyped-def]
         """A correct password clears the account's failed attempts, whichever process sees it."""
-        from atlas.db.session import get_session_factory
-        from atlas.security.database_limiter import DatabaseRateLimiter
+        from turex.db.session import get_session_factory
+        from turex.security.database_limiter import DatabaseRateLimiter
 
         limiter = DatabaseRateLimiter(get_session_factory())
         limit = Limit(requests=1, seconds=300)
@@ -346,8 +346,8 @@ class TestTheSharedLimiter:
         must not become where someone learns which accounts exist."""
         from sqlalchemy import text as sql
 
-        from atlas.db.session import get_session_factory
-        from atlas.security.database_limiter import DatabaseRateLimiter
+        from turex.db.session import get_session_factory
+        from turex.security.database_limiter import DatabaseRateLimiter
 
         limiter = DatabaseRateLimiter(get_session_factory())
         await limiter.check("login:id:someone@example.edu", Limit(requests=5, seconds=300))
@@ -361,8 +361,8 @@ class TestTheSharedLimiter:
         table that only grows is a slow leak wherever it lives."""
         from sqlalchemy import text as sql
 
-        from atlas.db.session import get_session_factory
-        from atlas.security.database_limiter import DatabaseRateLimiter
+        from turex.db.session import get_session_factory
+        from turex.security.database_limiter import DatabaseRateLimiter
 
         limiter = DatabaseRateLimiter(get_session_factory())
         await limiter.check("shared:test:prune", Limit(requests=5, seconds=60))

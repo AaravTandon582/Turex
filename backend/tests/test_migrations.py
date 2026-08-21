@@ -43,11 +43,11 @@ class TestReversibility:
             text(
                 """
                 INSERT INTO users (id, email, full_name, password_hash)
-                VALUES (gen_random_uuid(), 'downgrade@atlas.test', 'Downgrade', 'x')
+                VALUES (gen_random_uuid(), 'downgrade@turex.test', 'Downgrade', 'x')
                 """
             )
         )
-        owner = await db.scalar(text("SELECT id FROM users WHERE email = 'downgrade@atlas.test'"))
+        owner = await db.scalar(text("SELECT id FROM users WHERE email = 'downgrade@turex.test'"))
         await db.execute(
             text(
                 """

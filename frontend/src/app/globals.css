@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ============================================================================
-   Atlas design system
+   Turex design system
 
    The product should read as a scientific instrument: calm, precise, legible,
    and quiet enough that a dense paper is the loudest thing on screen.
@@ -128,7 +128,7 @@
   --font-serif: var(--font-plex-serif), ui-serif, Georgia, serif;
   --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
 
-  /* Radii stay small. Large radii read as consumer-friendly; Atlas reads as precise. */
+  /* Radii stay small. Large radii read as consumer-friendly; Turex reads as precise. */
   --radius-xs: 3px;
   --radius-sm: 5px;
   --radius-md: 7px;

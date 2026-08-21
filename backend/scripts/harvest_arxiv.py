@@ -33,7 +33,7 @@ from pathlib import Path
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from atlas.catalog.harvest import (
+from turex.catalog.harvest import (
     ARXIV_SETS,
     MINIMUM_DELAY_SECONDS,
     ArxivHarvester,
@@ -43,9 +43,9 @@ from atlas.catalog.harvest import (
     count_catalog,
     harvest,
 )
-from atlas.catalog.records import HarvestError
-from atlas.core.config import get_settings
-from atlas.db.session import dispose_engine, get_session_factory, init_engine
+from turex.catalog.records import HarvestError
+from turex.core.config import get_settings
+from turex.db.session import dispose_engine, get_session_factory, init_engine
 
 TOKEN_FILE = Path(".harvest-token")
 
@@ -70,7 +70,7 @@ def mark_complete(set_spec: str) -> None:
         handle.write(f"{set_spec}\n")
 
 
-USER_AGENT = "Atlas/1.0 (research workspace; +https://github.com/atlas)"
+USER_AGENT = "Turex/1.0 (research workspace; +https://github.com/turex)"
 """arXiv asks automated clients to identify themselves. A request without this is the kind
 that gets an IP blocked, and being blocked is indistinguishable from the service being down.
 """
@@ -86,7 +86,7 @@ def _parse_date(raw: str) -> date:
 def _arguments() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="harvest_arxiv",
-        description="Fill the Atlas catalog with paper metadata from arXiv.",
+        description="Fill the Turex catalog with paper metadata from arXiv.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Sets are arXiv's top-level archives: cs, math, physics, q-bio, q-fin, stat,\n"

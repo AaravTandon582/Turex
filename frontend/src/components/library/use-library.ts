@@ -69,7 +69,7 @@ export function useLibrary(query: PaperQuery) {
           error:
             caught instanceof ApiError
               ? caught.message
-              : "Atlas couldn't load your library. Try again.",
+              : "Turex couldn't load your library. Try again.",
         }));
       }
     },

@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from atlas.retrieval.reranking import (
+from turex.retrieval.reranking import (
     PRIOR_WEIGHT,
     rerank,
     score_passage,

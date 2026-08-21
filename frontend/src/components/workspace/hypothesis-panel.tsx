@@ -40,7 +40,7 @@ export function HypothesisPanel({ projectId }: { projectId: string }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="measure text-[13px] text-ink-muted">
-          A hypothesis is a claim that could turn out to be false. Atlas tracks the evidence on
+          A hypothesis is a claim that could turn out to be false. Turex tracks the evidence on
           both sides.
         </p>
         {!adding && (

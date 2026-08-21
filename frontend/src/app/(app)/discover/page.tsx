@@ -20,7 +20,7 @@ const SORTS: { value: "relevance" | "newest"; label: string }[] = [
 ];
 
 /**
- * Search the catalog — every paper Atlas knows about, whether or not it has read one.
+ * Search the catalog — every paper Turex knows about, whether or not it has read one.
  *
  * This is the shallow half of the library: metadata and abstracts for as many papers as have
  * been harvested, which is far more than could ever be stored in full. Nothing here is
@@ -44,11 +44,16 @@ export default function DiscoverPage() {
 
   // Debounced so a query runs when the reader pauses, not on every keystroke — at this scale
   // each keystroke would be a full-text search over the whole catalog.
+  //
+  // 180ms rather than 300ms. The original figure was chosen when a broad search took over a
+  // second and every wasted request mattered; ranking is bounded now and a search costs about
+  // 120ms, so the delay had become most of the wait a reader feels rather than a protection
+  // against one.
   useEffect(() => {
     const timer = setTimeout(() => {
       setQuery(searchInput.trim());
       setOffset(0);
-    }, 300);
+    }, 180);
     return () => clearTimeout(timer);
   }, [searchInput]);
 
@@ -91,7 +96,7 @@ export default function DiscoverPage() {
                   ? `, ${stats.data.earliest_year}–${stats.data.latest_year}`
                   : ""
               }. Add any of them to your library to read and ask about.`
-            : "Search the papers Atlas knows about, and add any of them to your library."
+            : "Search the papers Turex knows about, and add any of them to your library."
         }
       />
 

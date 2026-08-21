@@ -59,7 +59,7 @@ export function LoadError({
     >
       <AlertCircle aria-hidden className="size-5 text-danger" />
       <p className="measure mt-3 text-sm text-ink">
-        {message ?? "Atlas couldn't load that."}
+        {message ?? "Turex couldn't load that."}
       </p>
       {onRetry && (
         <Button size="sm" variant="secondary" className="mt-4" onClick={onRetry}>

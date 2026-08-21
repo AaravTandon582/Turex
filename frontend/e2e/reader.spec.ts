@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * The parts of Atlas that only exist in a browser.
+ * The parts of Turex that only exist in a browser.
  *
  * Everything else is covered by the API suite, which is faster and more precise. These cover
  * what it structurally cannot: whether the PDF actually paints, whether text can be selected

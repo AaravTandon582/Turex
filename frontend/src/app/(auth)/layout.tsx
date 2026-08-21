@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { AtlasMark } from "@/components/brand/atlas-mark";
+import { TurexMark } from "@/components/brand/turex-mark";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
@@ -11,8 +11,8 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           href="/"
           className="inline-flex items-center gap-2.5 rounded-md text-[15px] font-semibold tracking-[-0.01em] text-ink"
         >
-          <AtlasMark className="size-6" />
-          Atlas
+          <TurexMark className="size-6" />
+          Turex
         </Link>
       </header>
 

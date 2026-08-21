@@ -1,6 +1,6 @@
-# Atlas — Implementation Progress
+# Turex — Implementation Progress
 
-Atlas is an intelligent research workspace: **Read → Understand → Connect → Question → Hypothesize → Test → Learn.**
+Turex is an intelligent research workspace: **Read → Understand → Connect → Question → Hypothesize → Test → Learn.**
 
 This file is the living record of what is built, what is in flight, and what was decided.
 Architectural rationale lives in [`docs/decisions.md`](docs/decisions.md).
@@ -49,7 +49,7 @@ exercised through the real frontend origin with browser-equivalent cookie handli
 
 ## Completed: M2 — Research Library
 
-A user can add a paper and Atlas genuinely reads it.
+A user can add a paper and Turex genuinely reads it.
 
 - [x] Content-addressed storage behind an interface, with a local filesystem driver
 - [x] Schema for papers, sections, chunks, collections, tags, and jobs
@@ -95,7 +95,7 @@ the provider is covered only by tests with a scripted model. Set `ANTHROPIC_API_
 
 ## Completed: M4 — Paper Reader
 
-Read a paper inside Atlas, highlight it, and ask about a passage without leaving it.
+Read a paper inside Turex, highlight it, and ask about a passage without leaving it.
 
 - [x] PDF rendering with zoom, page markers, and jump-to-section from the outline
 - [x] Text-anchored highlights that survive zoom and re-render (offset + length, not pixels)
@@ -184,7 +184,7 @@ prediction → record the actual result → downgrade the hypothesis to weakly s
 
 **Tested:** 26 new tests. The generator is deliberately driven off the rails — citing passage
 numbers it was never shown, wrapping JSON in a Markdown fence, returning truncated JSON,
-returning prose with no JSON at all — and Atlas is asserted to drop, recover, or fail loudly
+returning prose with no JSON at all — and Turex is asserted to drop, recover, or fail loudly
 rather than store something ungrounded.
 
 **Three bugs worth remembering:**
@@ -281,7 +281,7 @@ library produced 78 edges immediately.
 - `scripts/seed_demo.py` builds the account from nothing: five arXiv papers downloaded and
   cached, a project with three hypotheses, evidence, notes, a highlight, and optionally
   flashcards. Idempotent, with `--reset` and `--with-study`.
-- The walkthrough is five steps, two of which invite the audience to try to catch Atlas lying.
+- The walkthrough is five steps, two of which invite the audience to try to catch Turex lying.
 
 **Two decisions that make the demo worth trusting:**
 
@@ -389,7 +389,7 @@ Full rationale in [`docs/decisions.md`](docs/decisions.md).
 | D4 | httpOnly cookie sessions with rotating refresh tokens rather than localStorage JWTs — removes the XSS token-theft class entirely |
 | D5 | Retrieval is hybrid (vector + lexical) with reciprocal-rank fusion; citations reference persisted chunk IDs so every claim resolves to a real source location |
 | D6 | Next.js App Router with server components by default; client components only where interaction demands it |
-| D7 | Tests run against real PostgreSQL, not SQLite — Atlas depends on pgvector, JSONB, and `SKIP LOCKED` |
+| D7 | Tests run against real PostgreSQL, not SQLite — Turex depends on pgvector, JSONB, and `SKIP LOCKED` |
 | D8 | IBM Plex as the typeface family — technical character, with a matched serif and mono |
 
 ---

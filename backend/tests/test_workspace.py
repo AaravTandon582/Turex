@@ -12,9 +12,9 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from atlas.models.paper import PaperChunk
-from atlas.models.workspace import Evidence, Hypothesis, Note, Project
 from tests.test_retrieval import TRANSFORMERS_PDF, upload_and_index
+from turex.models.paper import PaperChunk
+from turex.models.workspace import Evidence, Hypothesis, Note, Project
 
 
 async def make_project(client: AsyncClient, api: str, **payload: object) -> str:

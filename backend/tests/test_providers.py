@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import pytest
 
-from atlas.ai.registry import ProviderRegistry
-from atlas.core.config import Settings
-from atlas.core.errors import NotConfiguredError
+from turex.ai.registry import ProviderRegistry
+from turex.core.config import Settings
+from turex.core.errors import NotConfiguredError
 
 HACK_CLUB = "https://ai.hackclub.com/proxy/v1"
 
@@ -26,7 +26,7 @@ def settings_with(**overrides: object) -> Settings:
     nothing to do with the code.
     """
     base: dict[str, object] = {
-        "database_url": "postgresql+asyncpg://localhost/atlas_test",
+        "database_url": "postgresql+asyncpg://localhost/turex_test",
         "secret_key": "a-test-secret-key-that-is-long-enough",
     }
     return Settings(_env_file=None, **{**base, **overrides})  # type: ignore[arg-type]

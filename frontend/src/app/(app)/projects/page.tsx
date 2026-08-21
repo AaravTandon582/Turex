@@ -64,7 +64,7 @@ export default function ProjectsPage() {
               <EmptyState
                 icon={<FlaskConical />}
                 title="No projects yet"
-                description="A project starts with a question. Atlas keeps the papers, notes, hypotheses, and experiments that bear on it together, so you can see what you actually know."
+                description="A project starts with a question. Turex keeps the papers, notes, hypotheses, and experiments that bear on it together, so you can see what you actually know."
                 action={
                   <Button size="sm" onClick={() => setCreating(true)}>
                     Start a project
@@ -163,7 +163,7 @@ function NewProjectForm({
             setError(
               caught instanceof ApiError
                 ? caught
-                : new ApiError("internal_error", "Atlas couldn't create that project.", 500),
+                : new ApiError("internal_error", "Turex couldn't create that project.", 500),
             );
             setSubmitting(false);
           }

@@ -3,7 +3,7 @@
 Three, chosen because they answer three different questions a reader would actually ask.
 
 - **Recall@k** — did the passage I wanted appear at all in the top k? The question behind
-  "why can't Atlas find the thing I know is in there".
+  "why can't Turex find the thing I know is in there".
 - **MRR** — how far down was it? The difference between an answer and a hunt.
 - **Precision@1** — was the very first result right? What a reader who trusts the tool sees.
 

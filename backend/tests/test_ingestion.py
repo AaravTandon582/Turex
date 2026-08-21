@@ -12,12 +12,13 @@ import pathlib
 
 import pytest
 
-from atlas.core.errors import ProcessingFailedError
-from atlas.ingestion.chunking import MAX_CHARACTERS, chunk_document
-from atlas.ingestion.equations import detect_equations, looks_like_an_equation
-from atlas.ingestion.pdf import parse_pdf
-from atlas.ingestion.references import parse_references
-from atlas.ingestion.text import (
+from tests.support.pdf_builder import build_paper_pdf, build_pdf
+from turex.core.errors import ProcessingFailedError
+from turex.ingestion.chunking import MAX_CHARACTERS, chunk_document
+from turex.ingestion.equations import detect_equations, looks_like_an_equation
+from turex.ingestion.pdf import parse_pdf
+from turex.ingestion.references import parse_references
+from turex.ingestion.text import (
     clean_page,
     estimate_tokens,
     normalise_characters,
@@ -25,7 +26,6 @@ from atlas.ingestion.text import (
     strip_page_furniture,
     unwrap_lines,
 )
-from tests.support.pdf_builder import build_paper_pdf, build_pdf
 
 
 def write_pdf(tmp_path: pathlib.Path, data: bytes) -> str:

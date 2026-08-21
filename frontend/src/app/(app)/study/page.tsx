@@ -31,7 +31,7 @@ export default function StudyPage() {
     try {
       setSession(await study.listCards({ dueOnly: true, limit: 40 }));
     } catch {
-      setStartError("Atlas couldn't load your due cards. Check your connection and try again.");
+      setStartError("Turex couldn't load your due cards. Check your connection and try again.");
     } finally {
       setStarting(false);
     }
@@ -65,7 +65,7 @@ export default function StudyPage() {
               className="mt-6"
               icon={<GraduationCap />}
               title="No cards yet"
-              description="Open a paper you have read and generate a set. Atlas writes cards from the paper's own passages — nothing is invented."
+              description="Open a paper you have read and generate a set. Turex writes cards from the paper's own passages — nothing is invented."
               action={
                 <Button asChild size="sm">
                   <Link href="/library">Go to your library</Link>

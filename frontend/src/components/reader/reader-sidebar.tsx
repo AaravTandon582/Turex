@@ -118,7 +118,7 @@ function Outline({
   if (sections.length === 0) {
     return (
       <p className="px-1 py-3 text-[12px] text-ink-subtle">
-        Atlas didn&rsquo;t find headings in this document.
+        Turex didn&rsquo;t find headings in this document.
       </p>
     );
   }
@@ -167,7 +167,7 @@ function Highlights({
       <EmptyState
         icon={<Highlighter />}
         title="No highlights yet"
-        description="Select any passage in the paper to highlight it or ask Atlas about it."
+        description="Select any passage in the paper to highlight it or ask Turex about it."
         className="border-0 px-2 py-8"
       />
     );
@@ -345,7 +345,7 @@ function Citations({ paperId }: { paperId: string }) {
     <div className="space-y-3">
       {gaps.length > 0 && (
         <p className="rounded-md border border-warning/30 bg-warning-soft px-2.5 py-2 text-[12px] leading-relaxed text-ink">
-          Atlas doesn&rsquo;t know this paper&rsquo;s {gaps.join(", ")}. It leaves those out
+          Turex doesn&rsquo;t know this paper&rsquo;s {gaps.join(", ")}. It leaves those out
           rather than guessing — fill them in on the paper page for a complete citation.
         </p>
       )}
@@ -429,7 +429,7 @@ function Equations({
         className="m-3 border-0"
         icon={<Sigma />}
         title="No equations found"
-        description="Atlas looks for displayed mathematics in the extracted text. A paper with none, or one whose equations are images rather than text, shows nothing here."
+        description="Turex looks for displayed mathematics in the extracted text. A paper with none, or one whose equations are images rather than text, shows nothing here."
       />
     );
   }
@@ -517,7 +517,7 @@ function References({ paperId }: { paperId: string }) {
       setFailed((current) => ({
         ...current,
         [reference.id]:
-          caught instanceof ApiError ? caught.message : "Atlas couldn't fetch that one.",
+          caught instanceof ApiError ? caught.message : "Turex couldn't fetch that one.",
       }));
     } finally {
       setAdding(null);
@@ -540,7 +540,7 @@ function References({ paperId }: { paperId: string }) {
         className="m-3 border-0"
         icon={<BookMarked />}
         title="No references found"
-        description="Atlas splits a bibliography out of the extracted text. A paper without one, or one whose references did not parse, shows nothing here."
+        description="Turex splits a bibliography out of the extracted text. A paper without one, or one whose references did not parse, shows nothing here."
       />
     );
   }

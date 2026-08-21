@@ -34,7 +34,7 @@ export function AddByReference({ onAdded }: { onAdded: () => void }) {
       setError(
         caught instanceof ApiError
           ? caught.message
-          : "Atlas couldn't add that. Check the link and try again.",
+          : "Turex couldn't add that. Check the link and try again.",
       );
     } finally {
       setBusy(false);

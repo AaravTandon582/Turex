@@ -1,6 +1,6 @@
 # Security
 
-What Atlas defends against, how, and what it does not defend against.
+What Turex defends against, how, and what it does not defend against.
 
 ---
 
@@ -142,7 +142,7 @@ ready. A new endpoint is covered the moment it is registered.
 
 `POST /papers/from-reference` downloads a document on the caller's behalf, which lends them the
 server's network position — cloud metadata endpoints, admin services on localhost, databases on
-a private subnet. That is server-side request forgery, and it is the most dangerous thing Atlas
+a private subnet. That is server-side request forgery, and it is the most dangerous thing Turex
 does.
 
 - Only `http` and `https`. `file://`, `gopher://` and the rest are refused.
@@ -169,7 +169,7 @@ Two defences, and the order matters.
 
 **Structural, and model-independent.** Citations are written from the passages the server
 retrieved, never parsed from the model's prose. A model that has been completely taken over
-still cannot make Atlas store a citation to a passage that was never retrieved — a marker it
+still cannot make Turex store a citation to a passage that was never retrieved — a marker it
 invents is discarded. This holds whatever model is configured and however badly it behaves,
 and it is tested with a scripted model that *does* obey the injected instruction.
 
@@ -232,7 +232,7 @@ every text field in the API at once.
 
 ---
 
-## What Atlas does not defend against
+## What Turex does not defend against
 
 Stated plainly, because a security section that claims everything is one that measured nothing.
 

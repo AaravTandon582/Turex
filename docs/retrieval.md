@@ -1,6 +1,6 @@
 # Retrieval
 
-How Atlas finds the passages an answer is built from.
+How Turex finds the passages an answer is built from.
 
 ```
 question
@@ -21,7 +21,7 @@ a query about "reducing hallucination" matching a passage about "improving factu
 Lexical search finds passages containing the exact terms: a gene name, an author, a dataset, an
 equation label, `BLEU`, `10.1038/nature14539`. Scientific vocabulary is precisely where
 embeddings are weakest, because these terms are rare and their neighbourhoods are noisy.
-Dropping this half would make Atlas worse at exactly the literature it exists to read.
+Dropping this half would make Turex worse at exactly the literature it exists to read.
 
 Each strategy retrieves 40 candidates before fusion — wider than the final count, so a passage
 ranked poorly by one can still be rescued by the other.

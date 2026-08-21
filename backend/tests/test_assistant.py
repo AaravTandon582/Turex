@@ -2,9 +2,9 @@
 
 The behaviour under test is the product's central promise: an answer is assembled from
 passages actually retrieved from the user's library, every citation resolves to a real one,
-and Atlas cannot be made to cite something it never read.
+and Turex cannot be made to cite something it never read.
 
-A scripted chat provider stands in for the model, so these assert on Atlas's behaviour rather
+A scripted chat provider stands in for the model, so these assert on Turex's behaviour rather
 than on a model's output — including the case where the model misbehaves and writes a citation
 marker for a source that does not exist.
 """
@@ -18,11 +18,11 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from atlas.ai.base import ChatMessage, Role
-from atlas.models.conversation import ConversationMessage, MessageCitation, MessageRole
-from atlas.retrieval.rewriting import needs_rewriting, rewrite_for_search
 from tests.support.scripted_provider import ScriptedChatProvider
 from tests.test_retrieval import TRANSFORMERS_PDF, upload_and_index
+from turex.ai.base import ChatMessage, Role
+from turex.models.conversation import ConversationMessage, MessageCitation, MessageRole
+from turex.retrieval.rewriting import needs_rewriting, rewrite_for_search
 
 
 async def start_conversation(client: AsyncClient, api: str, **payload: object) -> str:
@@ -206,7 +206,7 @@ class TestCitations:
     ) -> None:
         """The model writes [9] when far fewer sources were supplied.
 
-        Atlas must not manufacture a ninth source. Citations are built from what retrieval
+        Turex must not manufacture a ninth source. Citations are built from what retrieval
         returned, so the invented marker simply has nothing behind it.
         """
         await upload_and_index(registered_client, api, TRANSFORMERS_PDF, run_worker)
@@ -296,7 +296,7 @@ class TestFailures:
         db: AsyncSession,  # type: ignore[no-untyped-def]
     ) -> None:
         """Losing the user's question along with the error is the worst possible outcome."""
-        scripted["provider"] = ScriptedChatProvider(fail="Atlas couldn't reach the AI service.")
+        scripted["provider"] = ScriptedChatProvider(fail="Turex couldn't reach the AI service.")
         conversation_id = await start_conversation(registered_client, api)
 
         frames = await ask(registered_client, api, conversation_id, "Why is this slow?")
@@ -315,7 +315,7 @@ class TestFailures:
         api: str,
         scripted,  # type: ignore[no-untyped-def]
     ) -> None:
-        scripted["provider"] = ScriptedChatProvider(fail="Atlas couldn't reach the AI service.")
+        scripted["provider"] = ScriptedChatProvider(fail="Turex couldn't reach the AI service.")
         conversation_id = await start_conversation(registered_client, api)
 
         frames = await ask(registered_client, api, conversation_id, "Why?")

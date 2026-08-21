@@ -32,7 +32,7 @@ export default function GraphPage() {
               className="mt-6"
               icon={<Share2 />}
               title="Nothing to connect yet"
-              description="Add a few papers to your library. Once two of them use the same terms, Atlas draws the link — from the text itself, not from a guess."
+              description="Add a few papers to your library. Once two of them use the same terms, Turex draws the link — from the text itself, not from a guess."
             />
           ) : (
             <GraphView graph={graph} />

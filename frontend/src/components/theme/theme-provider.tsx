@@ -13,7 +13,7 @@ import {
 export type ThemePreference = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
 
-export const THEME_STORAGE_KEY = "atlas-theme";
+export const THEME_STORAGE_KEY = "turex-theme";
 
 interface ThemeContextValue {
   preference: ThemePreference;

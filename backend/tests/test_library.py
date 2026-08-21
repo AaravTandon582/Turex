@@ -1,6 +1,6 @@
 """Library tests: upload, ingestion, browsing, and privacy.
 
-The privacy tests matter most. Atlas holds a user's unpublished reading and notes, and the
+The privacy tests matter most. Turex holds a user's unpublished reading and notes, and the
 rule is absolute: one account can never observe another's, and a paper it does not own must
 be indistinguishable from one that does not exist.
 """
@@ -14,9 +14,9 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from atlas.models.job import IngestionJob, JobStatus
-from atlas.models.paper import Paper, PaperChunk, PaperSection
 from tests.support.pdf_builder import build_paper_pdf, build_pdf
+from turex.models.job import IngestionJob, JobStatus
+from turex.models.paper import Paper, PaperChunk, PaperSection
 
 Drain = Callable[..., Awaitable[int]]
 
@@ -442,7 +442,7 @@ class TestStorageUnderConcurrency:
         """
         import asyncio
 
-        from atlas.storage.local import LocalDocumentStore
+        from turex.storage.local import LocalDocumentStore
 
         store = LocalDocumentStore(tmp_path)
         data = b"%PDF-1.4\n" + b"identical bytes " * 500
@@ -460,7 +460,7 @@ class TestStorageUnderConcurrency:
         """A temporary that survives is a file that looks like a document and is not one."""
         import asyncio
 
-        from atlas.storage.local import LocalDocumentStore
+        from turex.storage.local import LocalDocumentStore
 
         store = LocalDocumentStore(tmp_path)
         await asyncio.gather(
@@ -497,7 +497,7 @@ class TestDuplicateUploadRecovery:
 
         # Make the duplicate check miss, exactly as it does when two requests interleave, so
         # the insert collides on the unique constraint and the recovery path runs.
-        from atlas.services import paper_service
+        from turex.services import paper_service
 
         original = paper_service.PaperService._existing_paper
         calls = {"n": 0}

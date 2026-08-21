@@ -48,7 +48,7 @@ export default function PaperPage() {
         if (caught instanceof ApiError && caught.code === "not_found") {
           setError("That paper isn't in your library.");
         } else if (!silent) {
-          setError("Atlas couldn't load that paper. Try again.");
+          setError("Turex couldn't load that paper. Try again.");
         }
       }
     },
@@ -161,7 +161,7 @@ export default function PaperPage() {
       {paper.status === "failed" && (
         <Card className="mt-6 border-danger/30 bg-danger-soft p-4">
           <p className="text-sm text-ink">
-            {paper.failure_reason ?? "Atlas couldn't read this paper."}
+            {paper.failure_reason ?? "Turex couldn't read this paper."}
           </p>
           <Button
             variant="secondary"
@@ -182,7 +182,7 @@ export default function PaperPage() {
             <Button asChild size="sm">
               <Link href={`/library/${paper.id}/read`}>
                 <BookOpen aria-hidden />
-                Read in Atlas
+                Read in Turex
               </Link>
             </Button>
 
@@ -341,7 +341,7 @@ function ProcessingPanel({ paper }: { paper: PaperDetail }) {
         />
       </div>
       <p className="mt-3 text-[13px] text-ink-muted">
-        Atlas is extracting the text, finding the section structure, and indexing each passage.
+        Turex is extracting the text, finding the section structure, and indexing each passage.
         You can leave this page — it keeps going.
       </p>
     </Card>

@@ -13,9 +13,9 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from atlas.core.security import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME
-from atlas.models.user import User, UserSession
 from tests.conftest import REGISTRATION
+from turex.core.security import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME
+from turex.models.user import User, UserSession
 
 
 class TestRegistration:

@@ -88,7 +88,7 @@ export function StudyPanel({ paperId }: { paperId: string }) {
         Study
       </h2>
       <p className="measure mt-1 text-[13px] text-ink-muted">
-        Atlas writes cards and questions from this paper&rsquo;s own passages, and shows you the
+        Turex writes cards and questions from this paper&rsquo;s own passages, and shows you the
         passage behind every answer.
       </p>
 
