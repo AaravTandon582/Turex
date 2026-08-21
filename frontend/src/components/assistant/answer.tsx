@@ -4,6 +4,7 @@ import { FileText, Quote } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
+import { Prose } from "@/components/ui/prose";
 import { cn } from "@/lib/cn";
 import type { Citation, StreamedSource } from "@/lib/assistant";
 
@@ -29,7 +30,7 @@ export function Answer({ text, sources }: { text: string; sources: AnySource[] }
 
   return (
     <div className="space-y-3">
-      <div className="measure text-[15px] leading-relaxed whitespace-pre-wrap text-ink">
+      <div className="measure text-[15px] leading-relaxed break-words whitespace-pre-wrap text-ink">
         {renderWithCitations(text, byMarker, openMarker, setOpenMarker)}
       </div>
 
@@ -54,7 +55,7 @@ function renderWithCitations(
     const marker = Number(match[1]);
     const start = match.index ?? 0;
 
-    if (start > cursor) nodes.push(text.slice(cursor, start));
+    if (start > cursor) nodes.push(segment(text.slice(cursor, start), key++));
 
     if (byMarker.has(marker)) {
       const source = byMarker.get(marker)!;
@@ -84,8 +85,24 @@ function renderWithCitations(
     cursor = start + match[0].length;
   }
 
-  if (cursor < text.length) nodes.push(text.slice(cursor));
+  if (cursor < text.length) nodes.push(segment(text.slice(cursor), key++));
   return nodes;
+}
+
+/**
+ * One run of the answer between citation markers, with its Markdown rendered.
+ *
+ * Rendered inline so the citation buttons either side stay on the same line, and so the
+ * container's `whitespace-pre-wrap` keeps the model's own paragraph breaks. What this adds is
+ * the inline half of Markdown — chiefly LaTeX, which papers are full of and which reads as
+ * nothing at all when shown as raw characters.
+ */
+function segment(text: string, key: number): ReactNode {
+  return (
+    <Prose key={`text-${key}`} density="inline">
+      {text}
+    </Prose>
+  );
 }
 
 function SourceCard({ source, onClose }: { source: AnySource; onClose: () => void }) {

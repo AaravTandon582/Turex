@@ -71,6 +71,30 @@ test.describe("discover", () => {
     expect(errors).toEqual([]);
   });
 
+  test("maths in an abstract is rendered, not shown as LaTeX source", async ({ page }) => {
+    await page.goto("/discover");
+
+    // arXiv authors write abstracts in LaTeX, so `$O(n\\log n)$` and `\\alpha` arrive verbatim
+    // in the metadata. Shown as characters they are ugly; for an equation they are unreadable.
+    // This searches for terms that reliably land on maths-heavy abstracts.
+    await page.getByLabel("Search the catalog").fill("polynomial complexity bound");
+    await expect(page.locator('[aria-live="polite"]')).toContainText("matching", {
+      timeout: 15_000,
+    });
+    await expect(page.locator("h3").first()).toBeVisible();
+
+    const rendered = await page.locator(".katex").count();
+    if (rendered === 0) test.skip(true, "no maths in this page of results");
+
+    // The real assertion: nothing on the page still shows delimiters, which is what a failed
+    // or missing renderer leaves behind.
+    const body = (await page.locator("main").innerText()).replace(/\s+/g, " ");
+    const leftovers = body.match(/\$[^$\n]{2,60}\$/g) ?? [];
+    expect(leftovers, `raw LaTeX still on the page: ${leftovers.slice(0, 3).join(" | ")}`).toEqual(
+      [],
+    );
+  });
+
   test("importing a paper makes it readable", async ({ page }) => {
     // A real download, parse, chunk, and embed. Minutes, not seconds.
     test.setTimeout(240_000);

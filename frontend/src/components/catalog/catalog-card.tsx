@@ -4,6 +4,7 @@ import { BookOpen, Check, Download, ExternalLink, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { Prose } from "@/components/ui/prose";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/primitives";
 import { catalog, formatAuthors, type CatalogPaper } from "@/lib/catalog";
@@ -111,14 +112,18 @@ export function CatalogCard({ paper, onImported, libraryPaperId }: CatalogCardPr
         <span className="font-mono">{paper.arxiv_id}</span>
       </div>
 
-      <h3 className="mt-2 text-base leading-snug font-medium text-ink">{paper.title}</h3>
+      <h3 className="mt-2 text-base leading-snug font-medium text-ink">
+        <Prose density="inline">{paper.title}</Prose>
+      </h3>
 
       <p className="mt-1 text-sm text-ink-muted">{formatAuthors(paper.authors)}</p>
 
       {paper.abstract ? (
-        <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-ink-muted">
+        // `tight` so the clamp works: a paragraph's own vertical margin sits outside the box
+        // `line-clamp` measures, and the abstract then refuses to clamp at all.
+        <Prose density="tight" className="mt-2 line-clamp-4 text-sm leading-relaxed text-ink-muted">
           {paper.abstract}
-        </p>
+        </Prose>
       ) : null}
 
       {paper.journal_ref ? (

@@ -76,6 +76,22 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o"
     openai_embedding_model: str = "text-embedding-3-small"
 
+    openai_fallback_models: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    """Models to try when the configured one cannot answer at all.
+
+    Only for failures where the request was fine and *that model* is unavailable — the account
+    has no credit for it, the key is not entitled to it, the endpoint does not carry it. Not
+    for rate limits or outages, which are about the service rather than the model.
+
+    Left empty by default: silently answering with a model nobody chose is its own surprise,
+    and on a plain OpenAI deployment the configured model is the one that should answer. It
+    earns its keep on a shared or free gateway, where "this model is out of credit" is a normal
+    Tuesday and the alternative is a feature that has stopped existing.
+
+    Set as a comma-separated list, e.g.
+    `ATLAS_OPENAI_FALLBACK_MODELS=cohere/north-mini-code:free,stealth/ox-alpha`.
+    """
+
     openai_base_url: str | None = None
     """Point the OpenAI-compatible providers somewhere other than OpenAI.
 
@@ -139,11 +155,17 @@ class Settings(BaseSettings):
             raise ValueError("database_url must use the postgresql+asyncpg:// scheme")
         return value
 
-    @field_validator("cors_origins", mode="before")
+    @field_validator("cors_origins", "openai_fallback_models", mode="before")
     @classmethod
-    def _split_origins(cls, value: object) -> object:
+    def _split_list(cls, value: object) -> object:
+        """Accept a comma-separated string.
+
+        `NoDecode` turns off pydantic-settings' JSON decoding for these fields, which would
+        otherwise demand `["a","b"]` in a `.env` file — a shape nobody types correctly the
+        first time, and one whose failure is a startup crash rather than a hint.
+        """
         if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
+            return [item.strip() for item in value.split(",") if item.strip()]
         return value
 
     @property

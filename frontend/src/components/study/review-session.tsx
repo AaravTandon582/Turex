@@ -4,6 +4,7 @@ import { Check, ChevronRight, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { Prose } from "@/components/ui/prose";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/primitives";
 import { CARD_KIND_LABELS, RATINGS, dueLabel, study } from "@/lib/study";
@@ -128,7 +129,12 @@ export function ReviewSession({
 
       <Card className="mt-4 p-6">
         <Badge tone="neutral">{CARD_KIND_LABELS[card.kind]}</Badge>
-        <p className="measure mt-3 text-[17px] leading-snug font-medium text-ink">{card.front}</p>
+        <Prose
+          density="tight"
+          className="measure mt-3 text-[17px] leading-snug font-medium text-ink"
+        >
+          {card.front}
+        </Prose>
 
         {!revealed ? (
           <Button className="mt-6" onClick={() => setRevealed(true)}>
@@ -139,7 +145,9 @@ export function ReviewSession({
           </Button>
         ) : (
           <div className="mt-5 border-t border-border pt-5">
-            <p className="measure text-[15px] leading-relaxed text-ink">{card.back}</p>
+            <Prose density="tight" className="measure text-[15px] leading-relaxed text-ink">
+              {card.back}
+            </Prose>
 
             <details className="mt-4">
               <summary className="inline-flex cursor-pointer items-center gap-1 text-[12px] text-ink-muted hover:text-ink">

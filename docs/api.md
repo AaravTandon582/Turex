@@ -103,6 +103,25 @@ log line produced while handling the request, which is how a reported failure ge
 | `GET` | `/papers/{id}/file` | The original PDF, `inline`, `Cache-Control: private`. |
 | `DELETE` | `/papers/{id}` | 204. Removes derived data and, if unreferenced, the stored file. |
 
+### When the AI service fails
+
+A model call can fail in ways that need different responses, and Atlas reports them as
+different messages rather than one. `503 provider_unavailable` carries the specific one:
+
+| Upstream | What the message says | Retrying helps? |
+|---|---|---|
+| 401, 403 | the key was rejected; names `OPENAI_API_KEY` | no |
+| **402** | **the account has no credit left** | no |
+| 404 | the endpoint has no such model; names `OPENAI_MODEL` | no |
+| 413, 422 | the request was too large | no |
+| 429 | rate limited, try again in a minute | yes |
+| 5xx, network | genuinely unreachable | yes |
+
+`ATLAS_OPENAI_FALLBACK_MODELS` takes a comma-separated list of models to try when the
+configured one *cannot answer at all* — no credit, not entitled, not carried, or an empty
+response. Never for a rate limit or an outage: those are about the service rather than the
+model, so a second request to it fails the same way. Which model answered is logged.
+
 ### Catalog
 
 Papers Atlas knows about, as opposed to papers it has read. See

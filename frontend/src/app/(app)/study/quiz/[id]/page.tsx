@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { PageContainer } from "@/components/layout/page-container";
+import { Prose } from "@/components/ui/prose";
 import { Button } from "@/components/ui/button";
 import { Card, Skeleton } from "@/components/ui/primitives";
 import { study, type Quiz, type QuizQuestion } from "@/lib/study";
@@ -174,7 +175,7 @@ function QuestionCard({
           <span className="mr-1.5 text-ink-subtle" data-tabular>
             {position + 1}.
           </span>
-          {question.prompt}
+          <Prose density="inline">{question.prompt}</Prose>
         </p>
 
         {submitted ? (
@@ -193,9 +194,12 @@ function QuestionCard({
               <p className="text-[11px] font-semibold tracking-wide text-ink-subtle uppercase">
                 What the paper says
               </p>
-              <p className="measure mt-1 text-[14px] leading-relaxed text-ink">
-                {question.model_answer}
-              </p>
+              <Prose
+                density="tight"
+                className="measure mt-1 text-[14px] leading-relaxed text-ink"
+              >
+                {question.model_answer ?? ""}
+              </Prose>
             </div>
           </div>
         ) : (
@@ -231,7 +235,7 @@ function QuestionCard({
           <span className="mr-1.5 text-ink-subtle" data-tabular>
             {position + 1}.
           </span>
-          {question.prompt}
+          <Prose density="inline">{question.prompt}</Prose>
         </legend>
 
         <div className="mt-3 space-y-1.5">
@@ -265,7 +269,9 @@ function QuestionCard({
                   onChange={() => onSelect(index)}
                   className="mt-1 size-3.5 shrink-0 accent-[var(--accent)]"
                 />
-                <span className="text-[14px] leading-relaxed text-ink">{option}</span>
+                <Prose density="inline" className="text-[14px] leading-relaxed text-ink">
+                  {option}
+                </Prose>
                 {isCorrect && <Check className="mt-0.5 ml-auto size-4 shrink-0 text-success" />}
                 {isWrongChoice && <X className="mt-0.5 ml-auto size-4 shrink-0 text-danger" />}
               </label>
@@ -276,9 +282,9 @@ function QuestionCard({
 
       {submitted && question.explanation && (
         <div className="mt-4 border-t border-border pt-3">
-          <p className="measure text-[13px] leading-relaxed text-ink-muted">
+          <Prose density="tight" className="measure text-[13px] leading-relaxed text-ink-muted">
             {question.explanation}
-          </p>
+          </Prose>
           {question.source_excerpt && (
             <details className="mt-2">
               <summary className="cursor-pointer text-[12px] text-ink-subtle hover:text-ink-muted">
