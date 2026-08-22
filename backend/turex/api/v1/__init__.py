@@ -11,6 +11,7 @@ from turex.api.v1 import (
     collections,
     discovery,
     health,
+    lab,
     papers,
     study,
     workspace,
@@ -22,6 +23,7 @@ api_router.include_router(auth.router)
 api_router.include_router(papers.router)
 api_router.include_router(catalog.router)
 api_router.include_router(analysis.router)
+api_router.include_router(lab.router)
 api_router.include_router(collections.router)
 api_router.include_router(assistant.router)
 api_router.include_router(annotations.router)

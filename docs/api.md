@@ -148,6 +148,53 @@ Saving source marks a cell **stale** because its stored output no longer corresp
 code. A number sitting under code that has since changed looks checked and is not, which is
 how a wrong figure reaches a write-up.
 
+### Lab notebook
+
+Append-only. **There is no update route and no delete route** — not guarded ones, genuinely
+none, because an endpoint that exists is an endpoint that can be reached, and this record's
+entire value is that what it says today is what it said when it was written.
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/lab/entries` | Append. Timestamped by the server, not by the writer. |
+| `GET` | `/lab/entries` | Newest first. `?project_id=` filters. |
+| `GET` | `/lab/verify` | Walks the whole chain and reports where it first breaks. |
+
+Each entry carries the hash of the one before it, covering its own text, title, timestamp and
+position. Altering any entry changes its hash and breaks every entry after it. Both hashes are
+returned so the chain can be checked outside Turex — evidence nobody can verify independently
+is not evidence.
+
+**What that proves:** nobody edited an entry after later ones were written, which is the case a
+dispute is about. **What it does not:** *when* an entry was written. Those timestamps come from
+the server that recorded them, with no outside witness, and Turex says so rather than implying
+otherwise.
+
+### Project export
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/projects/{id}/export` | The whole project as a zip of plain files. |
+
+It contains:
+
+```
+README.md            what the project is, and what everything in here is
+references.bib       every paper, with the citation keys used throughout
+references.ris       the same, for reference managers that prefer it
+references.json      CSL-JSON, which Pandoc and Quarto read directly
+papers.md            citation key to title, so a \cite{} can be traced
+notes/*.md           one file per note, with YAML front matter
+analyses/*.ipynb     one Jupyter notebook per analysis, with its saved output
+hypotheses.md        statements, status, and the evidence for and against
+experiments.md       design beside results, both kept
+lab-notebook.md      the append-only record, with its hashes
+```
+
+Everything is text except the notebooks, which are JSON. The PDFs are not included: a paper's
+file belongs to its publisher rather than to the project, and several hundred megabytes of
+them would make this an export nobody runs.
+
 ### Catalog
 
 Papers Turex knows about, as opposed to papers it has read. See

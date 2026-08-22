@@ -18,6 +18,7 @@ const PAGES = [
   "/projects",
   "/workstation",
   "/notebook",
+  "/lab",
   "/graph",
   "/study",
   "/assistant",

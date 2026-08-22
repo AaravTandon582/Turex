@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, BookText, Check, FileText, ListTodo, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, BookText, Check, Download, FileText, ListTodo, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -14,6 +14,7 @@ import { LoadError } from "@/components/ui/async-boundary";
 import { Card, EmptyState, Skeleton } from "@/components/ui/primitives";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { projectBundleUrl } from "@/lib/lab";
 import { describe } from "@/lib/use-async";
 import { papers as papersApi, type PaperSummary } from "@/lib/papers";
 import {
@@ -128,7 +129,24 @@ export default function ProjectPage() {
         {tab === "tasks" && <TasksPanel projectId={id} onChanged={reload} />}
       </div>
 
-      <div className="mt-10 border-t border-border pt-4">
+      <div className="mt-8 border-t border-border pt-4">
+        <p className="text-[13px] font-medium text-ink">Take this project with you</p>
+        <p className="mt-1 text-[12px] text-ink-muted">
+          A folder of plain files — README, references.bib, notes as Markdown, analyses as
+          Jupyter notebooks, and the lab notebook with its hashes. Nothing in it needs Turex to
+          read, and it drops straight into a git repository.
+        </p>
+        <Button asChild variant="secondary" size="sm" className="mt-2">
+          {/* A plain link: the response is a zip with a filename attached, and letting the
+              browser handle it holds nothing in memory. */}
+          <a href={projectBundleUrl(id)} download>
+            <Download aria-hidden className="size-4" />
+            Export the project
+          </a>
+        </Button>
+      </div>
+
+      <div className="mt-8 border-t border-border pt-4">
         <Button
           variant="ghost"
           size="sm"

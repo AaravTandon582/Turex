@@ -17,6 +17,7 @@ from turex.models.conversation import (
     MessageRole,
 )
 from turex.models.job import IngestionJob, IngestionStage, JobKind, JobStatus
+from turex.models.lab import GENESIS_HASH, LabEntry, entry_digest
 from turex.models.library import Collection, CollectionPaper, PaperTag, Tag
 from turex.models.paper import (
     EMBEDDING_DIMENSIONS,
@@ -57,6 +58,7 @@ from turex.models.workspace import (
 
 __all__ = [
     "EMBEDDING_DIMENSIONS",
+    "GENESIS_HASH",
     "Analysis",
     "AnalysisCell",
     "Annotation",
@@ -83,6 +85,7 @@ __all__ = [
     "IngestionStage",
     "JobKind",
     "JobStatus",
+    "LabEntry",
     "MessageCitation",
     "MessageRole",
     "Note",
@@ -108,4 +111,5 @@ __all__ = [
     "TaskStatus",
     "User",
     "UserSession",
+    "entry_digest",
 ]

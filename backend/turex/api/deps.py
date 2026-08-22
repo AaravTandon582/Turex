@@ -32,6 +32,7 @@ from turex.services.analysis_service import AnalysisService
 from turex.services.annotation_service import AnnotationService
 from turex.services.assistant_service import AssistantService
 from turex.services.auth_service import AuthService, ClientInfo
+from turex.services.lab_service import LabService
 from turex.services.paper_service import CollectionService, PaperService
 from turex.services.study_service import StudyService
 from turex.services.workspace_service import WorkspaceService
@@ -119,6 +120,13 @@ def get_analysis_service(db: DbDep) -> AnalysisService:
 
 
 AnalysisServiceDep = Annotated[AnalysisService, Depends(get_analysis_service)]
+
+
+def get_lab_service(db: DbDep) -> LabService:
+    return LabService(db)
+
+
+LabServiceDep = Annotated[LabService, Depends(get_lab_service)]
 
 
 def get_catalog_service(db: DbDep) -> CatalogService:

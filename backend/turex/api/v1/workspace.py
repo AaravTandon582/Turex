@@ -5,9 +5,9 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Response, status
 
-from turex.api.deps import CurrentUser, WorkspaceServiceDep
+from turex.api.deps import AnalysisServiceDep, CurrentUser, LabServiceDep, WorkspaceServiceDep
 from turex.schemas.workspace import (
     AttachEvidence,
     AttachPaper,
@@ -30,7 +30,15 @@ from turex.schemas.workspace import (
     TaskRead,
     TaskUpdate,
 )
+from turex.services.project_bundle import build_bundle
 from turex.services.workspace_service import ProjectOverview
+
+LAB_ENTRY_CEILING = 5_000
+"""How many lab entries one export carries.
+
+A bound on the request rather than a feature: a notebook longer than this is one nobody is
+reading end to end, and the chain can still be verified in the application.
+"""
 
 router = APIRouter(tags=["workspace"])
 
@@ -79,6 +87,54 @@ async def update_project(
         owner=user, project_id=project_id, changes=payload.model_dump(exclude_unset=True)
     )
     return ProjectRead.model_validate(project)
+
+
+@router.get("/projects/{project_id}/export")
+async def export_project(
+    project_id: uuid.UUID,
+    user: CurrentUser,
+    service: WorkspaceServiceDep,
+    analyses: AnalysisServiceDep,
+    lab: LabServiceDep,
+) -> Response:
+    """A whole project as a folder of plain files, zipped.
+
+    README, `references.bib`, notes as Markdown, analyses as Jupyter notebooks, hypotheses and
+    experiments as Markdown, and the lab notebook with its hashes. Everything is text except
+    the notebooks, which are JSON — the point being that none of it needs Turex to read, and a
+    diff between two exports says something useful.
+
+    The PDFs are not included. A paper's file belongs to its publisher rather than to the
+    project, and several hundred megabytes of them would make this an export nobody runs.
+    `references.bib` says exactly which papers they are.
+    """
+    project = await service.get_project(owner=user, project_id=project_id)
+
+    papers = [paper for paper, _ in await service.project_papers(owner=user, project_id=project_id)]
+    hypotheses = await service.list_hypotheses(owner=user, project_id=project_id)
+    evidence = {
+        hypothesis.id: await service.evidence_for(owner=user, hypothesis_id=hypothesis.id)
+        for hypothesis in hypotheses
+    }
+    entries, _ = await lab.list_entries(user.id, project_id=project_id, limit=LAB_ENTRY_CEILING)
+
+    bundle = build_bundle(
+        project,
+        papers=papers,
+        notes=await service.list_notes(owner=user, project_id=project_id),
+        hypotheses=hypotheses,
+        evidence=evidence,
+        experiments=await service.list_experiments(owner=user, project_id=project_id),
+        analyses=await analyses.list_for(user.id, project_id=project_id),
+        # Oldest first: a notebook is read forwards, and the chain only makes sense in order.
+        entries=list(reversed(entries)),
+    )
+
+    return Response(
+        content=bundle.content,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{bundle.filename}"'},
+    )
 
 
 @router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
