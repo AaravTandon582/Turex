@@ -11,6 +11,18 @@ import {
 } from "react";
 
 export type ThemePreference = "light" | "dark" | "system";
+
+/**
+ * What a first visit gets, before anyone has chosen.
+ *
+ * Dark, and deliberately *not* "system". A reader spends hours here on dense text and PDF
+ * pages, and this is the scheme the product is designed around — deferring to the operating
+ * system would give most people light, which is not the default this app wants.
+ *
+ * It decides nothing after the first visit. The toggle still offers light, dark and system,
+ * and a stored choice always wins; this only picks the starting point.
+ */
+const DEFAULT_PREFERENCE: ThemePreference = "dark";
 export type ResolvedTheme = "light" | "dark";
 
 export const THEME_STORAGE_KEY = "turex-theme";
@@ -23,8 +35,13 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+/** What the operating system asks for. Only consulted when the reader has chosen "system". */
 function systemTheme(): ResolvedTheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function resolve(preference: ThemePreference): ResolvedTheme {
+  return preference === "system" ? systemTheme() : preference;
 }
 
 function applyTheme(resolved: ResolvedTheme): void {
@@ -35,15 +52,17 @@ function applyTheme(resolved: ResolvedTheme): void {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   // Starts as "system" on both server and client so the first render matches the markup
   // the inline script produced; the effect below reconciles with what is actually stored.
-  const [preference, setPreferenceState] = useState<ThemePreference>("system");
-  const [resolved, setResolved] = useState<ResolvedTheme>("light");
+  const [preference, setPreferenceState] = useState<ThemePreference>(DEFAULT_PREFERENCE);
+  const [resolved, setResolved] = useState<ResolvedTheme>("dark");
 
   useEffect(() => {
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY) as ThemePreference | null;
     const initial: ThemePreference =
-      stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+      stored === "light" || stored === "dark" || stored === "system"
+        ? stored
+        : DEFAULT_PREFERENCE;
     setPreferenceState(initial);
-    setResolved(initial === "system" ? systemTheme() : initial);
+    setResolved(resolve(initial));
   }, []);
 
   useEffect(() => {
@@ -54,7 +73,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (preference !== "system") return;
     const query = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => setResolved(query.matches ? "dark" : "light");
+    const onChange = () => setResolved(systemTheme());
     query.addEventListener("change", onChange);
     return () => query.removeEventListener("change", onChange);
   }, [preference]);
@@ -89,9 +108,10 @@ export const themeInitScript = `
 (function () {
   try {
     var stored = localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});
-    var dark = stored === 'dark' ||
-      ((!stored || stored === 'system') &&
-        window.matchMedia('(prefers-color-scheme: dark)').matches);
+    // No stored choice means dark — the app's default, not the system's. Only someone who has
+    // explicitly asked to follow the system gets asked about it.
+    var dark = stored === 'dark' || !stored ||
+      (stored === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.classList.toggle('dark', dark);
     document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
   } catch (e) {}

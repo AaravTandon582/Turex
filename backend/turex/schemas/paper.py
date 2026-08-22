@@ -11,6 +11,7 @@ from pydantic import ConfigDict, Field, field_validator
 from turex.models.job import IngestionStage
 from turex.models.paper import PaperSource, ProcessingStatus, ReadingStatus
 from turex.schemas.base import TurexModel
+from turex.services.library_export import ExportFormat
 
 T = TypeVar("T")
 
@@ -222,3 +223,41 @@ class ReferenceRead(TurexModel):
     arxiv_id: str | None
     doi: str | None
     year: int | None
+
+
+class LibraryExportQuery(PaperFilters):
+    """The library filters, plus which format to write.
+
+    One model rather than a filter model beside a separate parameter. FastAPI flattens a
+    Pydantic model in `Query()` into individual parameters — but only when it is the sole
+    such argument; adding a second query parameter alongside it made the whole model arrive as
+    one parameter literally named `filters`, and every export returned 422. Folding the format
+    in keeps the flattening and removes the ordering question entirely.
+    """
+
+    format: ExportFormat = ExportFormat.bibtex
+
+
+class ImportFailure(TurexModel):
+    """One reference that could not be fetched, and why.
+
+    Named individually rather than counted, because "3 failed" leaves the reader with no way
+    to go and get those three by hand.
+    """
+
+    reference: str
+    title: str | None = None
+    reason: str
+
+
+class ReferenceImportResult(TurexModel):
+    """What happened to an uploaded bibliography.
+
+    Four numbers that add up, so nothing disappears without explanation: what the file held,
+    what arrived, what carried no identifier to fetch by, and what was tried and failed.
+    """
+
+    found: int
+    imported: int
+    without_identifier: int
+    failed: list[ImportFailure] = Field(default_factory=list)

@@ -75,8 +75,13 @@ def _missing(paper: Paper) -> list[str]:
 _BIBTEX_UNSAFE = re.compile(r"[{}\\]")
 
 
-def _bibtex_key(paper: Paper) -> str:
-    """`vaswani2017attention` — the conventional author-year-word form."""
+def bibtex_key(paper: Paper) -> str:
+    """`vaswani2017attention` — the conventional author-year-word form.
+
+    Public because every format Turex exports derives its identifier from this one rule, so a
+    key means the same paper whether it appears in a `.bib` file, a CSL-JSON `id`, or a
+    `\\cite{}` in a manuscript written last year.
+    """
     authors = _author_names(paper)
     family = _split_name(authors[0])[0].lower() if authors else "unknown"
     family = _ascii_slug(family) or "unknown"
@@ -133,7 +138,7 @@ def to_bibtex(paper: Paper) -> FormattedCitation:
         fields.append(("archivePrefix", "{arXiv}"))
 
     body = ",\n".join(f"  {name} = {value}" for name, value in fields)
-    text = f"@{entry_type}{{{_bibtex_key(paper)},\n{body}\n}}"
+    text = f"@{entry_type}{{{bibtex_key(paper)},\n{body}\n}}"
     return FormattedCitation(style=CitationStyle.bibtex, text=text, missing_fields=_missing(paper))
 
 

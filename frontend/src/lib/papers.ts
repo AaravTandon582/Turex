@@ -106,11 +106,42 @@ export function isProcessing(paper: PaperSummary): boolean {
   return paper.status === "pending" || paper.status === "processing";
 }
 
+export type ExportFormat = "bibtex" | "ris" | "csl";
+
+export interface ImportFailure {
+  reference: string;
+  title: string | null;
+  reason: string;
+}
+
+export interface ReferenceImportResult {
+  found: number;
+  imported: number;
+  without_identifier: number;
+  failed: ImportFailure[];
+}
+
 export const papers = {
   list: (query: PaperQuery = {}) =>
     api.get<Page<PaperSummary>>(`/papers${toQueryString(query)}`),
 
   get: (id: string) => api.get<PaperDetail>(`/papers/${id}`),
+
+  /**
+   * A URL the browser downloads directly.
+   *
+   * Not fetched and turned into a blob: the response is a file with a `Content-Disposition`,
+   * and letting the browser handle it keeps the filename the server chose and costs no memory
+   * for a library that might be thousands of entries.
+   */
+  exportUrl: (format: ExportFormat, query: PaperQuery = {}) =>
+    `${API_BASE_URL}/papers/export${toQueryString({ ...query, format } as PaperQuery)}`,
+
+  importReferences: (file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return api.post<ReferenceImportResult>("/papers/import-references", body);
+  },
 
   stats: () => api.get<LibraryStats>("/papers/stats"),
 

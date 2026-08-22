@@ -37,9 +37,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  // Dark first, so a browser with no stated preference paints its chrome to match the theme
+  // the app will actually render — see DEFAULT_THEME in the theme provider.
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#fcfcfb" },
-    { media: "(prefers-color-scheme: dark)", color: "#1c1e24" },
+    { color: "#1c1e24" },
   ],
 };
 

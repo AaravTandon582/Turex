@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageContainer } from "@/components/layout/page-container";
 import { PaperCard } from "@/components/library/paper-card";
 import { AddByReference } from "@/components/library/add-by-reference";
+import { Bibliography } from "@/components/library/bibliography";
 import { UploadDropzone } from "@/components/library/upload-dropzone";
 import { useLibrary } from "@/components/library/use-library";
 import { Button } from "@/components/ui/button";
@@ -78,6 +79,7 @@ export default function LibraryPage() {
       <div className="mt-6">
         <UploadDropzone onUploaded={() => void reload({ silent: true })} />
         <AddByReference onAdded={() => void reload({ silent: true })} />
+        <Bibliography query={query} total={total} />
       </div>
 
       <div className="mt-7 flex flex-wrap items-center gap-3">

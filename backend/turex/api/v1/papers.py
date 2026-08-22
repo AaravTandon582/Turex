@@ -8,23 +8,44 @@ from typing import Annotated
 from fastapi import APIRouter, File, Query, Response, UploadFile, status
 
 from turex.api.deps import CurrentUser, GuardDep, PaperServiceDep
+from turex.core.errors import AppError
+from turex.ingestion.bibliography import parse_bibliography
 from turex.models.job import STAGE_LABELS, IngestionJob
 from turex.models.paper import Paper
+from turex.models.user import User
 from turex.schemas.paper import (
     AddByReference,
     EquationRead,
+    ImportFailure,
     IngestionProgress,
+    LibraryExportQuery,
     LibraryStats,
     Page,
     PaperDetail,
     PaperFilters,
     PaperSummary,
     PaperUpdate,
+    ReferenceImportResult,
     ReferenceRead,
     SectionRead,
 )
 from turex.security import policy
+from turex.services.library_export import (
+    CONTENT_TYPES,
+    FILE_SUFFIXES,
+    export_papers,
+)
 from turex.services.paper_service import PaperService
+
+PAGE_SIZE = 100
+"""How many papers an export reads at a time — the largest page `PaperFilters` allows."""
+
+EXPORT_CEILING = 10_000
+"""How many papers one export may contain.
+
+Not a page size — a bound on how much work one request can ask for. A personal library is
+thousands, and anything past this is a request nobody made on purpose.
+"""
 
 router = APIRouter(prefix="/papers", tags=["papers"])
 
@@ -123,6 +144,115 @@ async def list_papers(
         total=total,
         limit=filters.limit,
         offset=filters.offset,
+    )
+
+
+@router.get("/export")
+async def export_library(
+    user: CurrentUser,
+    service: PaperServiceDep,
+    query: Annotated[LibraryExportQuery, Query()],
+) -> Response:
+    """The library — or any slice of it — as a bibliography file.
+
+    Takes the same filters as the list, so what you are looking at is what you export: a
+    collection, a tag, a search, the whole thing.
+
+    A file that other tools read, not a Turex format. BibTeX for LaTeX and every reference
+    manager, RIS for Zotero and Mendeley, CSL-JSON for Pandoc and Quarto — all of them plain
+    text, diffable, and readable in ten years without this application.
+    """
+    found = await _every_match(service, user, query)
+    body = export_papers(found, query.format)
+
+    return Response(
+        content=body,
+        media_type=CONTENT_TYPES[query.format],
+        headers={
+            # `attachment` so a browser saves it rather than rendering a wall of BibTeX.
+            "Content-Disposition": (
+                f'attachment; filename="turex-library.{FILE_SUFFIXES[query.format]}"'
+            ),
+        },
+    )
+
+
+async def _every_match(
+    service: PaperService, user: User, query: LibraryExportQuery
+) -> list[Paper]:
+    """Every paper the filters select, not just the first page.
+
+    An export is a file, not a screen. Honouring a `limit` of 24 would quietly produce a
+    bibliography with 24 entries in it, which is the kind of truncation someone discovers when
+    a citation is missing from a manuscript they have already submitted.
+
+    Paged rather than asked for in one go, because `PaperFilters` caps a page at 100 and that
+    cap is there for a reason — an unbounded page size is how one request loads an entire
+    table into memory. Raising it for this caller would weaken the rule for every caller; a
+    loop respects it and costs one indexed query per hundred papers.
+    """
+    collected: list[Paper] = []
+    base = query.model_dump(exclude={"format", "limit", "offset"})
+
+    while len(collected) < EXPORT_CEILING:
+        page = PaperFilters.model_validate(base | {"limit": PAGE_SIZE, "offset": len(collected)})
+        found, total = await service.list_papers(owner=user, filters=page)
+        collected.extend(found)
+        if not found or len(collected) >= total:
+            break
+
+    return collected[:EXPORT_CEILING]
+
+
+@router.post("/import-references", response_model=ReferenceImportResult)
+async def import_references(
+    user: CurrentUser,
+    service: PaperServiceDep,
+    guard: GuardDep,
+    file: Annotated[UploadFile, File(description="A .bib or .ris file")],
+) -> ReferenceImportResult:
+    """Bring a bibliography in from Zotero, Mendeley, or a `.bib` beside a manuscript.
+
+    Every entry carrying a DOI or an arXiv id is fetched and ingested exactly as "add by
+    reference" would — same SSRF checks, same validation, same pipeline. Entries with neither
+    are reported rather than stored: without an identifier there is nothing to fetch, and a
+    row that can never become a readable paper is worse than an honest count of what was left
+    behind.
+    """
+    await guard.by_user(user.id, policy.UPLOADS_PER_USER, scope="upload")
+
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        # Reference managers still emit Latin-1 on Windows. Trying it costs nothing and is
+        # the difference between an import working and a file that "isn't valid".
+        text = raw.decode("latin-1", errors="replace")
+
+    parsed = parse_bibliography(text, filename=file.filename or "")
+
+    imported: list[str] = []
+    failed: list[ImportFailure] = []
+
+    for entry in parsed.entries:
+        identifier = entry.identifier
+        if identifier is None:
+            continue
+        try:
+            result = await service.add_from_identifier(owner=user, reference=identifier)
+            imported.append(str(result.paper.id))
+        except AppError as exc:
+            # One unreachable paper must not abandon the other fifty-nine. Each failure is
+            # named so the reader can go and get that one by hand.
+            failed.append(
+                ImportFailure(reference=identifier, title=entry.title, reason=exc.message)
+            )
+
+    return ReferenceImportResult(
+        found=len(parsed.entries),
+        imported=len(imported),
+        without_identifier=parsed.skipped,
+        failed=failed,
     )
 
 

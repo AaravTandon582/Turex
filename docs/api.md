@@ -93,6 +93,8 @@ log line produced while handling the request, which is how a reported failure ge
 | `POST` | `/papers/from-reference` | Add by link, DOI, or arXiv id. Same 202/200 as upload. |
 | `GET` | `/papers` | Filter, sort, paginate — see below. |
 | `GET` | `/papers/stats` | Library counters in one query. |
+| `GET` | `/papers/export` | The library as a bibliography file. Takes the same filters as the list. |
+| `POST` | `/papers/import-references` | Upload a `.bib` or `.ris`; fetches everything with an identifier. |
 | `GET` | `/papers/{id}` | Includes abstract, counts, and ingestion progress. |
 | `PATCH` | `/papers/{id}` | Correct extracted metadata, or set reading status / favourite. |
 | `POST` | `/papers/{id}/opened` | Records a read; promotes `unread` → `reading`. |
@@ -185,6 +187,28 @@ row, and nobody reaches page five hundred by reading.
 
 `import` is rate limited against the **upload** budget, not the search one — the work it does
 is an upload: a download from arXiv, a parse, and an embedding call per chunk.
+
+**`GET /papers/export`** takes every filter the list takes, plus `format`:
+
+| Format | Read by |
+|---|---|
+| `bibtex` (default) | LaTeX, Overleaf, and every reference manager |
+| `ris` | Zotero, Mendeley, EndNote |
+| `csl` | Pandoc and Quarto, directly |
+
+What you are looking at is what you export — a collection, a tag, a search, or everything. It
+pages through the whole selection rather than honouring the list's page size, because a
+bibliography silently truncated to 24 entries is discovered when a citation is missing from a
+submitted manuscript.
+
+**`POST /papers/import-references`** takes a `.bib` or `.ris` file and fetches every entry
+carrying a DOI or an arXiv id, through the same path as "add by reference" — same SSRF checks,
+same validation, same pipeline. It answers with four numbers that add up: what the file held,
+what arrived, what carried no identifier, and what was tried and failed, each failure named so
+it can be chased by hand.
+
+Round-tripping is a tested property: what Turex writes, Turex reads back. The first version
+could not — it wrote arXiv ids into RIS as URLs and only recognised a bare `arXiv:` prefix.
 
 **Query parameters on `GET /papers`:** `search`, `reading_status`, `status`, `collection_id`,
 `tag`, `favorites_only`, `sort` (`recent` · `title` · `year` · `opened`), `limit`, `offset`.
