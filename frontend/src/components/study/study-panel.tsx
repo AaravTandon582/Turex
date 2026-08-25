@@ -16,14 +16,12 @@ import { study, type Flashcard, type Prerequisite } from "@/lib/study";
  * Placed here rather than on the study page because generating is something you decide while
  * looking at a paper you have just finished, not while looking at a review queue.
  */
-const PENDING_LABELS: Record<"cards" | "quiz" | "short" | "prereq", {
-  label: string;
-  seconds: number;
-}> = {
-  cards: { label: "Reading the paper and writing flashcards from its own passages.", seconds: 22 },
-  quiz: { label: "Writing quiz questions, with the passage behind each answer.", seconds: 25 },
-  short: { label: "Writing questions to answer from memory.", seconds: 28 },
-  prereq: { label: "Working out what this paper assumes you already know.", seconds: 36 },
+/** What each action is doing, so the wait says something beyond "busy". */
+const PENDING_LABELS: Record<"cards" | "quiz" | "short" | "prereq", string> = {
+  cards: "Reading the paper and writing flashcards from its own passages.",
+  quiz: "Writing quiz questions, with the passage behind each answer.",
+  short: "Writing questions to answer from memory.",
+  prereq: "Working out what this paper assumes you already know.",
 };
 
 export function StudyPanel({ paperId }: { paperId: string }) {
@@ -103,16 +101,7 @@ export function StudyPanel({ paperId }: { paperId: string }) {
         passage behind every answer.
       </p>
 
-      {/* Measured, not guessed: 22s for cards, 25s for a quiz, 28s for short answers, 36s
-          for prerequisites. Telling someone to expect half a minute is what lets them wait
-          calmly for forty seconds instead of concluding it has hung at eight. */}
-      {busy && (
-        <PendingWork
-          className="mt-3"
-          label={PENDING_LABELS[busy].label}
-          expectedSeconds={PENDING_LABELS[busy].seconds}
-        />
-      )}
+      {busy && <PendingWork className="mt-3" label={PENDING_LABELS[busy]} />}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button size="sm" variant="secondary" loading={busy === "cards"} onClick={() => void generateCards()}>
