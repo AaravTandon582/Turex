@@ -110,24 +110,52 @@ export interface Task {
  * `weakly_supported` is deliberately distinct from `supported`: collapsing them is how a
  * tentative result quietly becomes a confident one.
  */
+/**
+ * Each status says **when to choose it**, not just what it is called.
+ *
+ * The distinction between "Supported" and "Weakly supported" is a judgement, and a bare label
+ * leaves everyone to invent their own threshold — which makes the field meaningless the moment
+ * a second person reads it, or the same person reads it six months later.
+ */
 export const HYPOTHESIS_STATUSES: {
   value: HypothesisStatus;
   label: string;
+  hint: string;
   tone: "neutral" | "accent" | "success" | "warning" | "danger";
 }[] = [
-  { value: "proposed", label: "Proposed", tone: "neutral" },
-  { value: "testing", label: "Testing", tone: "accent" },
-  { value: "supported", label: "Supported", tone: "success" },
-  { value: "weakly_supported", label: "Weakly supported", tone: "warning" },
-  { value: "contradicted", label: "Contradicted", tone: "danger" },
-  { value: "abandoned", label: "Abandoned", tone: "neutral" },
+  { value: "proposed", label: "Proposed", hint: "Written down, nothing tested yet", tone: "neutral" },
+  { value: "testing", label: "Testing", hint: "An experiment is under way", tone: "accent" },
+  {
+    value: "supported",
+    label: "Supported",
+    hint: "Evidence backs it, and you found none against",
+    tone: "success",
+  },
+  {
+    value: "weakly_supported",
+    label: "Weakly supported",
+    hint: "Evidence leans this way, but it is thin or mixed",
+    tone: "warning",
+  },
+  {
+    value: "contradicted",
+    label: "Contradicted",
+    hint: "Evidence says it is wrong — a real result, not a failure",
+    tone: "danger",
+  },
+  {
+    value: "abandoned",
+    label: "Abandoned",
+    hint: "Dropped without testing. Different from contradicted",
+    tone: "neutral",
+  },
 ];
 
-export const EXPERIMENT_STATUSES: { value: ExperimentStatus; label: string }[] = [
-  { value: "planned", label: "Planned" },
-  { value: "running", label: "Running" },
-  { value: "complete", label: "Complete" },
-  { value: "abandoned", label: "Abandoned" },
+export const EXPERIMENT_STATUSES: { value: ExperimentStatus; label: string; hint: string }[] = [
+  { value: "planned", label: "Planned", hint: "Designed, not yet run" },
+  { value: "running", label: "Running", hint: "In progress" },
+  { value: "complete", label: "Complete", hint: "Run, with a result recorded" },
+  { value: "abandoned", label: "Abandoned", hint: "Stopped before it produced a result" },
 ];
 
 export function hypothesisStatus(value: HypothesisStatus) {

@@ -137,12 +137,18 @@ export function ReviewSession({
         </Prose>
 
         {!revealed ? (
-          <Button className="mt-6" onClick={() => setRevealed(true)}>
-            Show answer
-            <kbd className="ml-1 rounded-xs border border-ink-inverse/30 px-1 text-[10px] opacity-70">
-              space
-            </kbd>
-          </Button>
+          <>
+            <p className="mt-5 text-[12px] text-ink-subtle">
+              Try to answer it from memory first. Recalling it is what makes it stick —
+              recognising the answer once you see it does not.
+            </p>
+            <Button className="mt-3" onClick={() => setRevealed(true)}>
+              Show answer
+              <kbd className="ml-1 rounded-xs border border-ink-inverse/30 px-1 text-[10px] opacity-70">
+                space
+              </kbd>
+            </Button>
+          </>
         ) : (
           <div className="mt-5 border-t border-border pt-5">
             <Prose density="tight" className="measure text-[15px] leading-relaxed text-ink">
@@ -170,7 +176,18 @@ export function ReviewSession({
       </Card>
 
       {revealed && (
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <>
+          {/* Says what is being asked. Four buttons labelled Forgot/Hard/Good/Easy are only
+              self-explanatory to someone who has used spaced repetition before — everyone
+              else is guessing at what they are grading and why. */}
+          <p className="mt-4 text-[13px] text-ink">
+            How well did you remember it?{" "}
+            <span className="text-ink-muted">
+              Your answer decides when this card comes back.
+            </span>
+          </p>
+
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {RATINGS.map((rating, position) => (
             <button
               key={rating.value}
@@ -188,7 +205,13 @@ export function ReviewSession({
               <span className="mt-0.5 block text-[11px] text-ink-subtle">{rating.hint}</span>
             </button>
           ))}
-        </div>
+          </div>
+
+          <p className="mt-2 text-[11px] text-ink-subtle">
+            Answer honestly — a card you mark Easy when you struggled will come back too late
+            to be useful.
+          </p>
+        </>
       )}
 
       {error && (

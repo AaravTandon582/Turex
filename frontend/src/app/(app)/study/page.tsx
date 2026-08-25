@@ -75,9 +75,18 @@ export default function StudyPage() {
           ) : (
             <>
               <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <Stat label="Due now" value={progress.due_now} emphasis={progress.due_now > 0} />
+                <Stat
+                  label="Due now"
+                  value={progress.due_now}
+                  emphasis={progress.due_now > 0}
+                  hint="Cards the schedule says you are about to forget"
+                />
                 <Stat label="Total cards" value={progress.total_cards} />
-                <Stat label="Mastered" value={progress.mastered} />
+                <Stat
+                  label="Mastered"
+                  value={progress.mastered}
+                  hint="Cards you have got right often enough that they now come back weeks apart"
+                />
                 <Stat label="Reviews this week" value={progress.reviews_last_seven_days} />
               </div>
 
@@ -176,10 +185,14 @@ function Stat({
   label,
   value,
   emphasis = false,
+  hint,
 }: {
   label: string;
   value: number;
   emphasis?: boolean;
+  /** What the number counts. "Mastered" is a threshold, not a feeling, and a figure whose
+      definition nobody knows is decoration. */
+  hint?: string;
 }) {
   return (
     <Card className="p-3.5">
@@ -190,6 +203,7 @@ function Stat({
       >
         {value}
       </p>
+      {hint && <p className="mt-1 text-[11px] leading-snug text-ink-subtle">{hint}</p>}
     </Card>
   );
 }

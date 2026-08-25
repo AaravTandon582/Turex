@@ -155,8 +155,8 @@ function ExperimentCard({
             className="h-7 rounded-md border border-border bg-surface px-1.5 text-[12px] text-ink focus:border-accent focus:outline-none"
           >
             {EXPERIMENT_STATUSES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+              <option key={option.value} value={option.value} title={option.hint}>
+                {option.label} — {option.hint}
               </option>
             ))}
           </select>

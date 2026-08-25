@@ -112,11 +112,19 @@ export const study = {
 };
 
 /** The four grades, in the order they are shown and numbered on the keyboard. */
+/**
+ * The four answers to "how well did you remember that?".
+ *
+ * The hint on each says **when the card comes back**, because that is the consequence and the
+ * only thing the choice actually controls. "Normal interval" was accurate and meant nothing
+ * to anyone who has not used spaced repetition before — it named the mechanism instead of the
+ * effect.
+ */
 export const RATINGS: readonly { value: ReviewRating; label: string; hint: string }[] = [
-  { value: "forgot", label: "Forgot", hint: "See it again today" },
-  { value: "hard", label: "Hard", hint: "Sooner than usual" },
-  { value: "good", label: "Good", hint: "Normal interval" },
-  { value: "easy", label: "Easy", hint: "Push it further out" },
+  { value: "forgot", label: "Forgot", hint: "Comes back later today" },
+  { value: "hard", label: "Hard", hint: "Comes back sooner than last time" },
+  { value: "good", label: "Good", hint: "Comes back at the usual gap" },
+  { value: "easy", label: "Easy", hint: "Comes back much later" },
 ] as const;
 
 export const CARD_KIND_LABELS: Record<CardKind, string> = {

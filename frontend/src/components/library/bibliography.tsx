@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/loading";
+import { PendingWork } from "@/components/ui/pending-work";
 import { Card } from "@/components/ui/primitives";
 import {
   papers,
@@ -100,10 +101,10 @@ export function Bibliography({ query, total }: { query: PaperQuery; total: numbe
       </div>
 
       {importing && (
-        <p className="mt-2 text-[12px] text-ink-muted">
-          Fetching each reference that carries a DOI or an arXiv id. This takes a moment per
-          paper.
-        </p>
+        <PendingWork
+          className="mt-3"
+          label="Fetching each reference that carries a DOI or an arXiv id, and reading it."
+        />
       )}
 
       {error && (
