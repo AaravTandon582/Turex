@@ -74,9 +74,10 @@ class CellRun(TurexModel):
     before it reaches an `img` tag.
     """
 
-    output: str | None = Field(default=None, max_length=200_000)
-    image: str | None = Field(default=None, max_length=4_000_000)
-    error: str | None = Field(default=None, max_length=200_000)
+    source: str | None = Field(default=None, max_length=100_000)
+    output: str | None = None
+    image: str | None = None
+    error: str | None = None
     duration_ms: int | None = Field(default=None, ge=0, le=86_400_000)
 
 

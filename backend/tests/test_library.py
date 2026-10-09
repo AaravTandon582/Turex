@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.support.pdf_builder import build_paper_pdf, build_pdf
+from turex.models.conversation import Conversation, MessageCitation
 from turex.models.job import IngestionJob, JobStatus
 from turex.models.paper import Paper, PaperChunk, PaperSection
 
@@ -299,6 +300,80 @@ class TestPaperLifecycle:
         assert (await registered_client.get(f"{api}/papers/{paper_id}")).status_code == 404
         assert await db.scalar(select(func.count()).select_from(PaperChunk)) == 0
         assert await db.scalar(select(func.count()).select_from(PaperSection)) == 0
+
+    async def test_deletes_a_paper_that_was_asked_about_in_its_own_reader(
+        self,
+        registered_client: AsyncClient,
+        api: str,
+        run_worker: Drain,
+        scripted,  # type: ignore[no-untyped-def]
+        db: AsyncSession,
+    ) -> None:
+        """A paper-scoped conversation citing that paper made deletion return 500.
+
+        Two cascades met on `message_citations`: the conversation dies with the paper and
+        takes its citations with it, while the same statement nulls `chunk_id` and `paper_id`
+        on citations so an old answer stays readable after its source is gone. PostgreSQL ran
+        the update against rows whose message the other cascade had already deleted, and
+        refused it — a foreign key violation raised as a 500.
+
+        It needed all three of a paper, a conversation scoped to it, and a citation, which is
+        why nothing caught it: the delete test above uses a paper nobody has asked about.
+        """
+        from tests.test_assistant import ask, start_conversation
+
+        paper_id = (await upload(registered_client, api))["id"]
+        await run_worker()
+
+        conversation_id = await start_conversation(registered_client, api, paper_id=paper_id)
+        await ask(registered_client, api, conversation_id, "What does this paper claim?")
+        assert await db.scalar(select(func.count()).select_from(MessageCitation)) > 0, (
+            "the test proves nothing unless the answer actually cited the paper"
+        )
+
+        assert (await registered_client.delete(f"{api}/papers/{paper_id}")).status_code == 204
+
+        assert (await registered_client.get(f"{api}/papers/{paper_id}")).status_code == 404
+        # The conversation was about this paper alone, so it goes with it.
+        assert await db.scalar(select(func.count()).select_from(Conversation)) == 0
+        assert await db.scalar(select(func.count()).select_from(MessageCitation)) == 0
+
+    async def test_an_answer_stays_readable_after_its_source_is_deleted(
+        self,
+        registered_client: AsyncClient,
+        api: str,
+        run_worker: Drain,
+        scripted,  # type: ignore[no-untyped-def]
+        db: AsyncSession,
+    ) -> None:
+        """The other half of the same deletion, and the reason citations null out.
+
+        A conversation across the whole library outlives any one paper in it. The citation
+        keeps the title, locator and quotation it recorded at the time, so the answer still
+        says what it rested on; only the link to the passage stops working. Nothing asserted
+        this, which is how the fix for the paper-scoped case could have quietly deleted it.
+        """
+        from tests.test_assistant import ask, start_conversation
+
+        paper_id = (await upload(registered_client, api))["id"]
+        await run_worker()
+
+        conversation_id = await start_conversation(registered_client, api)
+        await ask(registered_client, api, conversation_id, "What does this paper claim?")
+
+        before = list(await db.scalars(select(MessageCitation)))
+        assert before, "no citation, so this asserts nothing"
+        quoted = {citation.quoted_text for citation in before}
+
+        assert (await registered_client.delete(f"{api}/papers/{paper_id}")).status_code == 204
+
+        db.expire_all()
+        after = list(await db.scalars(select(MessageCitation)))
+        assert len(after) == len(before), "the answer lost its sources with the paper"
+        assert {citation.quoted_text for citation in after} == quoted
+        assert all(citation.paper_title for citation in after)
+        # The jump-to-passage link is what is allowed to break.
+        assert all(citation.chunk_id is None and citation.paper_id is None for citation in after)
 
 
 class TestPrivacy:

@@ -300,3 +300,56 @@ class TestConcurrentAppends:
 
         assert sorted(sequences) == list(range(1, 7))
         assert len(set(sequences)) == len(sequences)
+
+
+class TestAppendingFromTwoRequestsAtOnce:
+    """Two appends arriving together must both be written, in some order.
+
+    Driven through real concurrent sessions rather than concurrent HTTP, because the thing
+    under test is two database transactions — and the ASGI transport's handling of concurrent
+    requests is the reason an earlier concurrency test in this suite had to be rewritten.
+
+    What this caught: appending locked the last entry `FOR UPDATE`, which reads correctly and
+    does not work. A row lock stops that row changing; it does not stop a newer one being
+    inserted. The second transaction waited, re-read the row it had been waiting for rather
+    than the later one just written, and computed a sequence that was already taken. Eight
+    concurrent appends returned five 500s.
+    """
+
+    async def test_eight_appends_at_once_are_all_written_and_the_chain_holds(
+        self, db: AsyncSession
+    ) -> None:
+        import asyncio
+
+        from turex.db.session import session_scope
+
+        user = User(email="concurrent@turex.dev", full_name="Concurrent", password_hash="x")
+        db.add(user)
+        await db.flush()
+        await db.commit()
+        owner_id = user.id
+
+        async def write(index: int) -> None:
+            async with session_scope() as session:
+                await LabService(session).append(owner_id=owner_id, body=f"Simultaneous {index}")
+
+        results = await asyncio.gather(
+            *[write(index) for index in range(8)], return_exceptions=True
+        )
+        failures = [result for result in results if isinstance(result, BaseException)]
+        assert not failures, f"appends that raced were refused: {failures}"
+
+        async with session_scope() as session:
+            report = await LabService(session).verify(owner_id)
+            written = list(
+                await session.scalars(
+                    select(LabEntry)
+                    .where(LabEntry.owner_id == owner_id)
+                    .order_by(LabEntry.sequence)
+                )
+            )
+
+        assert len(written) == 8
+        # The sequence is what the chain is threaded on: no gaps, no repeats.
+        assert [entry.sequence for entry in written] == list(range(1, 9))
+        assert report.intact, f"the chain forked: {report.breaks}"

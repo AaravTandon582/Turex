@@ -12,6 +12,15 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+
+    /**
+     * The Pyodide runtime, copied into `public/` by the `pyodide` npm script so the
+     * workstation serves it from the same origin. It is a vendored Emscripten bundle —
+     * minified, generated, and not ours to change. Linting it reported five errors and
+     * five thousand warnings about someone else's code, which is how a red lint run
+     * stops meaning anything.
+     */
+    "public/pyodide/**",
   ]),
   {
     rules: {

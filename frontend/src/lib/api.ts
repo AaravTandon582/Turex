@@ -112,24 +112,27 @@ async function refreshSession(): Promise<boolean> {
   return refreshInFlight;
 }
 
-export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
+/** Shared authentication and error handling for JSON and streaming responses. */
+export async function apiResponse(path: string, options: RequestOptions = {}): Promise<Response> {
   const { body, retryOnUnauthorized = true, headers, ...init } = options;
 
   const isFormData = body instanceof FormData;
+  const requestHeaders = new Headers(headers);
+  if (!isFormData && body !== undefined && !requestHeaders.has("content-type")) {
+    requestHeaders.set("content-type", "application/json");
+  }
   const requestInit: RequestInit = {
     ...init,
     credentials: "include",
-    headers: {
-      ...(isFormData || body === undefined ? {} : { "content-type": "application/json" }),
-      ...headers,
-    },
+    headers: requestHeaders,
     body: isFormData ? body : body === undefined ? undefined : JSON.stringify(body),
   };
 
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, requestInit);
-  } catch {
+  } catch (caught) {
+    if (init.signal?.aborted) throw caught;
     throw new ApiError(
       "network_error",
       "Turex can't reach the server. Check your connection.",
@@ -139,14 +142,24 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
 
   if (response.status === 401 && retryOnUnauthorized) {
     if (await refreshSession()) {
-      return apiFetch<T>(path, { ...options, retryOnUnauthorized: false });
+      return apiResponse(path, { ...options, retryOnUnauthorized: false });
     }
   }
 
   if (!response.ok) throw await toApiError(response);
+  return response;
+}
+
+export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const response = await apiResponse(path, options);
   if (response.status === 204) return undefined as T;
 
-  return (await response.json()) as T;
+  try {
+    return (await response.json()) as T;
+  } catch (caught) {
+    if (options.signal?.aborted) throw caught;
+    throw new ApiError("internal_error", GENERIC_MESSAGE, response.status);
+  }
 }
 
 export const api = {

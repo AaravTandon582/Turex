@@ -30,6 +30,10 @@ is built today.
 | Polish: accessibility, responsiveness, error states | ✅ Working |
 | Evaluation: retrieval benchmark, security suite | ✅ Working |
 | Demo account and walkthrough | ✅ Working |
+| Discover: a catalog of 1.2M arXiv and OpenAlex papers, importable | ✅ Working |
+| Workstation: Python notebooks running in the browser | ✅ Working |
+| Lab notebook: append-only, hash-chained | ✅ Working |
+| Bibliography import and export, and project export | ✅ Working |
 
 Everything answering a model needs `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` set; without one,
 those endpoints say so rather than failing obscurely, and the rest of Turex keeps working.

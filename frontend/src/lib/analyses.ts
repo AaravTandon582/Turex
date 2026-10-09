@@ -58,7 +58,7 @@ export const analyses = {
   recordRun: (
     id: string,
     cellId: string,
-    body: { output?: string; image?: string | null; error?: string | null; duration_ms?: number },
+    body: { source?: string; output?: string; image?: string | null; error?: string | null; duration_ms?: number },
   ) => api.post<AnalysisCell>(`/analyses/${id}/cells/${cellId}/run`, body),
 
   moveCell: (id: string, cellId: string, offset: -1 | 1) =>

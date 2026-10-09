@@ -107,9 +107,7 @@ def _notebook(analysis: Analysis) -> str:
         cell_id = str(cell.id)[:64]
 
         if cell.kind is CellKind.markdown:
-            cells.append(
-                {"id": cell_id, "cell_type": "markdown", "metadata": {}, "source": source}
-            )
+            cells.append({"id": cell_id, "cell_type": "markdown", "metadata": {}, "source": source})
             continue
 
         outputs: list[dict[str, Any]] = []

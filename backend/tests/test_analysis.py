@@ -317,3 +317,49 @@ class TestRoutes:
         )
         assert added.status_code == 201
         assert added.json()["kind"] == CellKind.markdown.value
+
+
+class TestCellsAddedAtOnce:
+    """Six cells added simultaneously must occupy six distinct positions.
+
+    The order of the cells in a notebook is the program, so two cells sharing a position is
+    not an untidy database — it is a notebook whose meaning depends on how a query happens to
+    break the tie, and an output stored beside code that may now sit somewhere else.
+
+    Appending counted the collection to pick the next position, with nothing holding the two
+    counts apart and no constraint to violate, so six concurrent appends produced ordinals
+    0, 1, 2, 2, 3, 5, 5, 5 and every request returned 201.
+    """
+
+    async def test_six_appends_at_once_take_six_positions(self, db: AsyncSession) -> None:
+        import asyncio
+
+        from turex.db.session import session_scope
+
+        user = User(email="racer@turex.dev", full_name="Racer", password_hash="x")
+        db.add(user)
+        await db.flush()
+        analysis = await AnalysisService(db).create(owner_id=user.id, title="Concurrent")
+        # A new analysis opens with somewhere to type, so the count starts above zero.
+        started_with = len(analysis.cells)
+        await db.commit()
+        owner_id, analysis_id = user.id, analysis.id
+
+        async def add(index: int) -> None:
+            async with session_scope() as session:
+                await AnalysisService(session).add_cell(
+                    owner_id=owner_id, analysis_id=analysis_id, source=f"# cell {index}"
+                )
+
+        results = await asyncio.gather(*[add(index) for index in range(6)], return_exceptions=True)
+        failures = [result for result in results if isinstance(result, BaseException)]
+        assert not failures, f"appends that raced were refused: {failures}"
+
+        async with session_scope() as session:
+            loaded = await AnalysisService(session).get(owner_id, analysis_id)
+            ordinals = sorted(cell.ordinal for cell in loaded.cells)
+
+        assert len(ordinals) == started_with + 6
+        assert ordinals == list(range(started_with + 6)), (
+            f"positions collided or left gaps: {ordinals}"
+        )

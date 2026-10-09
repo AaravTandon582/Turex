@@ -99,18 +99,20 @@ function HypothesisCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [detail, setDetail] = useState<HypothesisDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const status = hypothesisStatus(hypothesis.status);
 
   useEffect(() => {
     if (!expanded) return;
     void workspace
       .getHypothesis(hypothesis.id)
-      .then(setDetail)
-      .catch(() => setDetail(null));
+      .then((loaded) => { setDetail(loaded); setError(null); })
+      .catch((caught) => setError(describe(caught)));
   }, [expanded, hypothesis.id]);
 
   return (
     <Card className="p-4">
+      {error && <p role="alert" className="mb-2 text-sm text-danger">{error}</p>}
       <div className="flex items-start justify-between gap-3">
         <p className="measure text-[14px] leading-relaxed text-ink">{hypothesis.statement}</p>
         <Badge tone={status.tone}>{status.label}</Badge>
@@ -139,10 +141,15 @@ function HypothesisCard({
           <select
             value={hypothesis.status}
             onChange={async (event) => {
-              await workspace.updateHypothesis(hypothesis.id, {
-                status: event.target.value as HypothesisStatus,
-              });
-              onChanged();
+              try {
+                await workspace.updateHypothesis(hypothesis.id, {
+                  status: event.target.value as HypothesisStatus,
+                });
+                setError(null);
+                onChanged();
+              } catch (caught) {
+                setError(describe(caught));
+              }
             }}
             className="h-7 rounded-md border border-border bg-surface px-1.5 text-[12px] text-ink focus:border-accent focus:outline-none"
           >
@@ -171,8 +178,12 @@ function HypothesisCard({
           type="button"
           aria-label="Delete hypothesis"
           onClick={async () => {
-            await workspace.deleteHypothesis(hypothesis.id);
-            onChanged();
+            try {
+              await workspace.deleteHypothesis(hypothesis.id);
+              onChanged();
+            } catch (caught) {
+              setError(describe(caught));
+            }
           }}
           className="ml-auto rounded-sm p-1 text-ink-subtle hover:text-danger"
         >
@@ -189,7 +200,7 @@ function HypothesisCard({
             <Detail label="Assumptions" value={hypothesis.assumptions} />
           )}
 
-          {detail === null ? (
+          {error ? null : detail === null ? (
             <p className="text-[12px] text-ink-subtle">Loading evidence…</p>
           ) : detail.evidence.length === 0 ? (
             <p className="measure text-[12px] text-ink-subtle">
@@ -220,9 +231,14 @@ function HypothesisCard({
                       type="button"
                       aria-label="Remove evidence"
                       onClick={async () => {
-                        await workspace.detachEvidence(item.id);
-                        setDetail(await workspace.getHypothesis(hypothesis.id));
-                        onChanged();
+                        try {
+                          await workspace.detachEvidence(item.id);
+                          setDetail(await workspace.getHypothesis(hypothesis.id));
+                          setError(null);
+                          onChanged();
+                        } catch (caught) {
+                          setError(describe(caught));
+                        }
                       }}
                       className="ml-auto shrink-0 rounded-sm p-0.5 text-ink-subtle hover:text-danger"
                     >
@@ -268,6 +284,7 @@ function NewHypothesis({
   const [statement, setStatement] = useState("");
   const [assumptions, setAssumptions] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   return (
     <Card className="animate-[var(--animate-rise)] p-4">
@@ -283,11 +300,14 @@ function NewHypothesis({
               assumptions: assumptions.trim() || undefined,
             });
             onCreated();
+          } catch (caught) {
+            setError(describe(caught));
           } finally {
             setSubmitting(false);
           }
         }}
       >
+        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <div className="space-y-1.5">
           <label htmlFor="statement" className="block text-[13px] font-medium text-ink">
             Hypothesis

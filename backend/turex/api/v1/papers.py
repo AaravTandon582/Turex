@@ -177,9 +177,7 @@ async def export_library(
     )
 
 
-async def _every_match(
-    service: PaperService, user: User, query: LibraryExportQuery
-) -> list[Paper]:
+async def _every_match(service: PaperService, user: User, query: LibraryExportQuery) -> list[Paper]:
     """Every paper the filters select, not just the first page.
 
     An export is a file, not a screen. Honouring a `limit` of 24 would quietly produce a

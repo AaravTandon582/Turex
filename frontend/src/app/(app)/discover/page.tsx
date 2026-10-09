@@ -215,16 +215,24 @@ export default function DiscoverPage() {
             {category ? <> in {category}</> : null}
           </p>
 
-          <div className="mt-3 space-y-3">
+          {/*
+            * A real list, because that is what it is. Anonymous nested divs tell a screen
+            * reader nothing: no count, no boundary between one result and the next, so
+            * there is no way to move result by result. It is also why a test that tried to
+            * act on "the card containing an arXiv link" could match an ancestor holding
+            * several cards and press the wrong button.
+            */}
+          <ul aria-label="Search results" className="mt-3 space-y-3">
             {page.items.map((paper) => (
-              <CatalogCard
-                key={paper.id}
-                paper={paper}
-                onImported={handleImported}
-                libraryPaperId={justImported[paper.external_id]}
-              />
+              <li key={paper.id}>
+                <CatalogCard
+                  paper={paper}
+                  onImported={handleImported}
+                  libraryPaperId={justImported[paper.external_id]}
+                />
+              </li>
             ))}
-          </div>
+          </ul>
 
           {(offset > 0 || hasMore) && (
             <div className="mt-4 flex items-center justify-between">

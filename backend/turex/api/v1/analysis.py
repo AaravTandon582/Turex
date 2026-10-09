@@ -168,6 +168,7 @@ async def record_run(
         analysis_id=analysis_id,
         cell_id=cell_id,
         result=CellResult(
+            source=payload.source,
             output=payload.output,
             image=payload.image,
             error=payload.error,

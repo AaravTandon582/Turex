@@ -89,7 +89,7 @@ GuardDep = Annotated[Guard, Depends(get_guard)]
 
 class _NoopLimiter(RateLimiter):
     """Allows everything. Only reachable when rate limiting is deliberately disabled, which
-    `check_production_readiness` refuses to let happen in production."""
+    stops the application starting in production — see `create_app`."""
 
     async def check(self, key: str, limit: Limit) -> Decision:
         return Decision(allowed=True, remaining=limit.requests, retry_after_seconds=0)
@@ -165,7 +165,7 @@ ProviderRegistryDep = Annotated[ProviderRegistry, Depends(get_provider_registry)
 
 
 def get_retrieval_service(db: DbDep, registry: ProviderRegistryDep) -> RetrievalService:
-    return RetrievalService(db, registry.embedder())
+    return RetrievalService(db, registry.embedder)
 
 
 RetrievalServiceDep = Annotated[RetrievalService, Depends(get_retrieval_service)]

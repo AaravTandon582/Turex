@@ -52,13 +52,14 @@ export function useAsync<T>(load: () => Promise<T>, deps: readonly Dependency[])
     loadRef.current = load;
   });
 
-  const key = deps.join(" ");
+  const key = JSON.stringify(deps.map((value) => [typeof value, value]));
 
   useEffect(() => {
     let active = true;
     setState((current) => ({ ...current, status: "loading", error: null }));
 
-    void loadRef.current().then(
+    // The microtask also turns a synchronous loader exception into a handled rejection.
+    void Promise.resolve().then(() => loadRef.current()).then(
       (data) => {
         if (active) setState({ status: "ready", data, error: null });
       },

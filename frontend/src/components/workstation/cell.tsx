@@ -16,6 +16,7 @@ interface CellProps {
   cell: AnalysisCell;
   index: number;
   running: boolean;
+  busy: boolean;
   progress: string | null;
   onSave: (source: string) => void;
   /** Handed the editor's *current* text, not the server's copy. See below. */
@@ -37,6 +38,7 @@ export function Cell({
   cell,
   index,
   running,
+  busy,
   progress,
   onSave,
   onRun,
@@ -46,10 +48,12 @@ export function Cell({
 }: CellProps) {
   const [source, setSource] = useState(cell.source);
 
-  // The parent's copy wins when it changes underneath — a move, a reload — but not while the
-  // editor is the one changing it, or every keystroke would fight the save round trip.
+  const previousSource = useRef(cell.source);
+  // An autosave acknowledgement may arrive after more typing. Only replace a clean editor.
   useEffect(() => {
-    setSource(cell.source);
+    const previous = previousSource.current;
+    setSource((current) => current === previous ? cell.source : current);
+    previousSource.current = cell.source;
   }, [cell.id, cell.source]);
 
   /**
@@ -82,7 +86,9 @@ export function Cell({
    * match what you are looking at, which is the exact failure the stale badge exists to
    * prevent, arriving by a different route.
    */
-  const runCurrent = () => onRun(source);
+  const runCurrent = () => {
+    if (!busy) onRun(source);
+  };
 
   return (
     <div
@@ -114,6 +120,7 @@ export function Cell({
           <button
             type="button"
             onClick={() => onMove(-1)}
+            disabled={busy}
             aria-label={`Move cell ${index + 1} up`}
             className="rounded-sm p-1.5 text-ink-subtle hover:bg-surface-hover hover:text-ink"
           >
@@ -122,6 +129,7 @@ export function Cell({
           <button
             type="button"
             onClick={() => onMove(1)}
+            disabled={busy}
             aria-label={`Move cell ${index + 1} down`}
             className="rounded-sm p-1.5 text-ink-subtle hover:bg-surface-hover hover:text-ink"
           >
@@ -130,7 +138,7 @@ export function Cell({
           <button
             type="button"
             onClick={onDelete}
-            disabled={!canDelete}
+            disabled={busy || !canDelete}
             aria-label={`Delete cell ${index + 1}`}
             className="rounded-sm p-1.5 text-ink-subtle hover:bg-surface-hover hover:text-danger disabled:opacity-30"
           >
@@ -139,7 +147,7 @@ export function Cell({
         </div>
 
         {!isMarkdown && (
-          <Button size="sm" variant="ghost" onClick={runCurrent} disabled={running}>
+          <Button size="sm" variant="ghost" onClick={runCurrent} disabled={busy}>
             {running ? (
               <Loader2 aria-hidden className="size-3.5 animate-spin" />
             ) : (

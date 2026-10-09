@@ -29,6 +29,7 @@ from turex.core.logging import get_logger
 from turex.ingestion.fetching import fetch_document
 from turex.ingestion.identifiers import IdentifierKind, ResolvedIdentifier, parse_identifier
 from turex.ingestion.pipeline import count_chunks
+from turex.models.conversation import Conversation
 from turex.models.job import IngestionJob, JobStatus
 from turex.models.library import Collection, CollectionPaper, PaperTag, Tag
 from turex.models.paper import (
@@ -457,6 +458,22 @@ class PaperService:
         """
         paper = await self.get(owner=owner, paper_id=paper_id)
         storage_key = paper.storage_key
+
+        # Conversations scoped to this paper go first, in their own statement.
+        #
+        # Not an optimisation — deleting the paper without this returns a foreign key
+        # violation. Two of the paper's cascades meet on `message_citations`: a paper-scoped
+        # conversation is deleted with the paper and takes its messages and their citations
+        # with it, while `chunk_id` and `paper_id` on citations are set null rather than
+        # deleted, so an answer given earlier stays readable after its source is gone. Inside
+        # one statement PostgreSQL applies that update to rows whose message the other cascade
+        # has already removed, and rejects it.
+        #
+        # Both behaviours are wanted, so the fix is to stop them landing in the same statement:
+        # once these conversations are gone, the only citations left belong to library-wide
+        # conversations, which is exactly the case the null-out is for.
+        await self._db.execute(delete(Conversation).where(Conversation.paper_id == paper.id))
+        await self._db.flush()
 
         # Sections, chunks, jobs, and memberships all cascade from the paper row.
         await self._db.delete(paper)

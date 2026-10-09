@@ -12,8 +12,8 @@
  * worth shipping is the one where the untrusted code never reaches a machine you own. The
  * server's entire involvement is storing the text that comes back.
  *
- * Loading costs about 13MB, which is why it happens on demand — when someone runs a cell,
- * not when they open the page — and once per tab thereafter.
+ * The core interpreter is warmed on opening the workstation and reused within the tab.
+ * Science packages load only when a cell imports them.
  */
 
 import type { PyodideInterface } from "pyodide";
@@ -38,9 +38,6 @@ export type RuntimeStage = "idle" | "loading" | "ready" | "failed";
  * `e2e/workstation.spec.ts` asserts the two agree rather than leaving it to be noticed later.
  */
 export const PYODIDE_VERSION = "314.0.5";
-
-/** The packages worth having before the first cell runs. */
-const PRELOAD = ["numpy", "pandas", "matplotlib", "scipy"] as const;
 
 /**
  * Where the interpreter's own module lives, served from `public/`.
@@ -118,59 +115,68 @@ let loading: Promise<PyodideInterface> | null = null;
  * The promise is cached rather than the result, so two cells run in quick succession share one
  * download instead of racing two.
  */
-export function loadRuntime(onProgress?: (message: string) => void): Promise<PyodideInterface> {
-  if (runtime) return Promise.resolve(runtime);
-  if (loading) return loading;
+let progressMessage = "Downloading Python…";
+const progressListeners = new Set<(message: string) => void>();
 
-  loading = (async () => {
-    onProgress?.("Downloading Python…");
+function reportProgress(message: string) {
+  progressMessage = message;
+  for (const listener of progressListeners) listener(message);
+}
 
-    // Loaded from our own `/pyodide/` at runtime rather than imported from `node_modules`.
-    //
-    // Bundling it does not work: the package resolves its own assets with expressions the
-    // bundler cannot follow, and `await import("pyodide")` fails at runtime with "Cannot find
-    // module as expression is too dynamic" — a message that says nothing about the cause. The
-    // ignore comments tell webpack and Turbopack to leave this import alone so the browser
-    // fetches the module itself, which is how Pyodide expects to be loaded.
-    const { loadPyodide } = (await import(
-      /* webpackIgnore: true */ /* turbopackIgnore: true */
-      RUNTIME_MODULE
-    )) as { loadPyodide: typeof import("pyodide").loadPyodide };
+async function withTimeout<T>(promise: Promise<T>, milliseconds: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), milliseconds);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
-    const pyodide = await loadPyodide({
-      // The interpreter itself is served from this origin, copied out of `node_modules` by
-      // `npm run pyodide`. That pins it to the version in `package-lock.json` rather than
-      // whatever a CDN is serving today, which for a WebAssembly build of CPython is worth
-      // being deliberate about.
-      indexURL: "/pyodide/",
-      // Package wheels still come from Pyodide's own CDN. numpy, pandas, matplotlib and scipy
-      // together are about sixty megabytes of vendor binary, which is not worth committing to
-      // a repository to save a download that happens once per browser and is then cached.
-      // Setting this explicitly matters: `packageBaseUrl` otherwise inherits `indexURL`, and
-      // every package load would 404 against a directory holding only the core.
-      packageBaseUrl: `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`,
-    });
+export async function loadRuntime(onProgress?: (message: string) => void): Promise<PyodideInterface> {
+  if (runtime) return runtime;
+  if (onProgress) {
+    progressListeners.add(onProgress);
+    onProgress(progressMessage);
+  }
 
-    onProgress?.("Loading numpy, pandas, matplotlib, scipy…");
-    await pyodide.loadPackage([...PRELOAD]);
-
-    // Agg because there is no display to draw into. Without it, importing pyplot fails with a
-    // backend error that says nothing about the real cause.
-    await pyodide.runPythonAsync("import matplotlib; matplotlib.use('Agg')");
-    await pyodide.runPythonAsync(HARNESS);
-
-    runtime = pyodide;
-    onProgress?.("Ready");
-    return pyodide;
-  })();
-
-  loading.catch(() => {
-    // Cleared so a failed load can be retried rather than returning the same rejection for
-    // the rest of the session.
-    loading = null;
-  });
-
-  return loading;
+  if (!loading) {
+    const initialise = async () => {
+      reportProgress("Downloading Python…");
+      const { loadPyodide } = (await import(
+        /* webpackIgnore: true */ /* turbopackIgnore: true */
+        RUNTIME_MODULE
+      )) as { loadPyodide: typeof import("pyodide").loadPyodide };
+      reportProgress("Starting Python…");
+      const pyodide = await loadPyodide({
+        indexURL: "/pyodide/",
+        packageBaseUrl: new URL("/pyodide/", window.location.href).href,
+      });
+      // Configure plotting without importing matplotlib until a cell actually needs it.
+      await pyodide.runPythonAsync("import os; os.environ['MPLBACKEND'] = 'Agg'");
+      await pyodide.runPythonAsync(HARNESS);
+      return pyodide;
+    };
+    loading = withTimeout(initialise(), 45_000,
+      "Python took too long to start. Check your connection and press Run to retry.")
+      .then((pyodide) => {
+        runtime = pyodide;
+        reportProgress("Ready");
+        return pyodide;
+      }).catch((error) => {
+        loading = null;
+        throw error;
+      });
+  }
+  try {
+    return await loading;
+  } finally {
+    if (onProgress) progressListeners.delete(onProgress);
+  }
 }
 
 /** Whether the interpreter is already in memory, so the UI can say "Run" rather than "Load". */
@@ -192,41 +198,45 @@ export async function runCell(
   const started = performance.now();
   const pyodide = await loadRuntime(onProgress);
 
+  // Only fetch the packages this cell imports; basic Python needs no science downloads.
+  const packageErrors: string[] = [];
+  await withTimeout(pyodide.loadPackagesFromImports(source, {
+    messageCallback: (message) => onProgress?.(message),
+    errorCallback: (message) => packageErrors.push(message),
+  }), 60_000, "Python packages took too long to load. Check your connection and press Run to retry.");
+  if (packageErrors.length) {
+    throw new Error(`Couldn't load Python packages. ${packageErrors.join(" ")} Press Run to retry.`);
+  }
+  onProgress?.("Running…");
   const namespace = pyodide.globals.get("__turex_namespace") ?? pyodide.toPy({});
   pyodide.globals.set("__turex_namespace", namespace);
 
-  // Imports a cell asks for are fetched before it runs, so `import pandas` works without the
-  // reader having to know that a package has to be installed first.
-  try {
-    await pyodide.loadPackagesFromImports(source);
-  } catch {
-    // A package Pyodide does not carry is not a reason to refuse the cell — the import will
-    // raise inside Python, where the traceback names it, which is a better error than this
-    // one could be.
-  }
-
   const runner = pyodide.globals.get("__turex_run");
-  const result = runner(source, namespace);
 
   try {
-    const plain = result.toJs({ dict_converter: Object.fromEntries }) as {
-      output: string;
-      image: string | null;
-      error: string | null;
-    };
+    const result = runner(source, namespace);
+    try {
+      const plain = result.toJs({ dict_converter: Object.fromEntries }) as {
+        output: string;
+        image: string | null;
+        error: string | null;
+      };
 
-    return {
-      output: plain.output ?? "",
-      image: plain.image ?? null,
-      error: plain.error ?? null,
-      durationMs: Math.round(performance.now() - started),
-    };
+      return {
+        output: plain.output ?? "",
+        image: plain.image ?? null,
+        error: plain.error ?? null,
+        durationMs: Math.round(performance.now() - started),
+      };
+    } finally {
+      result.destroy?.();
+    }
   } finally {
     // Proxies to Python objects are not garbage collected by the JS engine — it cannot see
     // into the WASM heap — so they leak until destroyed. One per cell run adds up over a
     // session of iterating on the same cell.
-    result.destroy?.();
     runner.destroy?.();
+    namespace.destroy?.();
   }
 }
 
@@ -241,5 +251,10 @@ export function resetNamespace(): void {
   if (!runtime) return;
   const existing = runtime.globals.get("__turex_namespace");
   existing?.destroy?.();
-  runtime.globals.set("__turex_namespace", runtime.toPy({}));
+  const empty = runtime.toPy({});
+  try {
+    runtime.globals.set("__turex_namespace", empty);
+  } finally {
+    empty.destroy?.();
+  }
 }

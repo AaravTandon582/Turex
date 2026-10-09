@@ -15,6 +15,9 @@ import { expect, test } from "@playwright/test";
  *     cd backend && python -m scripts.harvest_arxiv --set cs --max-records 5000
  */
 
+/** The API is a separate origin; the browser's session cookie is sent with these calls. */
+const API = process.env.TUREX_API_URL ?? "http://localhost:8000/api/v1";
+
 test.describe("discover", () => {
   test("searching the catalog ranks title matches first", async ({ page }) => {
     await page.goto("/discover");
@@ -89,9 +92,10 @@ test.describe("discover", () => {
     // come back with a web page is worse than saying the paper is behind a paywall, which is
     // a fact about the paper rather than a fault.
     const card = page
-      .locator("div")
+      .getByRole("list", { name: "Search results" })
+      .getByRole("listitem")
       .filter({ has: withoutText.first() })
-      .last();
+      .first();
     await expect(card.getByRole("button", { name: "Add to library" })).toHaveCount(0);
   });
 
@@ -134,8 +138,13 @@ test.describe("discover", () => {
     await page.getByLabel("Search the catalog").fill("scheduling");
     await page.waitForTimeout(3000);
 
+    // Scoped to the results list, so a card is one `li` and cannot be an ancestor holding
+    // several of them. The previous locator matched any `div` containing an arXiv link,
+    // which included wrappers around many cards — it pressed Add on whichever paper came
+    // first inside one, and imported a paywalled work that correctly refused.
     const arxivCard = page
-      .locator("li, div")
+      .getByRole("list", { name: "Search results" })
+      .getByRole("listitem")
       .filter({ has: page.getByRole("link", { name: "arXiv" }) })
       .filter({ has: page.getByRole("button", { name: "Add to library" }) })
       .last();
@@ -154,5 +163,17 @@ test.describe("discover", () => {
     // The PDF renders as canvases. This is the assertion the whole test exists for: the file
     // is stored before ingestion is queued, so it is servable the instant the button appears.
     await expect(page.locator("canvas").first()).toBeVisible({ timeout: 60_000 });
+
+    // Put the paper back.
+    //
+    // Not tidiness. This test needs an arXiv paper matching "scheduling" that is *not* in the
+    // library yet, and importing one without removing it consumes a candidate per run — after
+    // a dozen runs every arXiv result on the first page said "In your library" and the test
+    // could no longer find anything to press, failing on an empty locator rather than on
+    // anything about the product. It was also quietly filling the demo account, which is the
+    // library the scripted walkthrough shows.
+    const paperId = new URL(page.url()).pathname.split("/")[2];
+    const removed = await page.request.delete(`${API}/papers/${paperId}`);
+    expect(removed.status(), "the imported paper was not removed").toBe(204);
   });
 });

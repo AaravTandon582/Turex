@@ -200,6 +200,27 @@ Before it existed, a null byte in any text field raised `CharacterNotInRepertoir
 asyncpg and surfaced as **HTTP 500** — an unhandled server error from ordinary user input, on
 every text field in the API at once.
 
+That base covers request *bodies*, and query parameters are not one. A parameter declared as a
+model — `PaperFilters` — inherits the cleaning; three declared as bare annotated strings did
+not, and `?q=%00` crashed the catalog's search, its category filter, and the assistant's
+semantic search. The query string is now cleaned at the ASGI boundary, before routing reads it,
+which is the same argument one layer down: a search parameter added later is covered without
+its author knowing this exists.
+
+---
+
+## Refusing to start
+
+`ENVIRONMENT=production` makes four configuration mistakes fatal at startup rather than
+survivable: the development `SECRET_KEY` (published in `.env.example`, so sessions would be
+forgeable by anyone who read the repository), `COOKIE_SECURE` off, `DEBUG` on, and rate
+limiting disabled.
+
+The application **refuses to start**. It used to log each problem as `critical` and serve
+anyway — one line, written once, into a stream nobody is watching on a first deploy, after
+which the deployment looks healthy for as long as nobody checks. A process that will not start
+is noticed in seconds, and every one of these is invisible from outside until it is exploited.
+
 ---
 
 ## Uploads

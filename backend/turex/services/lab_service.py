@@ -63,25 +63,38 @@ class LabService:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
 
-    async def _last(self, owner_id: uuid.UUID) -> LabEntry | None:
-        """The most recent entry, locked for the duration of the transaction.
+    async def _serialise_appends(self, owner_id: uuid.UUID) -> None:
+        """Hold an append lock for this account until the transaction ends.
 
-        `FOR UPDATE` because appending is a read-modify-write: without it, two requests
-        arriving together both read the same last entry and both compute the same next
-        sequence. One would then fail the unique constraint — correct, but as a 500 the caller
-        cannot act on — and, worse, both would have hashed against the same predecessor, which
-        is a fork.
+        Appending is a read-modify-write: read the last entry, compute the next sequence, hash
+        against its hash, insert. Two requests arriving together read the same last entry,
+        compute the same sequence, and hash against the same predecessor — a fork, caught only
+        by the unique constraint and surfacing as a 500 the caller cannot act on.
 
-        On an empty chain there is no row to lock, so the unique constraint is what catches a
-        simultaneous first append. That is the one case where losing the race produces an
-        error rather than a queue, and it is a race between an account's own two first entries.
+        This locked the last *row* before, which does not work and had a comment explaining why
+        it did. A row lock stops that row changing; it does not stop a newer one being inserted.
+        Under READ COMMITTED the second request waits on the lock, and when it is released
+        re-reads the row it was already waiting for — not the later row the first request just
+        wrote. It then computes exactly the sequence that was taken. Eight concurrent appends
+        returned five 500s.
+
+        An advisory lock has none of that shape: it is keyed on the account rather than on a
+        row, so it also covers the first append to an empty chain, where there was no row to
+        lock at all. `pg_advisory_xact_lock` releases at commit or rollback, so a failed
+        request cannot strand it.
         """
+        # The key is the account's own id folded to the signed 64 bits the function takes.
+        # Collisions between two accounts cost one of them a short wait, and nothing else.
+        key = int.from_bytes(owner_id.bytes[:8], "big") - (1 << 63)
+        await self._db.execute(select(func.pg_advisory_xact_lock(key)))
+
+    async def _last(self, owner_id: uuid.UUID) -> LabEntry | None:
+        """The most recent entry. Callers that append hold the lock above first."""
         return await self._db.scalar(
             select(LabEntry)
             .where(LabEntry.owner_id == owner_id)
             .order_by(LabEntry.sequence.desc())
             .limit(1)
-            .with_for_update()
         )
 
     async def append(
@@ -113,6 +126,8 @@ class LabService:
                 )
                 if found is None:
                     raise NotFoundError(f"That {label} isn't in your workspace.")
+
+        await self._serialise_appends(owner_id)
 
         previous = await self._last(owner_id)
         sequence = (previous.sequence + 1) if previous else 1
@@ -158,9 +173,7 @@ class LabService:
             conditions.append(LabEntry.project_id == project_id)
 
         total = int(
-            await self._db.scalar(
-                select(func.count()).select_from(LabEntry).where(*conditions)
-            )
+            await self._db.scalar(select(func.count()).select_from(LabEntry).where(*conditions))
             or 0
         )
         rows = await self._db.execute(

@@ -26,7 +26,16 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import (
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -104,7 +113,19 @@ class AnalysisCell(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """
 
     __tablename__ = "analysis_cells"
-    __table_args__ = (Index("ix_analysis_cells_analysis_id_ordinal", "analysis_id", "ordinal"),)
+    __table_args__ = (
+        Index("ix_analysis_cells_analysis_id_ordinal", "analysis_id", "ordinal"),
+        # Deferred, because inserting a cell renumbers the ones below it one row at a time and
+        # every intermediate state of that renumber collides. The question worth asking is
+        # whether the positions are unique when the transaction is done. See migration 0019.
+        UniqueConstraint(
+            "analysis_id",
+            "ordinal",
+            name="uq_analysis_cells_analysis_id_ordinal",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+    )
 
     analysis_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("analyses.id", ondelete="CASCADE"), nullable=False

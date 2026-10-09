@@ -116,9 +116,9 @@ class AssistantService:
         return conversation
 
     async def list_conversations(
-        self, *, owner: User, limit: int = 50
+        self, *, owner: User, limit: int = 50, paper_id: uuid.UUID | None = None
     ) -> list[tuple[Conversation, int]]:
-        rows = await self._db.execute(
+        query = (
             select(Conversation, func.count(ConversationMessage.id))
             .outerjoin(ConversationMessage, ConversationMessage.conversation_id == Conversation.id)
             .where(Conversation.owner_id == owner.id)
@@ -126,6 +126,9 @@ class AssistantService:
             .order_by(Conversation.updated_at.desc())
             .limit(limit)
         )
+        if paper_id is not None:
+            query = query.where(Conversation.paper_id == paper_id)
+        rows = await self._db.execute(query)
         return [(conversation, count) for conversation, count in rows]
 
     async def messages(

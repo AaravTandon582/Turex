@@ -234,6 +234,8 @@ class WorkspaceService:
         self, *, owner: User, hypothesis_id: uuid.UUID, changes: dict[str, Any]
     ) -> Hypothesis:
         hypothesis = await self.get_hypothesis(owner=owner, hypothesis_id=hypothesis_id)
+        if project_id := changes.get("project_id"):
+            await self.get_project(owner=owner, project_id=project_id)
         for field, value in changes.items():
             setattr(hypothesis, field, value)
         await self._db.flush()
@@ -367,6 +369,8 @@ class WorkspaceService:
         self, *, owner: User, experiment_id: uuid.UUID, changes: dict[str, Any]
     ) -> Experiment:
         experiment = await self.get_experiment(owner=owner, experiment_id=experiment_id)
+        if hypothesis_id := changes.get("hypothesis_id"):
+            await self.get_hypothesis(owner=owner, hypothesis_id=hypothesis_id)
         for field, value in changes.items():
             setattr(experiment, field, value)
         await self._db.flush()
@@ -401,8 +405,7 @@ class WorkspaceService:
         return await self._owned(Note, owner, note_id, "note")
 
     async def create_note(self, *, owner: User, **fields: Any) -> Note:
-        if project_id := fields.get("project_id"):
-            await self.get_project(owner=owner, project_id=project_id)
+        await self._validate_note_links(owner, fields)
         note = Note(owner_id=owner.id, **fields)
         self._db.add(note)
         await self._db.flush()
@@ -412,10 +415,19 @@ class WorkspaceService:
         self, *, owner: User, note_id: uuid.UUID, changes: dict[str, Any]
     ) -> Note:
         note = await self.get_note(owner=owner, note_id=note_id)
+        await self._validate_note_links(owner, changes)
         for field, value in changes.items():
             setattr(note, field, value)
         await self._db.flush()
         return note
+
+    async def _validate_note_links(self, owner: User, fields: dict[str, Any]) -> None:
+        if project_id := fields.get("project_id"):
+            await self.get_project(owner=owner, project_id=project_id)
+        if hypothesis_id := fields.get("hypothesis_id"):
+            await self.get_hypothesis(owner=owner, hypothesis_id=hypothesis_id)
+        if paper_id := fields.get("paper_id"):
+            await self._owned(Paper, owner, paper_id, "paper")
 
     async def delete_note(self, *, owner: User, note_id: uuid.UUID) -> None:
         note = await self.get_note(owner=owner, note_id=note_id)

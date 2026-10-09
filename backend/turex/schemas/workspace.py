@@ -143,7 +143,7 @@ class HypothesisUpdate(TurexModel):
     assumptions: str | None = None
     status: Annotated[HypothesisStatus | None, NeverNull] = None
     project_id: uuid.UUID | None = None
-    position: int | None = None
+    position: Annotated[int | None, NeverNull] = None
 
 
 class AttachEvidence(TurexModel):
@@ -271,4 +271,4 @@ class TaskCreate(TurexModel):
 class TaskUpdate(TurexModel):
     title: Annotated[str | None, NeverNull] = Field(default=None, min_length=1, max_length=300)
     status: Annotated[TaskStatus | None, NeverNull] = None
-    position: int | None = None
+    position: Annotated[int | None, NeverNull] = None

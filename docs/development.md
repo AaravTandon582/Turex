@@ -160,11 +160,25 @@ npm run dev
 
 App on <http://localhost:3000>.
 
+Both `dev` and `build` run `scripts/prepare-pyodide.mjs`. On first use it downloads the
+matching numpy, pandas, matplotlib, scipy wheels and their dependencies, verifies their
+SHA-256 checksums against Pyodide's lockfile, and caches them in `public/pyodide/`. Later
+builds reuse verified files. Ship this directory with the app: standard Workstation cells
+load their packages locally instead of waiting on a third-party CDN. Other Python packages
+still require network access. The regression suite runs real Python and plotting with
+external network requests blocked.
+
 ```bash
 npx tsc --noEmit    # type-check
 npm run lint
 npm run build       # type-checks and prerenders; catches server/client boundary errors
+npm run test:regressions # isolated browser/API regressions against that build
 ```
+
+Use Node 22 (`nvm use` reads `frontend/.nvmrc`). The regression suite starts its own frontend
+on port 3101 and intercepts API requests, so it needs no database or demo account. Install its
+browser with `npx playwright install chromium`, or use an installed Chrome with
+`PLAYWRIGHT_CHANNEL=chrome npm run test:regressions`.
 
 `npm run build` is the real gate. It prerenders every static route, so mistakes that only
 appear during server rendering — a client hook in a server component, a component that throws

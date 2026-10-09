@@ -14,6 +14,9 @@ import asyncio
 import contextlib
 import os
 import socket
+import uuid
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from turex.ai.registry import get_registry
 from turex.core.config import Settings
@@ -21,6 +24,7 @@ from turex.core.errors import AppError, ProcessingFailedError
 from turex.core.logging import bind_request_context, clear_request_context, get_logger
 from turex.db.session import get_session_factory
 from turex.ingestion.pipeline import IngestionPipeline
+from turex.models.job import IngestionJob
 from turex.storage.base import DocumentStore
 from turex.workers.queue import JobQueue
 
@@ -71,6 +75,7 @@ class IngestionWorker:
                 return False
 
             bind_request_context(job_id=str(job.id), paper_id=str(job.paper_id))
+            job_id = job.id
             try:
                 registry = get_registry(self._settings)
                 embedder = registry.embedder() if registry.embeddings_available else None
@@ -80,19 +85,20 @@ class IngestionWorker:
             except ProcessingFailedError as exc:
                 # The document itself is the problem: the same input will fail identically,
                 # so retrying only delays telling the user.
-                await db.rollback()
                 logger.info("document rejected during ingestion", extra={"detail": exc.detail})
-                await queue.fail(job, message=exc.message, retryable=False)
+                await self._fail(db, queue, job_id, message=exc.message, retryable=False)
             except AppError as exc:
-                await db.rollback()
                 logger.warning("ingestion error", extra={"detail": exc.detail})
-                await queue.fail(job, message=exc.message, retryable=exc.status_code >= 500)
+                await self._fail(
+                    db, queue, job_id, message=exc.message, retryable=exc.status_code >= 500
+                )
             except Exception as exc:
                 # Unexpected: could be a transient fault, so allow the retry budget to decide.
-                await db.rollback()
                 logger.exception("unexpected ingestion failure", exc_info=exc)
-                await queue.fail(
-                    job,
+                await self._fail(
+                    db,
+                    queue,
+                    job_id,
                     message="Turex couldn't process that document. It will try again shortly.",
                     retryable=True,
                 )
@@ -100,6 +106,22 @@ class IngestionWorker:
                 clear_request_context()
 
             return True
+
+    async def _fail(
+        self,
+        db: AsyncSession,
+        queue: JobQueue,
+        job_id: uuid.UUID,
+        *,
+        message: str,
+        retryable: bool,
+    ) -> None:
+        await db.rollback()
+        # Rollback expires ORM attributes even with expire_on_commit=False. Reload explicitly
+        # before reading attempts or paper_id, otherwise failure handling itself raises.
+        job = await db.get(IngestionJob, job_id, populate_existing=True)
+        if job is not None:  # Deleting the paper also deletes its pending job.
+            await queue.fail(job, message=message, retryable=retryable)
 
 
 class WorkerPool:
@@ -133,6 +155,8 @@ class WorkerPool:
         done, pending = await asyncio.wait(self._tasks, timeout=30)
         for task in pending:
             task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
         for task in done:
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 task.result()

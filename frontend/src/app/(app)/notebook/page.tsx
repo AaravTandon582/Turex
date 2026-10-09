@@ -1,6 +1,6 @@
 "use client";
 
-import { BookText, ChevronLeft, Plus, Search, Trash2, X } from "lucide-react";
+import { BookText, ChevronLeft, Plus, Search, Trash2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
@@ -73,9 +73,14 @@ function Notebook() {
   const active = notes?.find((note) => note.id === activeId) ?? null;
 
   async function createNote() {
-    const created = await workspace.createNote({ content: "" });
-    setNotes((current) => [created, ...(current ?? [])]);
-    setActiveId(created.id);
+    try {
+      const created = await workspace.createNote({ content: "" });
+      setNotes((current) => [created, ...(current ?? [])]);
+      setActiveId(created.id);
+      setNotesError(null);
+    } catch (caught) {
+      setNotesError(describe(caught));
+    }
   }
 
   return (
@@ -206,12 +211,14 @@ function NoteEditor({
   note: Note;
   projects: Project[];
   onSaved: (note: Note) => void;
-  onDeleted: () => void;
+  onDeleted: () => Promise<void>;
   onBack: () => void;
 }) {
   const [title, setTitle] = useState(note.title ?? "");
   const [content, setContent] = useState(note.content);
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const pendingSave = useRef<Promise<unknown>>(Promise.resolve());
   // Write and read are separate views rather than a split pane: a note is narrow, and half a
   // screen each makes both halves worse on the laptop this is actually used on.
   const [view, setView] = useState<"write" | "read">("write");
@@ -229,14 +236,18 @@ function NoteEditor({
     setStatus("saving");
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
-      const saved = await workspace
-        .updateNote(note.id, { title: title.trim() || null, content })
-        .catch(() => null);
-      if (saved) {
+      const pending = pendingSave.current.catch(() => {}).then(() =>
+        workspace.updateNote(note.id, { title: title.trim() || null, content }),
+      );
+      pendingSave.current = pending;
+      try {
+        const saved = await pending;
         onSaved(saved);
+        setError(null);
         setStatus("saved");
         setTimeout(() => setStatus("idle"), 1500);
-      } else {
+      } catch (caught) {
+        setError(describe(caught));
         setStatus("idle");
       }
     }, SAVE_DELAY_MS);
@@ -272,10 +283,15 @@ function NoteEditor({
           <select
             value={note.project_id ?? ""}
             onChange={async (event) => {
-              const saved = await workspace.updateNote(note.id, {
-                project_id: event.target.value || null,
-              });
-              onSaved(saved);
+              const projectId = event.target.value || null;
+              try {
+                await pendingSave.current;
+                const saved = await workspace.updateNote(note.id, { project_id: projectId });
+                onSaved(saved);
+                setError(null);
+              } catch (caught) {
+                setError(describe(caught));
+              }
             }}
             className="h-7 max-w-44 rounded-md border border-border bg-surface px-1.5 text-[12px] text-ink focus:border-accent focus:outline-none"
           >
@@ -315,12 +331,22 @@ function NoteEditor({
         <button
           type="button"
           aria-label="Delete note"
-          onClick={onDeleted}
+          onClick={async () => {
+            try {
+              if (timer.current) clearTimeout(timer.current);
+              await pendingSave.current.catch(() => {});
+              await onDeleted();
+            } catch (caught) {
+              setError(describe(caught));
+            }
+          }}
           className="rounded-sm p-1 text-ink-subtle hover:text-danger"
         >
           <Trash2 className="size-3.5" aria-hidden />
         </button>
       </header>
+
+      {error && <p role="alert" className="px-5 py-2 text-sm text-danger">{error}</p>}
 
       <div className="scrollbar-slim flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl px-6 py-8">

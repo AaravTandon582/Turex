@@ -2,13 +2,17 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "npm run pyodide && next dev",
     "build": "npm run pyodide && next build",
     "start": "next start",
     "lint": "eslint",
     "e2e": "playwright test",
-    "pyodide": "mkdir -p public/pyodide && cp node_modules/pyodide/pyodide.asm.wasm node_modules/pyodide/pyodide.asm.mjs node_modules/pyodide/python_stdlib.zip node_modules/pyodide/pyodide-lock.json node_modules/pyodide/pyodide.mjs public/pyodide/",
+    "test:regressions": "playwright test --config playwright.regressions.config.ts",
+    "pyodide": "node scripts/prepare-pyodide.mjs",
     "serve": "npm run build && next start"
   },
   "dependencies": {

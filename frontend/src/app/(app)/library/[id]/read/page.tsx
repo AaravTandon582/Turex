@@ -79,12 +79,13 @@ export default function ReaderPage() {
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [pageCount, setPageCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [annotationError, setAnnotationError] = useState<string | null>(null);
 
   const [zoomIndex, setZoomIndex] = useState(2);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selection, setSelection] = useState<PageSelection | null>(null);
   const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
-  const [askRequest, setAskRequest] = useState<AskRequest | null>(null);
+  const [askRequest, setAskRequest] = useState<(AskRequest & { paperId: string }) | null>(null);
 
   /**
    * Page height as a multiple of width, so the placeholders reserve the right space.
@@ -100,8 +101,8 @@ export default function ReaderPage() {
   const reloadAnnotations = useCallback(() => {
     void annotationsApi
       .list(id)
-      .then(setAnnotations)
-      .catch(() => undefined);
+      .then((saved) => { setAnnotations(saved); setAnnotationError(null); })
+      .catch(() => setAnnotationError("Couldn't load your highlights. Try again."));
   }, [id]);
 
   useEffect(() => {
@@ -131,13 +132,12 @@ export default function ReaderPage() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (askRequest) setAskRequest(null);
-      else if (selection) setSelection(null);
+      if (selection) setSelection(null);
       else setActiveAnnotationId(null);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [askRequest, selection]);
+  }, [selection]);
 
   function jumpToPage(page: number) {
     scrollRef.current
@@ -159,9 +159,10 @@ export default function ReaderPage() {
         colour,
       });
       setAnnotations((current) => [...current, created]);
-    } catch {
-      // A failed highlight is recoverable by trying again; reload so the UI matches the server.
-      reloadAnnotations();
+      setAnnotationError(null);
+    } catch (caught) {
+      setSelection(pending);
+      setAnnotationError(caught instanceof ApiError ? caught.message : "Couldn't save this highlight. Try again.");
     }
   }
 
@@ -216,13 +217,13 @@ export default function ReaderPage() {
   /** Route an equation from the Maths panel to the assistant, as a selection would. */
   function askAboutEquation(equation: string) {
     const { prompt, mode } = ACTIONS.equation;
-    setAskRequest({ question: prompt(equation), mode, quotedText: equation });
+    setAskRequest({ paperId: id, question: prompt(equation), mode, quotedText: equation });
   }
 
   function askAbout(action: SelectionAction) {
     if (!selection) return;
     const { prompt, mode } = ACTIONS[action];
-    setAskRequest({ question: prompt(selection.text), mode, quotedText: selection.text });
+    setAskRequest({ paperId: id, question: prompt(selection.text), mode, quotedText: selection.text });
     setSelection(null);
     window.getSelection()?.removeAllRanges();
   }
@@ -310,6 +311,13 @@ export default function ReaderPage() {
         </button>
       </header>
 
+      {annotationError && (
+        <div role="alert" className="flex items-center gap-3 border-b border-border px-3 py-2 text-sm text-danger">
+          {annotationError}
+          <Button variant="ghost" size="sm" onClick={reloadAnnotations}>Reload highlights</Button>
+        </div>
+      )}
+
       <div className="relative flex min-h-0 flex-1">
         <div ref={scrollRef} className="scrollbar-slim flex-1 overflow-y-auto bg-surface-sunken">
           <div className="relative mx-auto w-fit py-8">
@@ -357,13 +365,13 @@ export default function ReaderPage() {
           </div>
         </div>
 
-        {sidebarOpen && (
           <aside
             className={
               // Full width over the page on a phone, a fixed rail beside it from md up. A
               // 320px panel alongside a PDF on a 375px screen leaves the paper unreadable,
               // which defeats the point of a reader.
-              "absolute inset-y-0 right-0 z-20 flex w-full flex-col border-l border-border bg-canvas shadow-[var(--shadow-lg)] " +
+              (sidebarOpen ? "flex " : "hidden ") +
+              "absolute inset-y-0 right-0 z-20 w-full flex-col border-l border-border bg-canvas shadow-[var(--shadow-lg)] " +
               "md:static md:z-auto md:w-80 md:shrink-0 md:shadow-none"
             }
           >
@@ -379,11 +387,8 @@ export default function ReaderPage() {
                 onAskAboutEquation={askAboutEquation}
               />
             </div>
-            {askRequest && (
-              <AskPanel paperId={id} request={askRequest} onClose={() => setAskRequest(null)} />
-            )}
+            <AskPanel key={id} paperId={id} request={askRequest?.paperId === id ? askRequest : null} />
           </aside>
-        )}
       </div>
     </div>
   );

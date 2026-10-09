@@ -357,6 +357,142 @@ registration limit partway through the suite and failed 181 unrelated tests.
 
 ---
 
+## After M10 — what shipped since
+
+Four features built after the milestone plan finished, each closing a gap between describing
+research and doing it. None of them were recorded here at the time; this is that record.
+
+**Discover — a catalog of 1.2 million papers.** The library holds what you uploaded; the
+catalog knows what exists. Two tables, because their costs differ by three orders of
+magnitude: a library paper is a stored PDF, parsed sections, chunks and an embedding per
+chunk; a catalog paper is title, authors, abstract, categories and dates at 3.4KB, with no
+network call and no model. Importing bridges them through `add_from_identifier` — the same
+path "add by reference" uses — so an imported paper has nothing special about it and the
+reader, retrieval and citations work without knowing where it came from.
+
+- Harvesters for arXiv and OpenAlex, resumable, committing every page as it lands
+- 657,534 arXiv records and 587,915 OpenAlex records in the development database
+- PostgreSQL full text with title weighted above abstract; a GIN index, built once, needing no
+  API key — embedding a million abstracts before anyone could search at all is not a trade
+- `pdf_url` nullable, and load-bearing: a paper with no free full text says so rather than
+  offering an import that would fail
+
+**Search performance.** The widest query took 1,776ms and the plan showed a sequential scan
+where a bitmap index scan belonged. Autovacuum's threshold is proportional to a table's
+existing size, so a table growing from 5,000 rows to 192,000 keeps statistics describing the
+5,000 — and with those PostgreSQL abandons the GIN index. The harvester now runs `ANALYZE`
+every fifty pages and on the way out of every run, including runs that fail. Same rows, same
+index: **1,776ms → 170ms.**
+
+**The workstation — Python against your own research.** A project could describe an
+experiment but not run one, so every number arrived as a sentence typed into a form. There is
+now a notebook attached to the project: CodeMirror with Python highlighting, cells sharing one
+interpreter, matplotlib figures inline, output stored beside the code that produced it.
+
+The interpreter is CPython compiled to WebAssembly, running in the reader's own tab. The
+server's entire involvement is storing text — `POST .../run` takes a *result*, not a request
+to execute something, so there is no execution endpoint to attack. Editing a cell that has run
+marks it **stale**, because a number sitting under code that has since changed looks checked
+and is not.
+
+**The lab notebook — append-only, and provably so.** Every other record in Turex is editable.
+This one is not, and that exception is the point: its value in an authorship or reproducibility
+dispute comes from what it says today being what it said when it was written. There is no
+update route and no delete route — not guarded ones, none, asserted against the application's
+own route table. Each entry carries the hash of the one before it, covering text, title,
+timestamp and position, so altering any entry breaks every entry after it.
+
+**Verified against real tampering** applied directly to the table: rewriting an entry,
+backdating one, editing a title, deleting one outright, and the attack a naive per-row hash
+would miss — editing an entry *and* recomputing its hash, which the chain still catches
+because the next entry recorded the old one.
+
+**Bibliographies, both directions, and a project you can take with you.** Export the library,
+or any filtered slice, as BibTeX, RIS or CSL-JSON. Import a `.bib` or `.ris` and everything
+carrying a DOI or an arXiv id is fetched through the same reference path, with the same SSRF
+checks. Citation keys are stable, so a `\cite{vaswani2017attention}` written last year still
+resolves after a re-export.
+
+The round trip is a tested property, and it had to be: **the first version could not read its
+own output** — the exporter wrote arXiv ids into RIS as a URL and the importer recognised only
+a bare `arXiv:`, losing sixteen of nineteen entries. Now 20 exported, 20 read back, none lost,
+in both formats. A project also exports as a folder of plain files: notebooks with their saved
+output, hypotheses and experiments as Markdown, and the lab notebook with its hashes. PDFs are
+deliberately absent — a paper's file belongs to its publisher, and several hundred megabytes
+makes an export nobody runs.
+
+**A UX pass, from using the app rather than reading it.** Generating study material takes 22 to
+36 seconds — measured — and showed only a disabled button, which after ten seconds reads as a
+hang. `PendingWork` replaces it with a wheel that visibly turns and a label saying what is
+happening in words. Nothing claims a percentage, because none of this work reports one, and a
+bar stuck at 90% erodes every other number in the product. Separately, every status choice now
+says what it means: Forgot/Hard/Good/Easy name their consequence, and hypothesis and experiment
+statuses say when to choose each, because a bare label leaves everyone to invent their own
+threshold.
+
+**Deleting a cited paper returned 500.** Found by clearing test residue out of the demo
+account rather than by reading the code. Two of a paper's cascades met on `message_citations`:
+a paper-scoped conversation is deleted with the paper and takes its citations with it, while
+`chunk_id` and `paper_id` on a citation are nulled rather than deleted, so an answer given
+earlier stays readable after its source is gone. In one statement PostgreSQL applied that
+update to rows whose message the other cascade had already removed, and refused it. Both
+behaviours are wanted, so the conversations now go first, in their own statement.
+
+It needed a paper, a conversation scoped to it, *and* a citation, which is why nothing caught
+it — the existing delete test used a paper nobody had asked about. Two tests now: the case
+that failed, and the one the null-out exists for, which was also untested.
+
+**The import test littered the account it ran against.** It imported an arXiv paper and never
+removed it, so each run consumed a candidate and left a paper behind. Twenty had accumulated
+in the demo library — the library the scripted walkthrough shows — and the test had started
+failing for want of anything left to import. It now deletes what it imported.
+
+**Search results were not a list.** Twenty anonymous nested divs: no count, no boundary
+between results, so a screen reader offered no way to move result by result. Now a real `ul`,
+which is also what made the import test's locator ambiguous — it had been matching an ancestor
+holding several cards and pressing Add on the wrong one.
+
+**A third hardening pass, again by probing the running API rather than reading it.** Four
+defects, three of them in code written after the previous pass and none caught by the suite.
+
+- **An insecure production configuration was logged, not refused.** `check_production_readiness`
+  finds the holes that cannot be seen from outside — the signing key published in
+  `.env.example`, cookies over plain HTTP, tracebacks in responses, an unlimited login
+  endpoint — and startup wrote each one as `critical` and served anyway. One line, into a
+  stream nobody watches on a first deploy, and then weeks of looking healthy. Two tests were
+  named "refused" and a comment claimed the same while the code carried on. It now refuses.
+
+- **A null byte in a query parameter returned 500.** The body sanitiser lives on `TurexModel`,
+  in one place, for the reason its docstring gives: a per-field validator is one that can be
+  forgotten. Query parameters were never covered. A parameter declared as a model —
+  `PaperFilters` — inherited the cleaning; three declared as bare annotated strings did not,
+  and a URL anyone could type crashed the catalog's search, its category filter, and the
+  assistant's semantic search. Cleaned at the ASGI boundary now, so the next search parameter
+  is covered without anyone remembering this.
+
+- **Two simultaneous lab entries returned 500.** Appending locked the last entry `FOR UPDATE`,
+  with a comment explaining why that was enough. It is not: a row lock stops that row
+  changing, not a newer one being inserted, so the second transaction waited, re-read the row
+  it had been waiting for, and computed a sequence that was already taken. Eight concurrent
+  appends returned five 500s. An advisory lock keyed on the account has none of that shape,
+  and covers the first append to an empty chain, which the old comment conceded it could not.
+
+- **Two cells added at once could share a position**, silently — no error, no constraint. The
+  order of the cells in a notebook is the program, so a tie broken by whatever a query happens
+  to return is an output sitting beside code that may now run somewhere else. Six concurrent
+  appends produced ordinals 0, 1, 2, 2, 3, 5, 5, 5. Structural changes now serialise on the
+  analysis row, and migration `0019` adds a deferred unique constraint so the same mistake
+  fails loudly instead.
+
+Each fix has a test that was watched to fail without it. Cross-account access was probed at the
+same time across every workstation, notebook and project route, and refused correctly
+everywhere — 404, never 403, so an id is not confirmed to belong to anybody.
+
+**Where the suite stands:** 645 backend tests, 45 browser tests, `ruff`, `mypy`, `eslint` and
+the production build clean.
+
+---
+
 ## Feature completeness against the spec
 
 Every feature section of the specification is implemented. The six that were missing after
@@ -431,5 +567,6 @@ Full rationale in [`docs/decisions.md`](docs/decisions.md).
 ## Future improvements
 
 - S3-compatible object storage backend (the storage interface exists; only the local driver is implemented)
-- Reranking model in the retrieval pipeline (the pipeline has the stage; it is currently a no-op pass-through)
+- A model-based reranker (the stage exists and the reranker in it is lexical — phrase match, term
+  coverage, passage length, section kind — worth twelve points of recall@3 over no reranking)
 - Multi-user project collaboration (schema is single-owner today)

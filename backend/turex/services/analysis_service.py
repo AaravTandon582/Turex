@@ -51,24 +51,45 @@ class CellResult:
     image: str | None = None
     error: str | None = None
     duration_ms: int | None = None
+    source: str | None = None
 
 
 class AnalysisService:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
 
-    async def _owned(self, owner_id: uuid.UUID, analysis_id: uuid.UUID) -> Analysis:
+    async def _owned(
+        self, owner_id: uuid.UUID, analysis_id: uuid.UUID, *, for_reordering: bool = False
+    ) -> Analysis:
         """Load an analysis with its cells, or refuse.
 
         Scoped by owner in the query rather than checked afterwards: a 404 for someone else's
         analysis and a 404 for one that does not exist are the same answer, which is what
         stops the endpoint confirming that an id belongs to somebody.
+
+        `for_reordering` locks the analysis row for the transaction. Every operation that
+        decides a cell's position is a read-modify-write over the whole collection — append
+        counts the cells, insert and delete renumber the ones below, move swaps two — and two
+        of those arriving together both read the collection as it was before either wrote.
+        Firing six appends at once produced ordinals 0, 1, 2, 2, 3, 5, 5, 5: no error, no
+        constraint, just a notebook whose cell order is no longer determined. For a notebook
+        that is a correctness bug rather than an untidy one, because the order of the cells is
+        the program, and an output stored beside code that may now run in a different position
+        is exactly the "checked but wrong" number the stale marker exists to prevent.
+
+        The *analysis* row is what gets locked, not the last cell — a lock on a row does not
+        stop somebody inserting a new one, which is the same mistake the lab notebook made.
         """
-        found = await self._db.scalar(
+        statement = (
             select(Analysis)
             .where(Analysis.id == analysis_id, Analysis.owner_id == owner_id)
             .options(selectinload(Analysis.cells))
         )
+        if for_reordering:
+            # Only the analyses row: `selectinload` issues its own query for the cells, and
+            # locking those too would block a concurrent save to an unrelated cell for no gain.
+            statement = statement.with_for_update(of=Analysis)
+        found = await self._db.scalar(statement)
         if found is None:
             raise NotFoundError("That analysis isn't in your workspace.")
         return found
@@ -177,7 +198,7 @@ class AnalysisService:
         the renumber is one statement, and gap-based ordering eventually needs a rebalance
         anyway — at which point it is this, only later and by surprise.
         """
-        analysis = await self._owned(owner_id, analysis_id)
+        analysis = await self._owned(owner_id, analysis_id, for_reordering=True)
 
         if len(analysis.cells) >= MAX_CELLS:
             raise ValidationError(f"An analysis holds at most {MAX_CELLS} cells.")
@@ -217,7 +238,8 @@ class AnalysisService:
         came back as a 500. The analysis is already in hand here; handing it over costs
         nothing and removes the lazy load entirely.
         """
-        analysis = await self._owned(owner_id, analysis_id)
+        # Serialize source saves with results so an edit during execution stays stale.
+        analysis = await self._owned(owner_id, analysis_id, for_reordering=True)
         for cell in analysis.cells:
             if cell.id == cell_id:
                 return analysis, cell
@@ -270,6 +292,8 @@ class AnalysisService:
         cell.error = _clip(result.error, MAX_OUTPUT_CHARS)
         cell.duration_ms = result.duration_ms
         cell.status = CellStatus.error if result.error else CellStatus.ok
+        if result.source is not None and result.source != cell.source:
+            cell.status = CellStatus.stale
         cell.executed_at = datetime.now(UTC)
 
         analysis.last_run_at = cell.executed_at
@@ -280,7 +304,7 @@ class AnalysisService:
         self, *, owner_id: uuid.UUID, analysis_id: uuid.UUID, cell_id: uuid.UUID
     ) -> None:
         """Remove a cell, closing the gap it leaves in the ordering."""
-        analysis = await self._owned(owner_id, analysis_id)
+        analysis = await self._owned(owner_id, analysis_id, for_reordering=True)
         if len(analysis.cells) <= 1:
             raise ValidationError("An analysis keeps at least one cell.")
 
@@ -306,7 +330,7 @@ class AnalysisService:
         Order is meaning in a notebook: cells share one interpreter and run top to bottom, so
         moving one changes what the ones after it see.
         """
-        analysis = await self._owned(owner_id, analysis_id)
+        analysis = await self._owned(owner_id, analysis_id, for_reordering=True)
         by_ordinal = sorted(analysis.cells, key=lambda cell: cell.ordinal)
 
         index = next((i for i, cell in enumerate(by_ordinal) if cell.id == cell_id), None)

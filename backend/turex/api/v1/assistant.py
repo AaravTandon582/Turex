@@ -64,9 +64,9 @@ async def assistant_status(
 
 @router.get("/conversations", response_model=list[ConversationRead])
 async def list_conversations(
-    user: CurrentUser, service: AssistantServiceDep
+    user: CurrentUser, service: AssistantServiceDep, paper_id: uuid.UUID | None = None
 ) -> list[ConversationRead]:
-    rows = await service.list_conversations(owner=user)
+    rows = await service.list_conversations(owner=user, paper_id=paper_id)
     return [
         ConversationRead(
             id=conversation.id,

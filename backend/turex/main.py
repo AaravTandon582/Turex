@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from turex.api.exception_handlers import register_exception_handlers
-from turex.api.middleware import RequestContextMiddleware
+from turex.api.middleware import QuerySanitisingMiddleware, RequestContextMiddleware
 from turex.api.v1 import api_router
 from turex.core.config import Settings, get_settings
 from turex.core.logging import configure_logging, get_logger
@@ -53,8 +53,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     if settings.is_production:
-        for problem in settings.check_production_readiness():
-            logger.critical("insecure production configuration: %s", problem)
+        problems = settings.check_production_readiness()
+        if problems:
+            # Refuse to start, rather than log and serve.
+            #
+            # Every one of these is a hole that cannot be noticed from outside: the signing key
+            # published in `.env.example`, session cookies travelling over plain HTTP, tracebacks
+            # in responses, an unlimited login endpoint. A `critical` log line is written once,
+            # into a stream nobody is watching on a first deploy, and the application then runs
+            # for weeks looking healthy. A process that will not start is noticed in seconds.
+            #
+            # The comment in `api/deps.py` and the name of the test covering this both said
+            # "refused" while the code logged and carried on.
+            for problem in problems:
+                logger.critical("insecure production configuration: %s", problem)
+            raise RuntimeError(
+                "Turex will not start in production with an insecure configuration: "
+                + "; ".join(problems)
+            )
 
     app = FastAPI(
         title="Turex",
@@ -65,11 +81,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url=None,
         openapi_url=None if settings.is_production else "/openapi.json",
     )
+    # Requests and the lifespan must use the same configuration, including factory overrides.
+    app.dependency_overrides[get_settings] = lambda: settings
 
     # Read by `security.guard.client_address`, which needs it on every request and must not
     # reach for global settings to get it.
     app.state.trust_proxy_headers = settings.trust_proxy_headers
 
+    # Added first, so it sits innermost and runs immediately before routing — the access log
+    # and CORS above it still see the URL the client actually sent.
+    app.add_middleware(QuerySanitisingMiddleware)
     app.add_middleware(RequestContextMiddleware, send_hsts=settings.cookie_secure)
     app.add_middleware(
         CORSMiddleware,

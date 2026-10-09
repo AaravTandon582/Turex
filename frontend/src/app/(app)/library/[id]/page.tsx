@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge, Card, Skeleton } from "@/components/ui/primitives";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { describe } from "@/lib/use-async";
 import {
   formatAuthors,
   formatFileSize,
@@ -63,7 +64,6 @@ export default function PaperPage() {
   useEffect(() => {
     if (paper?.status === "ready") void papers.markOpened(id).catch(() => undefined);
     // Runs once per paper, not on every field change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, paper?.status]);
 
   const processing = paper ? isProcessing(paper) : false;
@@ -73,11 +73,15 @@ export default function PaperPage() {
     return () => clearInterval(timer);
   }, [processing, load]);
 
-  async function run(action: () => Promise<unknown>) {
+  async function run(action: () => Promise<unknown>, reload = true): Promise<boolean> {
     setBusy(true);
     try {
       await action();
-      await load({ silent: true });
+      if (reload) await load({ silent: true });
+      return true;
+    } catch (caught) {
+      setError(describe(caught));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -266,8 +270,7 @@ export default function PaperPage() {
           disabled={busy}
           className="text-ink-subtle hover:text-danger"
           onClick={async () => {
-            await run(() => papers.remove(paper.id));
-            router.push("/library");
+            if (await run(() => papers.remove(paper.id), false)) router.push("/library");
           }}
         >
           Remove from library

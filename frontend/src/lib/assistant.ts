@@ -1,4 +1,4 @@
-import { api, API_BASE_URL, ApiError } from "@/lib/api";
+import { api, apiResponse, ApiError } from "@/lib/api";
 
 /** How much the reader already knows. Sent per turn; the server pitches the answer to it. */
 export type ExplanationLevel = "beginner" | "intermediate" | "advanced";
@@ -87,7 +87,9 @@ export interface SearchResult {
 export const assistant = {
   status: () => api.get<AssistantStatus>("/assistant/status"),
 
-  listConversations: () => api.get<Conversation[]>("/assistant/conversations"),
+  listConversations: (paperId?: string) => api.get<Conversation[]>(
+    `/assistant/conversations${paperId ? `?paper_id=${encodeURIComponent(paperId)}` : ""}`,
+  ),
 
   createConversation: (input: { mode?: AssistantMode; paper_id?: string } = {}) =>
     api.post<Conversation>("/assistant/conversations", input),
@@ -134,16 +136,16 @@ export function ask(
   void (async () => {
     let response: Response;
     try {
-      response = await fetch(`${API_BASE_URL}/assistant/conversations/${conversationId}/ask`, {
+      response = await apiResponse(`/assistant/conversations/${conversationId}/ask`, {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question, mode, level }),
+        body: { question, mode, level },
         signal: controller.signal,
       });
-    } catch {
+    } catch (caught) {
       if (!controller.signal.aborted) {
-        handlers.onError("Turex can't reach the server. Check your connection.");
+        handlers.onError(caught instanceof ApiError ? caught.message : "Turex couldn't answer that. Try again.");
       }
       return;
     }
@@ -164,6 +166,7 @@ export function ask(
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let finished = false;
 
     try {
       while (true) {
@@ -176,22 +179,27 @@ export function ask(
         // its terminator arrives — a chunk boundary can fall anywhere.
         let separator = buffer.indexOf("\n\n");
         while (separator !== -1) {
-          dispatchFrame(buffer.slice(0, separator), handlers);
+          finished = dispatchFrame(buffer.slice(0, separator), handlers) || finished;
           buffer = buffer.slice(separator + 2);
           separator = buffer.indexOf("\n\n");
         }
+      }
+      if (!finished && !controller.signal.aborted) {
+        handlers.onError("The answer was interrupted. Try again.");
       }
     } catch {
       if (!controller.signal.aborted) {
         handlers.onError("The answer was interrupted. Try again.");
       }
+    } finally {
+      reader.releaseLock();
     }
   })();
 
   return () => controller.abort();
 }
 
-function dispatchFrame(frame: string, handlers: AskHandlers): void {
+function dispatchFrame(frame: string, handlers: AskHandlers): boolean {
   let event = "message";
   const dataLines: string[] = [];
 
@@ -200,14 +208,15 @@ function dispatchFrame(frame: string, handlers: AskHandlers): void {
     else if (line.startsWith("data: ")) dataLines.push(line.slice(6));
   }
 
-  if (dataLines.length === 0) return;
+  if (dataLines.length === 0) return false;
 
   let payload: Record<string, unknown>;
   try {
     payload = JSON.parse(dataLines.join("\n")) as Record<string, unknown>;
   } catch {
-    return; // A malformed frame is dropped rather than breaking the stream.
+    return false; // A malformed frame is dropped rather than breaking the stream.
   }
+  if (!payload || typeof payload !== "object") return false;
 
   switch (event) {
     case "sources":
@@ -218,13 +227,14 @@ function dispatchFrame(frame: string, handlers: AskHandlers): void {
       break;
     case "done":
       handlers.onDone((payload.message_id as string) ?? "");
-      break;
+      return true;
     case "error":
       handlers.onError(
         (payload.message as string) ?? "Turex couldn't finish that answer. Try again.",
       );
-      break;
+      return true;
   }
+  return false;
 }
 
 export { ApiError };

@@ -18,7 +18,7 @@ where it came from is not evidence, and this module never returns one.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -184,7 +184,11 @@ def _row_to_chunk(row: Row[Any]) -> RetrievedChunk:
 
 class RetrievalService:
     def __init__(
-        self, db: AsyncSession, embedder: EmbeddingProvider, *, rerank: bool = True
+        self,
+        db: AsyncSession,
+        embedder: EmbeddingProvider | Callable[[], EmbeddingProvider],
+        *,
+        rerank: bool = True,
     ) -> None:
         self._db = db
         self._embedder = embedder
@@ -234,7 +238,9 @@ class RetrievalService:
     async def _vector_search(
         self, owner_id: uuid.UUID, query: str, paper_ids: list[uuid.UUID] | None
     ) -> list[RetrievedChunk]:
-        embedding = await self._embedder.embed_one(query)
+        # Resolve credentials only when searching; conversation CRUD needs no provider.
+        embedder = self._embedder() if callable(self._embedder) else self._embedder
+        embedding = await embedder.embed_one(query)
         parameters: dict[str, Any] = {
             "owner_id": owner_id,
             "ready": ProcessingStatus.ready.value,

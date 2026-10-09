@@ -2,7 +2,7 @@
 
 import { Code2, FlaskConical, FolderOpen, Plus, RotateCcw, Trash2, Type } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Cell } from "@/components/workstation/cell";
 import { PageContainer } from "@/components/layout/page-container";
@@ -33,21 +33,12 @@ export default function WorkstationPage() {
   const [progress, setProgress] = useState<string | null>(null);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const executing = useRef(false);
+  const pendingSaves = useRef(new Map<string, Promise<unknown>>());
 
   const list = useAsync(() => analyses.list(), []);
 
-  /**
-   * Start fetching the interpreter as soon as the page is open.
-   *
-   * It is 13MB of WebAssembly plus about sixty of science packages, and it used to start
-   * downloading when someone pressed Run — so the first run of a session waited for all of it
-   * with nothing to look at. Beginning here overlaps the download with reading and typing,
-   * which is most of a minute in practice, and the button is unchanged either way: it still
-   * loads on demand if this has not finished.
-   *
-   * Deliberately not awaited and deliberately silent. A failure here is not worth reporting —
-   * nobody has asked for anything yet — and pressing Run reports it properly.
-   */
+  // Warm the core interpreter while the reader writes; science packages load per cell.
   useEffect(() => {
     if (isRuntimeReady()) return;
     void loadRuntime().catch(() => {});
@@ -73,8 +64,31 @@ export default function WorkstationPage() {
 
   const refresh = useCallback(async () => {
     if (!selectedId) return;
-    setDetail(await analyses.get(selectedId));
+    const found = await analyses.get(selectedId);
+    setDetail((current) => current?.id === found.id ? found : current);
   }, [selectedId]);
+
+  async function saveCell(analysisId: string, cellId: string, source: string) {
+    const previous = pendingSaves.current.get(cellId) ?? Promise.resolve();
+    const pending = previous.catch(() => {}).then(() =>
+      analyses.saveCell(analysisId, cellId, { source }),
+    );
+    pendingSaves.current.set(cellId, pending);
+    try {
+      return await pending;
+    } finally {
+      if (pendingSaves.current.get(cellId) === pending) pendingSaves.current.delete(cellId);
+    }
+  }
+
+  async function mutate(action: () => Promise<unknown>) {
+    setRuntimeError(null);
+    try {
+      await action();
+    } catch (caught) {
+      setRuntimeError(describe(caught));
+    }
+  }
 
   async function create() {
     setCreating(true);
@@ -102,15 +116,17 @@ export default function WorkstationPage() {
    * rather than discarding a result the reader has already seen.
    */
   async function run(cellId: string, source: string) {
-    if (!detail) return;
+    if (!detail || executing.current) return;
+    executing.current = true;
     setRunningCell(cellId);
     setRuntimeError(null);
     setProgress(isRuntimeReady() ? "Running…" : "Starting Python…");
 
     try {
-      await analyses.saveCell(detail.id, cellId, { source });
+      await saveCell(detail.id, cellId, source);
       const result = await runCell(source, setProgress);
       await analyses.recordRun(detail.id, cellId, {
+        source,
         output: result.output,
         image: result.image,
         error: result.error,
@@ -120,6 +136,7 @@ export default function WorkstationPage() {
     } catch (caught) {
       setRuntimeError(describe(caught));
     } finally {
+      executing.current = false;
       setRunningCell(null);
       setProgress(null);
     }
@@ -127,8 +144,11 @@ export default function WorkstationPage() {
 
   async function addCell(kind: "code" | "markdown") {
     if (!detail) return;
-    await analyses.addCell(detail.id, { kind });
-    await refresh();
+    await mutate(async () => {
+      await analyses.addCell(detail.id, { kind });
+      await refresh();
+      list.reload();
+    });
   }
 
   const cells = detail?.cells ?? [];
@@ -142,7 +162,7 @@ export default function WorkstationPage() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[220px_1fr]">
         <aside className="lg:sticky lg:top-4 lg:self-start">
-          <Button size="sm" onClick={create} disabled={creating} className="w-full">
+          <Button size="sm" onClick={create} disabled={creating || !!runningCell} className="w-full">
             <Plus aria-hidden className="size-4" />
             New analysis
           </Button>
@@ -163,7 +183,13 @@ export default function WorkstationPage() {
                 <li key={entry.id}>
                   <button
                     type="button"
-                    onClick={() => setSelectedId(entry.id)}
+                    disabled={!!runningCell}
+                    onClick={() => {
+                      if (entry.id === selectedId) return;
+                      setDetail(null);
+                      setRuntimeError(null);
+                      setSelectedId(entry.id);
+                    }}
                     aria-current={entry.id === selectedId}
                     className={cn(
                       "w-full truncate rounded-md px-2.5 py-2 text-left text-[13px] transition-colors",
@@ -184,6 +210,9 @@ export default function WorkstationPage() {
         </aside>
 
         <section>
+          {runtimeError && (
+            <p role="alert" className="mb-3 text-sm text-danger">{runtimeError}</p>
+          )}
           {!detail ? (
             list.status === "loading" ? (
               <Skeleton className="h-64 w-full" />
@@ -200,9 +229,13 @@ export default function WorkstationPage() {
                 <input
                   value={detail.title}
                   onChange={(event) => setDetail({ ...detail, title: event.target.value })}
-                  onBlur={(event) =>
-                    void analyses.update(detail.id, { title: event.target.value }).then(list.reload)
-                  }
+                  onBlur={(event) => {
+                    const title = event.target.value;
+                    void mutate(async () => {
+                      await analyses.update(detail.id, { title });
+                      list.reload();
+                    });
+                  }}
                   aria-label="Analysis title"
                   className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 text-[15px] font-medium text-ink hover:border-border focus-visible:border-border focus-visible:outline-none"
                 />
@@ -227,7 +260,8 @@ export default function WorkstationPage() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={resetNamespace}
+                  disabled={!!runningCell}
+                  onClick={() => void mutate(async () => resetNamespace())}
                   title="Forget every variable, keeping Python loaded"
                 >
                   <RotateCcw aria-hidden className="size-4" />
@@ -236,23 +270,19 @@ export default function WorkstationPage() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={async () => {
+                  disabled={!!runningCell}
+                  onClick={() => void mutate(async () => {
                     await analyses.remove(detail.id);
+                    const remaining = (list.data ?? []).filter((entry) => entry.id !== detail.id);
+                    list.set(remaining);
                     setDetail(null);
-                    setSelectedId(null);
-                    list.reload();
-                  }}
+                    setSelectedId(remaining[0]?.id ?? null);
+                  })}
                   aria-label="Delete this analysis"
                 >
                   <Trash2 aria-hidden className="size-4" />
                 </Button>
               </Card>
-
-              {runtimeError && (
-                <p role="alert" className="mt-3 text-sm text-danger">
-                  {runtimeError}
-                </p>
-              )}
 
               <div className="mt-3 space-y-3">
                 {cells.map((cell, index) => (
@@ -261,17 +291,22 @@ export default function WorkstationPage() {
                     cell={cell}
                     index={index}
                     running={runningCell === cell.id}
+                    busy={!!runningCell}
                     progress={progress}
                     canDelete={cells.length > 1}
                     onSave={(source) => {
-                      void analyses
-                        .saveCell(detail.id, cell.id, { source })
+                      void saveCell(detail.id, cell.id, source)
                         .then(refresh)
                         .catch((caught) => setRuntimeError(describe(caught)));
                     }}
                     onRun={(source) => void run(cell.id, source)}
-                    onMove={(offset) => void analyses.moveCell(detail.id, cell.id, offset).then(refresh)}
-                    onDelete={() => void analyses.removeCell(detail.id, cell.id).then(refresh)}
+                    onMove={(offset) => void mutate(() => analyses.moveCell(detail.id, cell.id, offset).then(refresh))}
+                    onDelete={() => void mutate(async () => {
+                      await pendingSaves.current.get(cell.id);
+                      await analyses.removeCell(detail.id, cell.id);
+                      await refresh();
+                      list.reload();
+                    })}
                   />
                 ))}
               </div>

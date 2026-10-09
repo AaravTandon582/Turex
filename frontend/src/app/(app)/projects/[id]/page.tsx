@@ -54,6 +54,7 @@ export default function ProjectPage() {
       ]);
       setProject(loaded);
       setHypotheses(loadedHypotheses);
+      setError(null);
     } catch (caught) {
       setError(
         caught instanceof ApiError && caught.code === "not_found"
@@ -152,8 +153,12 @@ export default function ProjectPage() {
           size="sm"
           className="text-ink-subtle hover:text-danger"
           onClick={async () => {
-            await workspace.deleteProject(id);
-            router.push("/projects");
+            try {
+              await workspace.deleteProject(id);
+              router.push("/projects");
+            } catch (caught) {
+              setError(describe(caught));
+            }
           }}
         >
           Delete project
@@ -170,6 +175,7 @@ export default function ProjectPage() {
 function ResearchQuestion({ project, onSaved }: { project: Project; onSaved: () => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(project.research_question ?? "");
+  const [error, setError] = useState<string | null>(null);
 
   if (!editing) {
     return (
@@ -205,11 +211,16 @@ function ResearchQuestion({ project, onSaved }: { project: Project; onSaved: () 
         <Button
           size="sm"
           onClick={async () => {
-            await workspace.updateProject(project.id, {
-              research_question: draft.trim() || null,
-            });
-            setEditing(false);
-            onSaved();
+            try {
+              await workspace.updateProject(project.id, {
+                research_question: draft.trim() || null,
+              });
+              setError(null);
+              setEditing(false);
+              onSaved();
+            } catch (caught) {
+              setError(describe(caught));
+            }
           }}
         >
           Save
@@ -218,6 +229,7 @@ function ResearchQuestion({ project, onSaved }: { project: Project; onSaved: () 
           Cancel
         </Button>
       </div>
+      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
     </div>
   );
 }
@@ -246,7 +258,7 @@ function PapersPanel({ projectId, onChanged }: { projectId: string; onChanged: (
     void papersApi
       .list({ status: "ready", limit: 50 })
       .then((page) => setLibrary(page.items))
-      .catch(() => undefined);
+      .catch((caught) => setLoadError(describe(caught)));
   }, [picking]);
 
   const attachedIds = new Set(attached.map((paper) => paper.paper_id));
@@ -278,9 +290,13 @@ function PapersPanel({ projectId, onChanged }: { projectId: string; onChanged: (
                     type="button"
                     disabled={attachedIds.has(paper.id)}
                     onClick={async () => {
-                      await workspace.attachPaper(projectId, paper.id);
-                      await reload();
-                      onChanged();
+                      try {
+                        await workspace.attachPaper(projectId, paper.id);
+                        await reload();
+                        onChanged();
+                      } catch (caught) {
+                        setLoadError(describe(caught));
+                      }
                     }}
                     className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[13px] text-ink transition-colors hover:bg-surface-hover disabled:opacity-50"
                   >
@@ -323,9 +339,13 @@ function PapersPanel({ projectId, onChanged }: { projectId: string; onChanged: (
                   type="button"
                   aria-label={`Remove ${paper.title} from this project`}
                   onClick={async () => {
-                    await workspace.detachPaper(projectId, paper.paper_id);
-                    await reload();
-                    onChanged();
+                    try {
+                      await workspace.detachPaper(projectId, paper.paper_id);
+                      await reload();
+                      onChanged();
+                    } catch (caught) {
+                      setLoadError(describe(caught));
+                    }
                   }}
                   className="shrink-0 rounded-sm p-1 text-ink-subtle hover:text-danger"
                 >
@@ -366,8 +386,12 @@ function NotesPanel({ projectId }: { projectId: string }) {
           size="sm"
           variant="secondary"
           onClick={async () => {
-            await workspace.createNote({ project_id: projectId, content: "" });
-            await reload();
+            try {
+              await workspace.createNote({ project_id: projectId, content: "" });
+              await reload();
+            } catch (caught) {
+              setLoadError(describe(caught));
+            }
           }}
         >
           <Plus aria-hidden />
@@ -431,10 +455,14 @@ function TasksPanel({ projectId, onChanged }: { projectId: string; onChanged: ()
         onSubmit={async (event) => {
           event.preventDefault();
           if (!title.trim()) return;
-          await workspace.createTask(projectId, title);
-          setTitle("");
-          await reload();
-          onChanged();
+          try {
+            await workspace.createTask(projectId, title);
+            setTitle("");
+            await reload();
+            onChanged();
+          } catch (caught) {
+            setLoadError(describe(caught));
+          }
         }}
       >
         <input
@@ -466,11 +494,15 @@ function TasksPanel({ projectId, onChanged }: { projectId: string; onChanged: ()
                   aria-checked={task.status === "done"}
                   aria-label={task.title}
                   onClick={async () => {
-                    await workspace.updateTask(task.id, {
-                      status: task.status === "done" ? "todo" : "done",
-                    });
-                    await reload();
-                    onChanged();
+                    try {
+                      await workspace.updateTask(task.id, {
+                        status: task.status === "done" ? "todo" : "done",
+                      });
+                      await reload();
+                      onChanged();
+                    } catch (caught) {
+                      setLoadError(describe(caught));
+                    }
                   }}
                   className={cn(
                     "flex size-4 shrink-0 items-center justify-center rounded-xs border transition-colors",
@@ -495,9 +527,13 @@ function TasksPanel({ projectId, onChanged }: { projectId: string; onChanged: ()
                   type="button"
                   aria-label={`Delete ${task.title}`}
                   onClick={async () => {
-                    await workspace.deleteTask(task.id);
-                    await reload();
-                    onChanged();
+                    try {
+                      await workspace.deleteTask(task.id);
+                      await reload();
+                      onChanged();
+                    } catch (caught) {
+                      setLoadError(describe(caught));
+                    }
                   }}
                   className="shrink-0 rounded-sm p-1 text-ink-subtle hover:text-danger"
                 >

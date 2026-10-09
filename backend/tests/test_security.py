@@ -19,6 +19,7 @@ from httpx import AsyncClient
 from tests.support.pdf_builder import build_pdf
 from turex.core.config import Settings
 from turex.core.logging import redact
+from turex.main import create_app
 
 REPOSITORY = pathlib.Path(__file__).resolve().parents[2]
 BACKEND_SOURCE = REPOSITORY / "backend" / "turex"
@@ -118,6 +119,80 @@ class TestProductionConfiguration:
             debug=False,
         )
         assert settings.check_production_readiness() == []
+
+    def test_an_insecure_production_configuration_stops_the_application_starting(self) -> None:
+        """The tests above prove the problems are *found*. This proves they are acted on.
+
+        They were not: startup logged each problem as critical and served anyway, so the only
+        evidence of a production deployment signing sessions with the key published in
+        `.env.example` was one line in a log stream nobody reads on a first deploy. The two
+        tests above are named "refused", and a comment in `api/deps.py` claimed the same.
+        """
+        insecure = Settings(
+            environment="production",
+            secret_key="dev-only-insecure-key-change-me",
+            cookie_secure=False,
+            debug=True,
+        )
+
+        with pytest.raises(RuntimeError, match="insecure configuration"):
+            create_app(insecure)
+
+    def test_a_correct_production_configuration_still_starts(self) -> None:
+        """The guard must refuse the insecure case only — a fail-closed check that refuses
+        everything is the same outage with a better excuse."""
+        secure = Settings(
+            environment="production",
+            secret_key="a-genuinely-long-and-random-production-value-0123456789",
+            cookie_secure=True,
+            debug=False,
+        )
+
+        assert create_app(secure) is not None
+
+
+class TestUnstorableCharactersInAQueryString:
+    """A null byte in a query parameter returned 500 from a URL anyone could type.
+
+    `TurexModel` cleans every string in a request body in one place, and a query parameter
+    declared as a model — `PaperFilters` — inherits that. Three were declared as bare
+    annotated strings instead and inherited nothing: the catalog's `q` and `category`, and the
+    assistant's semantic search. Cleaned at the ASGI boundary now, so a parameter added later
+    is covered without anyone remembering this.
+    """
+
+    NULL_BYTE = "ok%00hidden"
+
+    @pytest.mark.parametrize(
+        "path",
+        ["/catalog/search?q={value}", "/catalog/search?category={value}", "/papers?search={value}"],
+    )
+    async def test_a_null_byte_is_stripped_rather_than_raising(
+        self, registered_client: AsyncClient, api: str, path: str
+    ) -> None:
+        response = await registered_client.get(api + path.format(value=self.NULL_BYTE))
+
+        assert response.status_code == 200, response.text
+
+    async def test_the_surviving_text_still_searches(
+        self, registered_client: AsyncClient, api: str
+    ) -> None:
+        """Cleaning must remove the byte, not the query — a search that silently becomes a
+        different search is worse than an error."""
+        response = await registered_client.get(f"{api}/catalog/search?q=trans%00former")
+
+        assert response.status_code == 200
+        # The parameter arrived as "transformer", so the endpoint saw a real query.
+        assert response.json()["total"] >= 0
+
+    async def test_an_ordinary_query_string_is_left_alone(
+        self, registered_client: AsyncClient, api: str
+    ) -> None:
+        """The rewrite happens only when something was removed, so normal requests keep the
+        query string they were sent, byte for byte."""
+        response = await registered_client.get(f"{api}/papers?search=a%20b%2Bc&limit=5")
+
+        assert response.status_code == 200
 
 
 class TestSensitiveDataNeverLeaves:

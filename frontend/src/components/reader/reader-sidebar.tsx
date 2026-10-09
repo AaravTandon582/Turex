@@ -26,6 +26,7 @@ import {
   type HighlightColour,
 } from "@/lib/annotations";
 import { cn } from "@/lib/cn";
+import { describe } from "@/lib/use-async";
 import type { PaperSection } from "@/lib/papers";
 
 type Tab = "outline" | "highlights" | "equations" | "references" | "cite";
@@ -205,12 +206,16 @@ function HighlightEntry({
   const [note, setNote] = useState(annotation.note ?? "");
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
     try {
       await action();
+      setError(null);
       onChanged();
+    } catch (caught) {
+      setError(describe(caught));
     } finally {
       setBusy(false);
     }
@@ -232,6 +237,8 @@ function HighlightEntry({
           {annotation.selected_text}
         </span>
       </button>
+
+      {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
 
       {editing ? (
         <div className="mt-2 space-y-1.5">
@@ -321,15 +328,17 @@ function HighlightEntry({
 function Citations({ paperId }: { paperId: string }) {
   const [bundle, setBundle] = useState<CitationBundle | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void annotationsApi
       .citations(paperId)
-      .then(setBundle)
-      .catch(() => setBundle(null));
+      .then((loaded) => { setBundle(loaded); setError(null); })
+      .catch((caught) => setError(describe(caught)));
   }, [paperId]);
 
   if (!bundle) {
+    if (error) return <p role="alert" className="text-sm text-danger">{error}</p>;
     return (
       <div className="space-y-3" aria-busy>
         <Skeleton className="h-20 w-full rounded-md" />
@@ -343,6 +352,7 @@ function Citations({ paperId }: { paperId: string }) {
 
   return (
     <div className="space-y-3">
+      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       {gaps.length > 0 && (
         <p className="rounded-md border border-warning/30 bg-warning-soft px-2.5 py-2 text-[12px] leading-relaxed text-ink">
           Turex doesn&rsquo;t know this paper&rsquo;s {gaps.join(", ")}. It leaves those out
@@ -359,9 +369,14 @@ function Citations({ paperId }: { paperId: string }) {
             <button
               type="button"
               onClick={async () => {
-                await navigator.clipboard.writeText(format.text);
-                setCopied(format.style);
-                setTimeout(() => setCopied(null), 1600);
+                try {
+                  await navigator.clipboard.writeText(format.text);
+                  setError(null);
+                  setCopied(format.style);
+                  setTimeout(() => setCopied(null), 1600);
+                } catch {
+                  setError("Couldn't copy. Select the citation text and copy it manually.");
+                }
               }}
               className="flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[11px] text-ink-subtle hover:text-ink"
             >

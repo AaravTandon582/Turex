@@ -93,7 +93,7 @@ class ProviderRegistry:
     def embeddings_available(self) -> bool:
         if self._settings.embedding_provider == LOCAL_EMBEDDING_PROVIDER:
             return True
-        return bool(self._settings.openai_api_key)
+        return self._settings.embedding_provider == "openai" and bool(self._settings.openai_api_key)
 
     def embedder(self) -> EmbeddingProvider:
         if self._embedder is not None:

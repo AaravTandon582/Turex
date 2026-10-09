@@ -68,9 +68,13 @@ export function ExperimentPanel({
         onSubmit={async (event) => {
           event.preventDefault();
           if (!title.trim()) return;
-          await workspace.createExperiment({ title, project_id: projectId });
-          setTitle("");
-          await reload();
+          try {
+            await workspace.createExperiment({ title, project_id: projectId });
+            setTitle("");
+            await reload();
+          } catch (caught) {
+            setLoadError(describe(caught));
+          }
         }}
       >
         <input
@@ -123,15 +127,22 @@ function ExperimentCard({
   onChanged: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const linked = hypotheses.find((hypothesis) => hypothesis.id === experiment.hypothesis_id);
 
   async function save(field: string, value: string) {
-    await workspace.updateExperiment(experiment.id, { [field]: value || null });
-    onChanged();
+    try {
+      await workspace.updateExperiment(experiment.id, { [field]: value || null });
+      setError(null);
+      onChanged();
+    } catch (caught) {
+      setError(describe(caught));
+    }
   }
 
   return (
     <Card className="p-4">
+      {error && <p role="alert" className="mb-2 text-sm text-danger">{error}</p>}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-[14px] font-medium text-ink">{experiment.title}</h3>
@@ -197,8 +208,12 @@ function ExperimentCard({
           type="button"
           aria-label="Delete experiment"
           onClick={async () => {
-            await workspace.deleteExperiment(experiment.id);
-            onChanged();
+            try {
+              await workspace.deleteExperiment(experiment.id);
+              onChanged();
+            } catch (caught) {
+              setError(describe(caught));
+            }
           }}
           className="ml-auto rounded-sm p-1 text-ink-subtle hover:text-danger"
         >

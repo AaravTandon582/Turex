@@ -85,6 +85,13 @@ export function PdfPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [annotations, pageNumber]);
 
+  // react-pdf rebuilds the text layer when this callback changes. Keep it stable while
+  // measuring, or each measurement would erase the selection and start another render.
+  const handleTextLayerSuccess = useCallback(() => {
+    setRendered(true);
+    measure();
+  }, [measure]);
+
   useEffect(() => {
     if (rendered) measure();
   }, [rendered, measure, width]);
@@ -125,7 +132,7 @@ export function PdfPage({
         width={width}
         renderTextLayer
         renderAnnotationLayer={false}
-        onRenderSuccess={() => setRendered(true)}
+        onRenderTextLayerSuccess={handleTextLayerSuccess}
         loading={
           <div
             className="animate-[var(--animate-shimmer)] bg-surface-sunken"
@@ -140,6 +147,7 @@ export function PdfPage({
           (rects.get(annotation.id) ?? []).map((rect, index) => (
             <button
               key={`${annotation.id}-${index}`}
+              data-annotation-id={annotation.id}
               type="button"
               tabIndex={-1}
               onClick={() => onHighlightClick(annotation.id)}
